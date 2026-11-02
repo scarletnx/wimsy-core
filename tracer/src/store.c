@@ -222,17 +222,19 @@ long st_report_of(Store* s, u64 message) {
     return id;
 }
 
-int st_counts(Store* s, long report, int* logs, int* images) {
+int st_counts(Store* s, long report, int* logs, int* images, int* videos) {
     sqlite3_stmt* q = prepared(s, "SELECT coalesce(max(n), 0), coalesce(sum(kind = 'log'), 0),"
-                                  " coalesce(sum(kind = 'image'), 0) FROM files WHERE report = ?");
+                                  " coalesce(sum(kind = 'image'), 0), coalesce(sum(kind = 'video'), 0) FROM files"
+                                  " WHERE report = ?");
     int last = 0;
-    *logs = *images = 0;
+    *logs = *images = *videos = 0;
     if (!q) return 0;
     sqlite3_bind_int64(q, 1, report);
     if (sqlite3_step(q) == SQLITE_ROW) {
         last = sqlite3_column_int(q, 0);
         *logs = sqlite3_column_int(q, 1);
         *images = sqlite3_column_int(q, 2);
+        *videos = sqlite3_column_int(q, 3);
     }
     sqlite3_finalize(q);
     return last;

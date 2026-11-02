@@ -271,10 +271,11 @@ static cJSON* deleted(Tracer* t, const TrMessage* m, long id) {
 }
 
 typedef struct {
-    StFile files[TR_LOGS + TR_IMAGES];
-    char* data[TR_LOGS + TR_IMAGES]; /* each file's bytes, owned */
-    int n, logs, images;
-    int base, logs_had, images_had; /* a report's last file number, its logs and screenshots, before these */
+    StFile files[TR_LOGS + TR_IMAGES + TR_VIDEOS];
+    char* data[TR_LOGS + TR_IMAGES + TR_VIDEOS]; /* each file's bytes, owned */
+    int n, logs, images, videos;
+    int base, logs_had, images_had, videos_had; /* a report's last file number, its logs, screenshots and videos, before
+                                                   these */
     cJSON* first;                   /* the first log's summary */
     Buf skipped;                    /* a line for each attachment not taken */
 } Taken;
@@ -370,12 +371,38 @@ static void take_image(Taken* k, const TrAttachment* a, Buf* got) {
     ++k->images;
 }
 
+/* an MP4 or a WebM, an MP4's place and camera blanked */
+static void take_video(Taken* k, const TrAttachment* a, Buf* got) {
+    const char* ext = tr_video_ext(got->text, got->len);
+    size_t n = ext ? tr_strip_video(got->text, got->len) : 0;
+    StFile* f;
+    if (!n) {
+        skip(k, a->name, "not an MP4 or WebM video");
+        return;
+    }
+    f = &k->files[k->n];
+    f->n = k->base + k->n + 1;
+    strcpy(f->kind, "video");
+    f->name = rei_strdup(a->name);
+    f->path = rei_format("%d.%s", f->n, ext);
+    f->bytes = (double)n;
+    k->data[k->n++] = buf_take(got);
+    ++k->videos;
+}
+
+/* what a message added, as the reply says it: "1 log, 2 screenshots, 1 video", the videos only when there are */
+static char* kept(const Taken* k, const char* more) {
+    return rei_format("%d %s, %d %s%s%s", k->logs, k->logs == 1 ? "log" : "logs", k->images,
+                      k->images == 1 ? "screenshot" : "screenshots",
+                      k->videos ? (k->videos == 1 ? ", 1 video" : ", 2 videos") : "", more);
+}
+
 static void take(Tracer* t, Taken* k, const TrMessage* m) {
     int i;
     for (i = 0; i < m->nfiles; ++i) {
         const TrAttachment* a = &m->files[i];
         TrKind kind = tr_kind(a->name, a->type);
-        size_t max = kind == TR_LOG ? TR_LOG_MAX : TR_IMAGE_MAX;
+        size_t max = kind == TR_LOG ? TR_LOG_MAX : kind == TR_VIDEO ? TR_VIDEO_MAX : TR_IMAGE_MAX;
         Buf got = {0};
         char* why = NULL;
         if (kind == TR_OTHER) {
@@ -384,6 +411,10 @@ static void take(Tracer* t, Taken* k, const TrMessage* m) {
         }
         if (kind == TR_LOG && k->logs_had + k->logs >= TR_LOGS) {
             skip(k, a->name, "a report keeps 3 logs");
+            continue;
+        }
+        if (kind == TR_VIDEO && k->videos_had + k->videos >= TR_VIDEOS) {
+            skip(k, a->name, "a report keeps 2 videos");
             continue;
         }
         if (kind == TR_IMAGE && k->images_had + k->images >= TR_IMAGES) {
@@ -408,6 +439,8 @@ static void take(Tracer* t, Taken* k, const TrMessage* m) {
         }
         if (kind == TR_LOG)
             take_log(k, a, &got);
+        else if (kind == TR_VIDEO)
+            take_video(k, a, &got);
         else
             take_image(k, a, &got);
         buf_free(&got);
@@ -438,8 +471,7 @@ static cJSON* made(Tracer* t, const StReport* r, const Taken* k) {
         free(clean);
         free(build);
     }
-    files = rei_format("%d %s, %d %s", k->logs, k->logs == 1 ? "log" : "logs", k->images,
-                       k->images == 1 ? "screenshot" : "screenshots");
+    files = kept(k, "");
     add_field(e, "Kept", files);
     if (k->skipped.len) {
         char* skipped = plain(k->skipped.text, 1000);
@@ -609,7 +641,7 @@ static cJSON* updated(Tracer* t, const TrMessage* m, long id, const char* note, 
     Taken k;
     char *text, *added, *old = NULL, *url;
     cJSON* e;
-    int logs, images;
+    int logs, images, videos;
     if (st_report_of(t->store, m->id)) return NULL; /* the gateway's event again, after a resume */
     if (st_get(t->store, id, &r, NULL, NULL) != 1) {
         text = rei_format("There is no report #%ld.", id);
@@ -631,9 +663,10 @@ static cJSON* updated(Tracer* t, const TrMessage* m, long id, const char* note, 
         return said("Nothing to add: attach logs or screenshots, or write a note.");
     }
     memset(&k, 0, sizeof k);
-    k.base = st_counts(t->store, id, &logs, &images);
+    k.base = st_counts(t->store, id, &logs, &images, &videos);
     k.logs_had = logs;
     k.images_had = images;
+    k.videos_had = videos;
     take(t, &k, m);
     if (!k.n && !*note) {
         text = rei_format("Nothing was added to report #%ld:\n%s", id, k.skipped.text ? k.skipped.text : "");
@@ -657,8 +690,7 @@ static cJSON* updated(Tracer* t, const TrMessage* m, long id, const char* note, 
     site_update(t->store, t->root, id, r.key);
     rei_log("report #%ld: %d logs, %d screenshots%s added", id, k.logs, k.images, *note ? ", a note" : "");
     text = rei_format("Report #%ld: %s", id, r.title);
-    added = rei_format("%d %s, %d %s%s", k.logs, k.logs == 1 ? "log" : "logs", k.images,
-                       k.images == 1 ? "screenshot" : "screenshots", *note ? ", a note" : "");
+    added = kept(&k, *note ? ", a note" : "");
     url = rei_format("%s/r/%ld/", t->url, id);
     {
         char* cut = plain(text, 250);

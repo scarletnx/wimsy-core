@@ -59,8 +59,8 @@ char* st_title_of_key(Store* s, const char* key);
 int st_link(Store* s, u64 message, long report);
 /* the report a message leads to: the one it sent, updated or answered; 0 for none */
 long st_report_of(Store* s, u64 message);
-/* report's files: the last one's number, and how many are logs and screenshots */
-int st_counts(Store* s, long report, int* logs, int* images);
+/* report's files: the last one's number, and how many are logs, screenshots and videos */
+int st_counts(Store* s, long report, int* logs, int* images, int* videos);
 /* files (their numbers set) and a note (NULL or "" for none) added to report by message, which then leads to it: 0,
    or -1 said in the log, nothing added */
 int st_update(Store* s, long report, u64 message, double when, const StFile* files, int nfiles, const char* note);

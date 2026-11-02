@@ -7,8 +7,9 @@
 #define TR_FILES_H
 #include "tracer.h"
 
-typedef enum { TR_OTHER, TR_LOG, TR_IMAGE } TrKind;
-/* by the file's name (.log, .txt, .gz, .zip; .png, .jpg, .jpeg, .webp, .gif, .ppm) or Discord's content type */
+typedef enum { TR_OTHER, TR_LOG, TR_IMAGE, TR_VIDEO } TrKind;
+/* by the file's name (.log, .txt, .gz, .zip; .png, .jpg, .jpeg, .webp, .gif, .ppm; .mp4, .m4v, .webm) or Discord's
+   content type */
 TrKind tr_kind(const char* name, const char* type);
 
 /* the image's kind from its first bytes: "png", "jpg", "gif", "webp" or "ppm" (a binary PPM, P6, which ScarletNX's
@@ -18,6 +19,14 @@ const char* tr_image_ext(const char* data, size_t n);
    ICC's APP2 and Adobe's APP14) and comments, WebP's EXIF and XMP chunks. Its new length, or 0 for an image whose
    structure is broken (the caller keeps none of it). A GIF stays as it is */
 size_t tr_strip_image(char* data, size_t n);
+
+/* the video's kind from its first bytes: "mp4" (an ftyp box first) or "webm" (EBML, its doctype webm); NULL for
+   neither */
+const char* tr_video_ext(const char* data, size_t n);
+/* an MP4's place and camera blanked in place (the boxes ©xyz, loci, ©mak and ©mod, each made a free box of zeros, so
+   that nothing moves and the offsets into it stay right): n, or 0 for an MP4 whose boxes are broken. A WebM stays as it
+   is */
+size_t tr_strip_video(char* data, size_t n);
 
 /* a binary PPM (P6, 255 at most a channel, comments allowed in its header) as a PNG, which browsers show: 0, or -1 for
    a PPM that isn't whole or is bigger than 16384 pixels a side */

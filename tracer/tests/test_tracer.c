@@ -222,6 +222,8 @@ static void test_kind_and_text(void) {
     CHECK(tr_kind("message", "text/plain; charset=utf-8") == TR_LOG);
     CHECK(tr_kind("shot", "image/png") == TR_IMAGE);
     CHECK(tr_kind("frame-0-01.PPM", "") == TR_IMAGE);
+    CHECK(tr_kind("clip.MP4", "") == TR_VIDEO && tr_kind("clip.webm", "") == TR_VIDEO);
+    CHECK(tr_kind("clip", "video/quicktime") == TR_VIDEO);
     CHECK(tr_kind("game.exe", "application/octet-stream") == TR_OTHER);
     t = tr_utf8("a\xf7"
                 "b\xc3\xa9"
@@ -253,6 +255,22 @@ static size_t chunk(char* to, const char* type, const char* data, size_t n) {
     memset(to + 8 + n, 0, 4);
     return 12 + n;
 }
+/* an MP4 of a phone: its ftyp, a moov with udta's place (©xyz) and meta's make (©mak), then its media */
+static size_t mp4(char* to, size_t room) {
+    static const unsigned char box[] = {
+        0,   0,   0,   16,  'f',  't', 'y', 'p', 'i', 's', 'o', 'm', 0,   0,   2,   0,         /* ftyp, 16 */
+        0,   0,   0,   74,  'm',  'o', 'o', 'v',                                               /* moov, 8 + 30 + 36 */
+        0,   0,   0,   30,  'u',  'd', 't', 'a',                                               /* udta, 8 + 22 */
+        0,   0,   0,   22,  0xa9, 'x', 'y', 'z', '+', '4', '0', '.', '7', '1', '2', '8',       /* ©xyz, 8 + 14 */
+        '-', '0', '7', '4', '.',  '0', 0,   0,   0,   36,  'm', 'e', 't', 'a', 0,   0,   0, 0, /* meta, 12 + 24 */
+        0,   0,   0,   24,  'i',  'l', 's', 't',                                               /* ilst, 8 + 16 */
+        0,   0,   0,   16,  0xa9, 'm', 'a', 'k', 'S', 'o', 'm', 'e', 'P', 'h', 'o', 'n',       /* ©mak, 8 + 8 */
+        0,   0,   0,   16,  'm',  'd', 'a', 't', 'f', 'r', 'a', 'm', 'e', 's', '!', '!'};      /* mdat, 16 */
+    if (room < sizeof box) return 0;
+    memcpy(to, box, sizeof box);
+    return sizeof box;
+}
+
 static void test_images(void) {
     char png[256] = {0}, jpg[64] = {0}, webp[128] = {0};
     size_t n = 8, m;
@@ -294,6 +312,21 @@ static void test_images(void) {
     CHECK(!found(webp, m, "EXIF") && found(webp, m, "px!"));
     SAME(tr_image_ext("GIF89a...", 9), "gif");
     SAME(tr_image_ext("P6\n2 1\n255\n", 11), "ppm");
+    {
+        /* an MP4's place and make blanked where they are, its length and media as they were */
+        char clip[256];
+        size_t len = mp4(clip, sizeof clip);
+        SAME(tr_video_ext(clip, len), "mp4");
+        CHECK(tr_strip_video(clip, len) == len);
+        CHECK(!found(clip, len, "\xa9xyz") && !found(clip, len, "+40.71") && !found(clip, len, "SomePhon"));
+        CHECK(found(clip, len, "frames!!") && found(clip, len, "udta") && found(clip, len, "ilst"));
+        len = mp4(clip, sizeof clip);
+        clip[19] = 100; /* moov's size past the file */
+        CHECK(!tr_strip_video(clip, len));
+        SAME(tr_video_ext("\x1a\x45\xdf\xa3\x9f\x42\x82\x84webm", 12), "webm");
+        CHECK(!tr_video_ext("\x1a\x45\xdf\xa3\x9f\x42\x82\x88matroska", 16)); /* Matroska, not WebM */
+        CHECK(!tr_video_ext("RIFF....AVI ", 12));
+    }
     {
         /* a PPM with a comment, as a PNG: its header, and its pixels after each row's filter byte */
         static const char ppm[] = "P6\n# a frame\n2 1\n255\nRGBrgb";
@@ -753,12 +786,21 @@ static void test_reports(void) {
         m = message(4006, 101, "<@99> add #16");
         attach(&m, "shot.png", "https://cdn.discordapp.com/1/shot.png", (double)npng);
         attach(&m, "frame-0-01.ppm", "https://cdn.discordapp.com/1/frame.ppm", 22);
+        {
+            static char clip[256];
+            serve("https://cdn.discordapp.com/1/clip.mp4", clip, mp4(clip, sizeof clip));
+        }
+        attach(&m, "clip.mp4", "https://cdn.discordapp.com/1/clip.mp4", 90);
+        attach(&m, "again.mp4", "https://cdn.discordapp.com/1/clip.mp4", 90);
+        attach(&m, "third.mp4", "https://cdn.discordapp.com/1/clip.mp4", 90);
         t = answer_text(respond(&m));
-        HAS(t, "0 logs, 2 screenshots");
+        HAS(t, "0 logs, 2 screenshots, 2 videos");
+        HAS(t, "third.mp4: a report keeps 2 videos");
         free(t);
         tr_message_free(&m);
         p = page("r/16/index.html");
         HAS(p, "<img src=\"6.png\" alt=\"frame-0-01.ppm\"");
+        HAS(p, "<video controls preload=\"metadata\" src=\"7.mp4\"></video>");
         free(p);
         path = at("r/16/6.png");
         p = read_file(path, NULL);
@@ -963,7 +1005,7 @@ static void test_upgrade(void) {
     CHECK(s != NULL);
     if (s) {
         CHECK(st_report_of(s, 7777) == 1);
-        CHECK(st_counts(s, 1, &nfiles, &nfiles) == 1);
+        CHECK(st_counts(s, 1, &nfiles, &nfiles, &nfiles) == 1);
         CHECK(!st_update(s, 1, 7778, 2, NULL, 0, "a note"));
         CHECK(st_take_back(s, 7778, &files, &nfiles) == 1 && nfiles == 0);
         st_files_free(files, nfiles);

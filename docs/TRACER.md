@@ -16,6 +16,10 @@ A message that mentions it with a ScarletNX log attached becomes a report:
 - Its screenshots (PNG, JPEG, WebP, GIF or PPM, read from their bytes; 8 at most, 25 MiB each) lose their metadata:
   EXIF and its place and camera, XMP, PNG's text and time, JPEG's comments. A PPM, the frames ScarletNX's runtimes
   save (P6, 8 bits a channel), is kept as a PNG, which a browser shows.
+- Its videos (MP4 or WebM, read from their bytes; 2 at most, 100 MiB each) are played on the report's page. An MP4's
+  place and camera (its ©xyz, loci, ©mak and ©mod boxes) are blanked where they are, as free boxes of zeros, so that
+  nothing in it moves; a WebM is kept as it is. The web server must allow them (`media-src 'self'` in
+  `tracer-nginx.conf`).
 - The game is the first log's, of the console its runtime's header says: the Switch, the 3DS, the Vita or the GBA.
   Its key is its title ID (the GBA's: `gba-` and its game code), else `n-`, the console's name but the Switch's, and
   its name. A log that has the title ID alone takes the name other reports' logs gave the game, else the name

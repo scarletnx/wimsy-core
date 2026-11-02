@@ -210,6 +210,10 @@ h3 { font-size: 1rem; margin: 22px 0 8px; color: var(--muted); }
 .gallery a { display: block; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); background: #000; }
 .gallery a:hover { box-shadow: var(--glow); }
 .gallery img { display: block; width: 100%; height: auto; }
+.videos { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); }
+.videos figure { margin: 0; }
+.videos video { display: block; width: 100%; border-radius: 10px; border: 1px solid var(--line); background: #000; }
+.videos figcaption { margin-top: 6px; font-size: 0.85em; color: var(--muted); overflow-wrap: anywhere; }
 
 .log { margin-top: 12px; padding-top: 4px; border-top: 1px solid var(--line); }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }

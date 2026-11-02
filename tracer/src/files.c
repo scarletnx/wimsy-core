@@ -16,12 +16,16 @@ static int ends(const char* name, const char* ext) {
 TrKind tr_kind(const char* name, const char* type) {
     static const char* const logs[] = {".log", ".txt", ".gz", ".zip"};
     static const char* const images[] = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".ppm"};
+    static const char* const videos[] = {".mp4", ".m4v", ".webm"};
     size_t i;
     for (i = 0; i < sizeof logs / sizeof *logs; ++i)
         if (ends(name, logs[i])) return TR_LOG;
     for (i = 0; i < sizeof images / sizeof *images; ++i)
         if (ends(name, images[i])) return TR_IMAGE;
+    for (i = 0; i < sizeof videos / sizeof *videos; ++i)
+        if (ends(name, videos[i])) return TR_VIDEO;
     if (!strncmp(type, "image/", 6)) return TR_IMAGE;
+    if (!strncmp(type, "video/", 6)) return TR_VIDEO;
     if (!strncmp(type, "text/plain", 10)) return TR_LOG;
     return TR_OTHER;
 }
@@ -128,6 +132,57 @@ size_t tr_strip_image(char* data, size_t n) {
     if (!strcmp(ext, "png")) return strip_png(d, n);
     if (!strcmp(ext, "jpg")) return strip_jpeg(d, n);
     if (!strcmp(ext, "webp")) return strip_webp(d, n);
+    return n;
+}
+
+const char* tr_video_ext(const char* data, size_t n) {
+    const unsigned char* d = (const unsigned char*)data;
+    size_t i;
+    if (n >= 12 && !memcmp(d + 4, "ftyp", 4)) return "mp4";
+    if (n >= 4 && d[0] == 0x1a && d[1] == 0x45 && d[2] == 0xdf && d[3] == 0xa3) /* EBML: its doctype near its start */
+        for (i = 4; i + 4 <= n && i < 64; ++i)
+            if (!memcmp(d + i, "webm", 4)) return "webm";
+    return NULL;
+}
+
+/* the boxes of an MP4 from at to end: the ones that say where or with what it was filmed made free boxes of zeros, the
+   ones that hold others walked into. 0, or -1 for a box that runs past its parent */
+static int mp4_boxes(unsigned char* d, size_t at, size_t end, int depth) {
+    static const char* const containers[] = {"moov", "trak", "mdia", "minf", "udta", "meta", "ilst", "edts"};
+    static const char* const hidden[] = {"\xa9xyz", "loci", "\xa9mak", "\xa9mod"};
+    while (at < end) {
+        size_t size, head = 8, k;
+        if (end - at < 8) return -1;
+        size = be32(d + at);
+        if (size == 1) { /* a 64-bit size after the type */
+            unsigned long long big;
+            if (end - at < 16) return -1;
+            big = (unsigned long long)be32(d + at + 8) << 32 | be32(d + at + 12);
+            if (big > end - at) return -1;
+            size = (size_t)big;
+            head = 16;
+        } else if (size == 0) /* to the end */
+            size = end - at;
+        if (size < head || size > end - at) return -1;
+        for (k = 0; k < sizeof hidden / sizeof *hidden; ++k)
+            if (!memcmp(d + at + 4, hidden[k], 4)) {
+                memcpy(d + at + 4, "free", 4);
+                memset(d + at + head, 0, size - head);
+            }
+        for (k = 0; depth < 8 && k < sizeof containers / sizeof *containers; ++k)
+            if (!memcmp(d + at + 4, containers[k], 4)) {
+                size_t inner = at + head + (!memcmp(containers[k], "meta", 4) ? 4 : 0); /* meta's version and flags */
+                if (inner <= at + size && mp4_boxes(d, inner, at + size, depth + 1)) return -1;
+            }
+        at += size;
+    }
+    return 0;
+}
+
+size_t tr_strip_video(char* data, size_t n) {
+    const char* ext = tr_video_ext(data, n);
+    if (!ext) return 0;
+    if (!strcmp(ext, "mp4")) return mp4_boxes((unsigned char*)data, 0, n, 0) ? 0 : n;
     return n;
 }
 

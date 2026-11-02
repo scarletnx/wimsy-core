@@ -405,7 +405,7 @@ static void log_section(Buf* b, const StFile* f) {
 
 char* site_report_html(const StReport* r, const StFile* files, int nfiles, const StNote* notes, int nnotes) {
     Buf b = {0}, title = {0};
-    int i, images = 0;
+    int i, images = 0, videos = 0;
     buf_printf(&title, "Report #%ld: %s", r->id, r->title);
     head(&b, "../../", title.text, "A ScarletNX game report sent to Tracer.");
     buf_free(&title);
@@ -461,6 +461,26 @@ char* site_report_html(const StReport* r, const StFile* files, int nfiles, const
             buf_add(&b, "\" alt=\"");
             esc(&b, files[i].name);
             buf_add(&b, "\" loading=\"lazy\"></a>\n");
+        }
+        buf_add(&b, "</div>\n</section>\n");
+    }
+    for (i = 0; i < nfiles; ++i) videos += !strcmp(files[i].kind, "video");
+    if (videos) { /* the videos, each played where it is; a browser asks for its parts as it plays */
+        buf_add(&b, "<section class=\"shots\">\n<h2>Videos</h2>\n<div class=\"videos\">\n");
+        for (i = 0; i < nfiles; ++i) {
+            const char* file = files[i].path;
+            if (strcmp(files[i].kind, "video")) continue;
+            buf_add(&b, "<figure><video controls preload=\"metadata\" src=\"");
+            esc(&b, file);
+            buf_add(&b, "\"></video><figcaption><a href=\"");
+            esc(&b, file);
+            buf_add(&b, "\" download=\"");
+            esc(&b, files[i].name);
+            buf_add(&b, "\">");
+            esc(&b, files[i].name);
+            buf_add(&b, "</a> ");
+            bytes(&b, files[i].bytes);
+            buf_add(&b, "</figcaption></figure>\n");
         }
         buf_add(&b, "</div>\n</section>\n");
     }
