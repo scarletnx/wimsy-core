@@ -112,8 +112,8 @@ static void filters(Buf* b, const char* list, const char* placeholder, const cha
 /* ---- the lists ---- */
 
 char* site_index_html(const StGame* games, int n) {
-    static const char* const keys[] = {"outcome"};
-    static const char* const names[] = {"Latest outcome"};
+    static const char* const keys[] = {"console", "outcome"};
+    static const char* const names[] = {"Console", "Latest outcome"};
     Buf b = {0};
     int i, total = 0;
     for (i = 0; i < n; ++i) total += games[i].reports;
@@ -128,18 +128,25 @@ char* site_index_html(const StGame* games, int n) {
         foot(&b);
         return buf_take(&b);
     }
-    filters(&b, "games", "Search games or title IDs", keys, names, 1);
+    filters(&b, "games", "Search games or title IDs", keys, names, 2);
     buf_add(&b, "<ul class=\"games\" id=\"games\" data-list>\n");
     for (i = 0; i < n; ++i) {
         const StGame* g = &games[i];
         buf_add(&b, "<li data-text=\"");
         esc_lower(&b, g->title);
         esc_lower(&b, g->title_id);
+        esc_lower(&b, g->console);
+        buf_add(&b, "\" data-console=\"");
+        esc(&b, g->console ? g->console : "unknown");
         buf_add(&b, "\" data-outcome=\"");
         esc(&b, g->outcome ? g->outcome : "no failure logged");
         buf_printf(&b, "\"><a href=\"g/%s.html\">\n<span class=\"name\">", g->key);
         esc(&b, g->title);
         buf_add(&b, "</span>\n<span class=\"id\">");
+        if (g->console) {
+            esc(&b, g->console);
+            buf_add(&b, " · ");
+        }
         if (g->title_id && !strcmp(g->title, g->title_id))
             esc(&b, "no name in its logs");
         else
@@ -158,10 +165,10 @@ char* site_index_html(const StGame* games, int n) {
 
 /* the reports' table: root before each link, the game's column when game */
 static void table(Buf* b, const char* root, const StReport* reports, int n, int game) {
-    static const char* const keys[] = {"outcome", "missed", "branch", "gpu"};
-    static const char* const names[] = {"Outcome", "Missed", "Branch", "GPU"};
+    static const char* const keys[] = {"console", "outcome", "missed", "branch", "gpu"};
+    static const char* const names[] = {"Console", "Outcome", "Missed", "Branch", "GPU"};
     int i;
-    filters(b, "reports", "Search signatures, builds, GPUs, notes", keys, names, 4);
+    filters(b, "reports", "Search signatures, builds, GPUs, notes", keys, names, 5);
     buf_printf(b,
                "<div class=\"scroll\"><table class=\"reports\" id=\"reports\" data-list>\n<thead><tr><th>Report</th>"
                "<th>Sent</th>%s<th>Outcome</th><th>Signature</th><th>Build</th><th>GPU</th></tr></thead>\n<tbody>\n",
@@ -181,6 +188,8 @@ static void table(Buf* b, const char* root, const StReport* reports, int n, int 
         buf_add(b, "\" data-outcome=\"");
         esc(b, r->outcome ? r->outcome : "no failure logged");
         buf_printf(b, "\" data-missed=\"%s", r->missed ? "something missed" : "nothing missed");
+        buf_add(b, "\" data-console=\"");
+        esc(b, r->console ? r->console : "unknown");
         buf_add(b, "\" data-branch=\"");
         esc(b, r->branch ? r->branch : "unknown");
         buf_add(b, "\" data-gpu=\"");
@@ -191,7 +200,13 @@ static void table(Buf* b, const char* root, const StReport* reports, int n, int 
         if (game) {
             buf_printf(b, "<td><a href=\"%sg/%s.html\">", root, r->key);
             esc(b, r->title);
-            buf_add(b, "</a></td>");
+            buf_add(b, "</a>");
+            if (r->console) {
+                buf_add(b, "<br><small>");
+                esc(b, r->console);
+                buf_add(b, "</small>");
+            }
+            buf_add(b, "</td>");
         }
         buf_add(b, "<td>");
         badge(b, r->outcome, r->missed);
@@ -236,6 +251,10 @@ char* site_game_html(const StGame* game, const StReport* reports, int n) {
     buf_add(&b, "<section class=\"hero\">\n<p class=\"crumbs\"><a href=\"../index.html\">Games</a></p>\n<h1>");
     esc(&b, game->title);
     buf_add(&b, "</h1>\n<p class=\"id\">");
+    if (game->console) {
+        esc(&b, game->console);
+        buf_add(&b, " · ");
+    }
     esc(&b, game->title_id ? game->title_id : "no title ID");
     buf_printf(&b, "</p>\n<p class=\"stats\"><b>%d</b> %s, <b>%d</b> with no failure logged</p>\n</section>\n", n,
                n == 1 ? "report" : "reports", ok);
@@ -403,6 +422,7 @@ char* site_report_html(const StReport* r, const StFile* files, int nfiles, const
     }
     buf_add(&b, "</section>\n<dl class=\"facts\">\n");
     field(&b, "Game", r->title);
+    field(&b, "Console", r->console);
     field(&b, "Title ID", r->title_id);
     field(&b, "Game version", r->version);
     field(&b, "Signature", r->signature);
@@ -464,6 +484,7 @@ static cJSON* report_object(const StReport* r) {
     jset(o, "outcome", r->outcome ? r->outcome : "no failure logged");
     jset(o, "signature", r->signature);
     jset(o, "missed", r->missed);
+    jset(o, "console", r->console);
     return o;
 }
 static char* printed(cJSON* o) {
@@ -493,6 +514,7 @@ char* site_games_json(const StGame* games, int n) {
         jset(g, "latest", when);
         jset(g, "outcome", games[i].outcome ? games[i].outcome : "no failure logged");
         jset(g, "missed", games[i].missed);
+        jset(g, "console", games[i].console);
         cJSON_AddItemToArray(list, g);
     }
     return printed(o);

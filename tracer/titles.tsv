@@ -1,4 +1,4 @@
-# title ID, name: base applications from blawar/titledb (MIT) at d424690446eec6f4484209b9a1c067c7f7511398, by scripts/make-titles.py
+# ID, name: the Switch's base applications from blawar/titledb (MIT) at d424690446eec6f4484209b9a1c067c7f7511398, the GBA's games by code from libretro/libretro-database (CC-BY-SA-4.0) at 2fdd069d45883449cecf97deddd493492e77ff29, by scripts/make-titles.py
 0100000000010000	Super Mario Odyssey
 010000000E5EE000	8-BIT YU-NO'S GREAT ADVENTURE
 010000000EEF0000	Shadows 2: Perfidia
@@ -25083,3 +25083,2759 @@
 0400E23021102000	WILD HEARTS S
 0400EBD0236AE000	Tony Hawk's Pro Skater 3 + 4
 0400F6D020A02000	Suikoden I&II HD Remaster for Nintendo Switch 2 Gate Rune and Dunan Unification Wars
+AGB-0000	Mandrake the Magician
+AGB-A22J	EZ-Talk - Shokyuu Hen 1
+AGB-A23J	EZ-Talk - Shokyuu Hen 2
+AGB-A24J	EZ-Talk - Shokyuu Hen 3
+AGB-A25J	EZ-Talk - Shokyuu Hen 4
+AGB-A26J	EZ-Talk - Shokyuu Hen 5
+AGB-A27J	EZ-Talk - Shokyuu Hen 6
+AGB-A29J	Mickey to Minnie no Magical Quest 2
+AGB-A2AE	Disney Sports - Basketball
+AGB-A2AJ	Disney Sports - Basketball
+AGB-A2AP	Disney Sports - Basketball
+AGB-A2BJ	Bubble Bobble - Old & New
+AGB-A2CE	Castlevania - Aria of Sorrow
+AGB-A2CJ	Castlevania - Akatsuki no Minuet
+AGB-A2CP	Castlevania - Aria of Sorrow
+AGB-A2DJ	Darius R
+AGB-A2FE	Defender
+AGB-A2FP	Defender - For All Mankind
+AGB-A2GE	GT Advance 3 - Pro Concept Racing
+AGB-A2GJ	Advance GT2
+AGB-A2GP	GT Advance 3 - Pro Concept Racing
+AGB-A2HJ	Hajime no Ippo - The Fighting!
+AGB-A2IJ	Magi Nation
+AGB-A2JJ	J.League Winning Eleven Advance 2002
+AGB-A2KE	Spy Kids Challenger
+AGB-A2LE	Legends of Wrestling II
+AGB-A2ME	Madden NFL 2002
+AGB-A2NE	Sonic Advance 2
+AGB-A2NJ	Sonic Advance 2
+AGB-A2NP	Sonic Advance 2
+AGB-A2OJ	K-1 Pocket Grand Prix 2
+AGB-A2PJ	Bouken Yuuki Pluster World - Pluston GP
+AGB-A2QE	Monster Rancher Advance 2
+AGB-A2QJ	Monster Farm Advance 2
+AGB-A2RE	Bratz
+AGB-A2RP	Bratz
+AGB-A2SE	Spyro 2 - Season of Flame
+AGB-A2SP	Spyro 2 - Season of Flame
+AGB-A2TE	Pinball Tycoon
+AGB-A2TP	Pinball Tycoon
+AGB-A2UJ	Mother 1+2
+AGB-A2VJ	Kisekko Gurumii - Chesty to Nuigurumi-tachi no Mahou no Bouken
+AGB-A2WE	Star Wars - The New Droid Army
+AGB-A2WP	Star Wars - The New Droid Army
+AGB-A2XE	MX 2002 Featuring Ricky Carmichael
+AGB-A2YE	Top Gun - Combat Zones
+AGB-A2ZJ	Zen-Nihon Shounen Soccer Taikai 2 - Mezase Nihon-ichi!
+AGB-A39J	Lode Runner
+AGB-A3AC	Yaoxi Dao
+AGB-A3AE	Super Mario Advance 3 - Yoshi's Island
+AGB-A3AJ	Super Mario Advance 3 - Yoshi's Island + Mario Brothers
+AGB-A3AP	Super Mario Advance 3 - Yoshi's Island
+AGB-A3BE	Sabrina the Teenage Witch - Potion Commotion
+AGB-A3BP	Sabrina the Teenage Witch - Potion Commotion
+AGB-A3CE	Crazy Taxi - Catch a Ride
+AGB-A3CP	Crazy Taxi - Catch a Ride
+AGB-A3DE	Disney Sports - Football
+AGB-A3DJ	Disney Sports - American Football
+AGB-A3EJ	Bakuten Shoot Beyblade 2002 - Gekisen! Team Battle!! Kouryuu no Shou - Daichi Hen
+AGB-A3GJ	Gyakuten Saiban 2
+AGB-A3HJ	Hime Kishi Monogatari - Princess Blue
+AGB-A3IJ	Boktai - The Sun Is in Your Hand
+AGB-A3JJ	Gyakuten Saiban 3
+AGB-A3KE	IK+
+AGB-A3KP	IK+
+AGB-A3ME	Magical Quest Starring Mickey & Minnie
+AGB-A3MJ	Mickey to Minnie no Magical Quest
+AGB-A3MP	Magical Quest Starring Mickey & Minnie
+AGB-A3NJ	Monster Summoner
+AGB-A3OJ	Di Gi Charat - DigiCommunication
+AGB-A3PE	SEGA Smash Pack
+AGB-A3PP	SEGA Smash Pack
+AGB-A3QE	Sound of Thunder, A
+AGB-A3QP	Sound of Thunder, A
+AGB-A3RE	Revenge of Shinobi, The
+AGB-A3RP	Revenge of Shinobi, The
+AGB-A3TE	Three Stooges, The
+AGB-A3UJ	Mother 3
+AGB-A3VE	Sonic Pinball Party
+AGB-A3VP	Sonic Pinball Party
+AGB-A3WJ	Bakuten Shoot Beyblade 2002 - Gekisen! Team Battle!! Seiryuu no Shou - Takao Hen
+AGB-A3XE	Mega Man - Battle Network 3 - Blue Version
+AGB-A3XJ	Battle Network - Rockman EXE 3 - Black
+AGB-A3XP	Megaman - Battle Network 3 - Blue Version
+AGB-A3ZE	Street Jam Basketball
+AGB-A4AE	Simpsons, The - Road Rage
+AGB-A4AX	Simpsons, The - Road Rage
+AGB-A4BE	Monster! Bass Fishing
+AGB-A4BP	Monster! Bass Fishing
+AGB-A4CE	I Spy Challenger!
+AGB-A4DE	Disney Sports - Skateboarding
+AGB-A4DJ	Disney Sports - Skateboarding
+AGB-A4DP	Disney Sports - Skateboarding
+AGB-A4GE	Zatchbell! - Electric Arena
+AGB-A4GJ	Konjiki no Gashbell!! - Unare! Yuujou no Zakeru
+AGB-A4KJ	Hamster Club 4 - Shigetchi Daidassou
+AGB-A4LJ	Sylvanian Families 4 - Meguru Kisetsu no Tapestry
+AGB-A4MP	Manic Miner
+AGB-A4ND	Harvest Moon - Friends of Mineral Town
+AGB-A4NE	Harvest Moon - Friends of Mineral Town
+AGB-A4NJ	Bokujou Monogatari - Mineral Town no Nakama-tachi
+AGB-A4NP	Harvest Moon - Friends of Mineral Town
+AGB-A4PJ	Sister Princess - RePure
+AGB-A4RE	Rock 'N Roll Racing
+AGB-A4RP	Rock 'N Roll Racing
+AGB-A4SJ	Spyro Advance
+AGB-A4VJ	Yuujou no Victory Goal 4v4 Arashi - Get the Goal!!
+AGB-A4WJ	Gachasute! Dino Device 2 - Phoenix
+AGB-A4XJ	Gachasute! Dino Device 2 - Dragon
+AGB-A52J	Koukou Juken Advance Series Eitango Hen - 2000 Words Shuuroku
+AGB-A53J	Koukou Juken Advance Series Eijukugo Hen - 650 Phrases Shuuroku
+AGB-A54J	Koukou Juken Advance Series Eigo Koubun Hen - 26 Units Shuuroku
+AGB-A55D	Wer Wird Millionaer
+AGB-A55F	Qui Veut Gagner des Millions
+AGB-A55H	Weekend Miljonairs
+AGB-A55I	Chi Vuol Essere Milionario
+AGB-A55P	Who Wants to Be a Millionaire
+AGB-A55S	Quiere Ser Millonario
+AGB-A55U	Who Wants to Be a Millionaire
+AGB-A56J	Dokidoki Cooking Series 1 - Komugi-chan no Happy Cake
+AGB-A57J	Scan Hunter - Sennen Kaigyo o Oe!
+AGB-A59J	Toukon Heat
+AGB-A5AE	Bionicle - Matoran Adventures
+AGB-A5BJ	Chocobo Land - A Game of Dice
+AGB-A5CE	SimCity 2000
+AGB-A5CP	SimCity 2000
+AGB-A5DE	Disney Sports - Snowboarding
+AGB-A5DJ	Disney Sports - Snowboarding
+AGB-A5DP	Disney Sports - Snowboarding
+AGB-A5GJ	Dragon Drive - World D Break
+AGB-A5KJ	Medarot Ni Core - Kabuto
+AGB-A5ME	MLB SlugFest 2004
+AGB-A5NE	Donkey Kong Country
+AGB-A5NJ	Super Donkey Kong
+AGB-A5NP	Donkey Kong Country
+AGB-A5PJ	Power Pro Kun Pocket 5
+AGB-A5QJ	Medarot Ni Core - Kuwagata
+AGB-A5SJ	Oshare Wanko
+AGB-A5TJ	Shin Megami Tensei II
+AGB-A5UE	Space Channel 5 - Ulala's Cosmic Attack
+AGB-A5UP	Space Channel 5 - Ulala's Cosmic Attack
+AGB-A5WE	Rugrats - Go Wild
+AGB-A5WF	Razmoket Rencontrent les Delajungle, Les
+AGB-A62E	Mega Man Zero 2
+AGB-A62J	Rockman Zero 2
+AGB-A62P	Megaman Zero 2
+AGB-A63J	Kawaii Pet Shop Monogatari 3
+AGB-A64J	Shimura Ken no Baka Tonosama - Bakushou Tenka Touitsu Game
+AGB-A6BE	Mega Man - Battle Network 3 - White Version
+AGB-A6BJ	Battle Network - Rockman EXE 3
+AGB-A6BP	Megaman - Battle Network 3 - White Version
+AGB-A6CJ	Croket! - Yume no Banker Survival!
+AGB-A6DE	Disney Sports - Soccer
+AGB-A6DJ	Disney Sports - Soccer
+AGB-A6DP	Disney Sports - Football
+AGB-A6GJ	Monster Gate - Ooinaru Dungeon - Fuuin no Orb
+AGB-A6ME	Mega Man & Bass
+AGB-A6MP	Mega Man & Bass
+AGB-A6OE	Onimusha Tactics
+AGB-A6OJ	Onimusha Tactics
+AGB-A6OP	Onimusha Tactics
+AGB-A6RE	Shifting Gears - Road Trip
+AGB-A6SJ	Super Robot Taisen D
+AGB-A6TP	Dr. Muto
+AGB-A73J	Whistle! - Dai-37-kai Tokyo-to Chuugakkou Sougou Taiiku Soccer Taikai
+AGB-A7AE	Naruto - Ninja Council
+AGB-A7AJ	Naruto - Ninjutsu Zenkai! Saikyou Ninja Daikesshuu
+AGB-A7CE	Dog Trainer 2
+AGB-A7GJ	Sengoku Kakumei Gaiden
+AGB-A7HE	Harry Potter and the Chamber of Secrets
+AGB-A7HJ	Harry Potter to Himitsu no Heya
+AGB-A7IJ	Silk to Cotton
+AGB-A7KE	Kirby - Nightmare in Dream Land
+AGB-A7KJ	Hoshi no Kirby - Yume no Izumi Deluxe
+AGB-A7KP	Kirby - Nightmare in Dream Land
+AGB-A7ME	Amazing Virtual Sea-Monkeys, The
+AGB-A7OE	007 - NightFire
+AGB-A7SP	Revenge of the Smurfs, The
+AGB-A82J	Hamster Paradise - Pure Heart
+AGB-A83J	Hamster Monogatari 3 GBA
+AGB-A84E	Hamtaro - Rainbow Rescue
+AGB-A84J	Tottoko Hamutarou 4 - Nijiiro Daikoushin Dechu
+AGB-A84P	Hamtaro - Rainbow Rescue
+AGB-A85J	Sanrio Puroland - All Characters
+AGB-A86J	Sonic Pinball Party
+AGB-A87J	Ohanaya-san Monogatari GBA - Iyashikei Ohanaya-san Ikusei Game
+AGB-A88C	Maliou Yu Luyiji RPG
+AGB-A88E	Mario & Luigi - Superstar Saga
+AGB-A88J	Mario & Luigi RPG
+AGB-A88P	Mario & Luigi - Superstar Saga
+AGB-A89E	Mega Man - Battle Chip Challenge
+AGB-A89J	Rockman EXE - Battle Chip GP
+AGB-A89P	Megaman - Battle Chip Challenge
+AGB-A8BE	Medabots - Metabee
+AGB-A8BP	Medabots - Metabee
+AGB-A8BS	Medabots - Metabee
+AGB-A8CJ	Card Party
+AGB-A8DJ	Doubutsu-jima no Chobigurumi
+AGB-A8EJ	Hachiemon
+AGB-A8GJ	GetBackers Dakkanya - Metropolis Dakkan Sakusen!
+AGB-A8HE	Cabela's Big Game Hunter
+AGB-A8LJ	BB Ball
+AGB-A8MJ	Kotoba no Puzzle - Mojipittan Advance
+AGB-A8NJ	Hunter X Hunter - Minna Tomodachi Daisakusen!!
+AGB-A8OJ	Dokidoki Cooking Series 2 - Gourmet Kitchen - Suteki na Obentou
+AGB-A8PJ	Derby Stallion Advance
+AGB-A8QE	Pirates of the Caribbean - The Curse of the Black Pearl
+AGB-A8QP	Pirates of the Caribbean - The Curse of the Black Pearl
+AGB-A8RJ	Tennis no Ouji-sama 2003 - Passion Red
+AGB-A8SE	Digimon - Battle Spirit
+AGB-A8SP	Digimon - Battle Spirit
+AGB-A8TJ	RPG Tsukuru Advance
+AGB-A8VJ	Boboboubo Boubobo - Ougi 87.5 Bakuretsu Hanage Shinken
+AGB-A8YJ	Best Play Pro Yakyuu
+AGB-A8ZJ	Shin Megami Tensei - Devil Children - Puzzle de Call!
+AGB-A9AE	Demon Driver - Time to Burn Rubber!
+AGB-A9AP	Demon Driver - Time to Burn Rubber!
+AGB-A9BE	Medabots - Rokusho
+AGB-A9BP	Medabots - Rokusho
+AGB-A9BS	Medabots - Rokusho
+AGB-A9CE	CT Special Forces 2 - Back in the Trenches
+AGB-A9CP	CT Special Forces - Back to Hell
+AGB-A9DE	Doom II
+AGB-A9DP	Doom II
+AGB-A9GE	Stadium Games
+AGB-A9GP	Stadium Games
+AGB-A9HJ	Dragon Quest Monsters - Caravan Heart
+AGB-A9KJ	Slime Morimori Dragon Quest - Shougeki no Shippo Dan
+AGB-A9LJ	Tennis no Ouji-sama 2003 - Cool Blue
+AGB-A9ME	Moto Racer Advance
+AGB-A9MP	Moto Racer Advance
+AGB-A9NE	Piglet's Big Game
+AGB-A9NX	Piglet's Big Game
+AGB-A9PJ	Tales of the World - Summoner's Lineage
+AGB-A9QC	Zhuanzhuanbang Tiantang
+AGB-A9QJ	Kururin Paradise
+AGB-A9RE	Road Rash - Jailbreak
+AGB-A9RP	Road Rash - Jailbreak
+AGB-A9SJ	Dancing Sword - Senkou
+AGB-A9TJ	Metal Max 2 Kai
+AGB-AA2C	Chaoji Maliou Shijie
+AGB-AA2E	Super Mario Advance 2 - Super Mario World
+AGB-AA2J	Super Mario Advance 2 - Super Mario World + Mario Brothers
+AGB-AA2P	Super Mario Advance 2 - Super Mario World
+AGB-AA3E	All-Star Baseball 2003
+AGB-AA4J	Monster Maker 4 - Flash Card
+AGB-AA5J	Monster Maker 4 - Killer Dice
+AGB-AA6E	Sum of All Fears, The
+AGB-AA6P	Sum of All Fears, The
+AGB-AA7E	All-Star Baseball 2004 Featuring Derek Jeter
+AGB-AA9E	Duel Masters - Sempai Legends
+AGB-AA9J	Duel Masters
+AGB-AA9P	Duel Masters - Sempai Legends
+AGB-AABE	American Bass Challenge
+AGB-AABJ	Super Black Bass Advance
+AGB-AABP	Super Black Bass Advance
+AGB-AADJ	Donald Duck Advance
+AGB-AAEE	Hey Arnold! - The Movie
+AGB-AAEP	Hey Arnold! - The Movie
+AGB-AAGJ	Angelique
+AGB-AAHE	Secret Agent Barbie - Royal Jewels Mission
+AGB-AAHP	Secret Agent Barbie - Royal Jewels Mission
+AGB-AAIJ	Gachasute! Dino Device - Red
+AGB-AAJJ	Shin Kisekae Monogatari
+AGB-AAKE	AirForce Delta Storm
+AGB-AAKJ	AirForce Delta II
+AGB-AAKP	Deadly Skies
+AGB-AALJ	Kidou Tenshi Angelic Layer - Misaki to Yume no Tenshi-tachi
+AGB-AAME	Castlevania - Circle of the Moon
+AGB-AAMJ	Akumajou Dracula - Circle of the Moon
+AGB-AAMP	Castlevania
+AGB-AANJ	Animal Mania - Dokidoki Aishou Check
+AGB-AAOE	Aero the Acro-Bat
+AGB-AAOJ	Acrobat Kid
+AGB-AAOP	Aero the Acro-Bat
+AGB-AAPJ	Metalgun Slinger
+AGB-AAQE	Animal Snap - Rescue Them 2 by 2
+AGB-AAQP	Animal Snap - Rescue Them 2 by 2
+AGB-AARE	Altered Beast - Guardian of the Realms
+AGB-AARP	Altered Beast - Guardian of the Realms
+AGB-AASJ	World Advance Soccer - Shouri e no Michi
+AGB-AATJ	Family Tennis Advance
+AGB-AAUJ	Shin Megami Tensei
+AGB-AAVE	Atari Anniversary Advance
+AGB-AAVP	Atari Anniversary Advance
+AGB-AAWE	Contra Advance - The Alien Wars EX
+AGB-AAWJ	Contra Hard Spirits
+AGB-AAWP	Contra Advance - The Alien Wars EX
+AGB-AAXJ	Fantastic Maerchen - Cake-ya-san Monogatari + Doubutsu Chara Navi Uranai - Kosei Shinri Gaku
+AGB-AAYE	Mary-Kate and Ashley - Sweet 16 - Licensed to Drive
+AGB-AAZJ	Ao-Zora to Nakama-tachi - Yume no Bouken
+AGB-AB2E	Breath of Fire II
+AGB-AB2J	Breath of Fire II - Shimei no Ko
+AGB-AB2P	Breath of Fire II
+AGB-AB3E	Dave Mirra Freestyle BMX 3
+AGB-AB4E	Summon Night - Swordcraft Story
+AGB-AB4J	Summon Night - Craft Sword Monogatari
+AGB-AB6P	Black Belt Challenge
+AGB-AB7J	Minna no Shiiku Series 1 - Boku no Kabutomushi
+AGB-AB8J	Bakuten Shoot Beyblade 2002 - Ikuze! Bakutou! Chou Jiryoku Battle!!
+AGB-AB9E	Dual Blades
+AGB-AB9J	Dual Blades
+AGB-ABCJ	Boku wa Koukuu Kanseikan
+AGB-ABDE	Boulder Dash EX
+AGB-ABDJ	Boulder Dash EX
+AGB-ABDP	Boulder Dash EX
+AGB-ABEE	BattleBots - Beyond the BattleBox
+AGB-ABEP	BattleBots - Beyond the BattleBox
+AGB-ABFE	Breath of Fire
+AGB-ABFJ	Breath of Fire - Ryuu no Senshi
+AGB-ABFP	Breath of Fire
+AGB-ABFX	Breath of Fire
+AGB-ABGJ	Sweet Cookie Pie
+AGB-ABIJ	Gachasute! Dino Device - Blue
+AGB-ABJE	Broken Sword - The Shadow of the Templars
+AGB-ABJP	Broken Sword - The Shadow of the Templars
+AGB-ABKE	Back Track
+AGB-ABME	Super Bust-A-Move
+AGB-ABMJ	Super Puzzle Bobble Advance
+AGB-ABMP	Get's!! Loto Club
+AGB-ABNE	NBA Jam 2002
+AGB-ABOE	Boxing Fever
+AGB-ABPE	Baseball Advance
+AGB-ABQE	David Beckham Soccer
+AGB-ABQP	David Beckham Soccer
+AGB-ABRE	Blender Bros.
+AGB-ABSE	Bomberman Tournament
+AGB-ABSJ	Bomberman Story
+AGB-ABTE	Batman - Vengeance
+AGB-ABTP	Batman - Vengeance
+AGB-ABUE	Ultimate Brain Games
+AGB-ABVP	Maya the Bee - The Great Adventure
+AGB-ABWE	Butt-Ugly Martians - B.K.M. Battles
+AGB-ABYE	Britney's Dance Beat
+AGB-ABYP	Britney's Dance Beat
+AGB-ABYX	Britney's Dance Beat
+AGB-ABYY	Britney's Dance Beat
+AGB-ABZE	NFL Blitz 2002
+AGB-AC2J	J.League Pro Soccer Club o Tsukurou! Advance
+AGB-AC4J	Meitantei Conan - Nerawareta Tantei
+AGB-AC5E	DemiKids - Dark Version
+AGB-AC5J	Shin Megami Tensei Devil Children - Yami no Sho
+AGB-AC6D	Spirit - Der Wilde Mustang - Auf der Suche nach Homeland
+AGB-AC6E	Spirit - Stallion of the Cimarron - Search for Homeland
+AGB-AC6F	Spirit - L'Etalon des Plaines - A la Recherche de la Terre Natale
+AGB-AC6P	Spirit - Stallion of the Cimarron - Search for Homeland
+AGB-AC7E	CT Special Forces
+AGB-AC7P	CT Special Forces
+AGB-AC8E	Crash Bandicoot 2 - N-Tranced
+AGB-AC8J	Crash Bandicoot Advance 2 - Guruguru Saimin Dai-panic!
+AGB-AC8P	Crash Bandicoot 2 - N-Tranced
+AGB-AC9E	Cartoon Network Block Party
+AGB-ACAE	GT Advance - Championship Racing
+AGB-ACBE	Car Battler Joe
+AGB-ACBJ	Gekitou! Car Battler Go!!
+AGB-ACCE	Crazy Chase
+AGB-ACCP	Crazy Chase
+AGB-ACEE	Agassi Tennis Generation
+AGB-ACEP	Agassi Tennis Generation
+AGB-ACFE	Cruis'n Velocity
+AGB-ACGE	Columns Crown
+AGB-ACGJ	Columns Crown
+AGB-ACGP	Columns Crown
+AGB-ACHE	Castlevania - Harmony of Dissonance
+AGB-ACHJ	Castlevania - Byakuya no Concerto
+AGB-ACHP	Castlevania - Harmony of Dissonance
+AGB-ACIJ	WTA Tour Tennis Pocket
+AGB-ACJJ	Chou Makaimura R
+AGB-ACKE	Backyard Baseball
+AGB-ACLJ	Sakura Momoko no UkiUki Carnival
+AGB-ACME	Colin McRae Rally 2.0
+AGB-ACMP	Colin McRae Rally 2.0
+AGB-ACOJ	Manga-ka Debut Monogatari - Akogare! Manga Ka Ikusei Game!
+AGB-ACPE	Caesars Palace Advance - Millennium Gold Edition
+AGB-ACQE	Crash Bandicoot - The Huge Adventure
+AGB-ACQP	Crash Bandicoot XS
+AGB-ACRE	ChuChu Rocket!
+AGB-ACRJ	ChuChu Rocket!
+AGB-ACRP	ChuChu Rocket!
+AGB-ACSE	Casper
+AGB-ACSP	Casper
+AGB-ACTX	Creatures
+AGB-ACTY	Creatures
+AGB-ACUJ	Crash Bandicoot Advance
+AGB-ACVE	Robopon 2 - Cross Version
+AGB-ACVJ	Robot Poncots 2 - Cross Version
+AGB-ACXE	Cubix - Robots for Everyone - Clash 'N Bash
+AGB-ACYD	Chessmaster
+AGB-ACYE	Chessmaster
+AGB-ACYF	Chessmaster
+AGB-ACYP	Chessmaster
+AGB-ACZP	Comix Zone
+AGB-AD2J	Mr. Driller 2
+AGB-AD2P	Mr. Driller 2
+AGB-AD3E	Dinotopia - The Timestone Pirates
+AGB-AD4E	Dungeons & Dragons - Eye of the Beholder
+AGB-AD4P	Dungeons & Dragons - Eye of the Beholder
+AGB-AD5J	Mr. Driller A - Fushigi na Pacteria
+AGB-AD6E	Davis Cup
+AGB-AD6P	Davis Cup
+AGB-AD7P	Droopy's Tennis Open
+AGB-AD9E	Duke Nukem Advance
+AGB-AD9P	Duke Nukem Advance
+AGB-ADAE	Dark Arena
+AGB-ADBE	Denki Blocks!
+AGB-ADBJ	Denki Blocks!
+AGB-ADBP	Denki Blocks!
+AGB-ADDJ	Diadroids World - Evil Teikoku no Yabou
+AGB-ADEJ	Adventure of Tokyo Disney Sea
+AGB-ADFE	Super Dodge Ball Advance
+AGB-ADFJ	Bakunetsu Dodge Ball Fighters
+AGB-ADFP	Super Dodge Ball Advance
+AGB-ADHE	Defender of the Crown
+AGB-ADHP	Defender of the Crown
+AGB-ADIE	Desert Strike Advance
+AGB-ADKE	Donald Duck Advance
+AGB-ADKP	Donald Duck Advance
+AGB-ADLE	Dexter's Laboratory - Deesaster Strikes!
+AGB-ADLP	Dexter's Laboratory - Deesaster Strikes!
+AGB-ADME	Doom
+AGB-ADNE	Jurassic Park III - The DNA Factor
+AGB-ADNJ	Jurassic Park III - Ushinawareta Idenshi
+AGB-ADNP	Jurassic Park III - The DNA Factor
+AGB-ADOJ	Domo-kun no Fushigi Television
+AGB-ADPJ	Doraemon - Dokodemo Walker
+AGB-ADQE	Dokapon - Monster Hunter
+AGB-ADQJ	Dokapon Q - Monster Hunter!
+AGB-ADQP	Dokapon - Monster Hunter!
+AGB-ADRJ	Doraemon - Midori no Wakusei Dokidoki Daikyuushutsu!
+AGB-ADSJ	Daisenryaku for Game Boy Advance
+AGB-ADUE	Driver 2 Advance
+AGB-ADUP	Driver 2 Advance
+AGB-ADVE	Driven
+AGB-ADVP	Driven
+AGB-ADWE	Downforce
+AGB-ADXE	Dexter's Laboratory - Chess Challenge
+AGB-ADXP	Dexter's Laboratory - Chess Challenge
+AGB-ADYJ	Hanafuda Trump Mahjong - Depachika Wayouchuu
+AGB-ADZE	Dragon Ball Z - Collectible Card Game
+AGB-AE2E	Mega Man - Battle Network 2
+AGB-AE2J	Battle Network - Rockman EXE 2
+AGB-AE3E	Ed, Edd n Eddy - Jawbreakers!
+AGB-AE3P	Ed, Edd n Eddy - Jawbreakers!
+AGB-AE7E	Fire Emblem
+AGB-AE7J	Fire Emblem - Rekka no Ken
+AGB-AE7X	Fire Emblem
+AGB-AE7Y	Fire Emblem
+AGB-AEAJ	Snap Kid's
+AGB-AECJ	Samurai Evolution - Oukoku Geist
+AGB-AEDP	Carrera Power Slide
+AGB-AEEE	Ballistic - Ecks vs. Sever
+AGB-AEEP	Ecks vs. Sever II - Ballistic
+AGB-AEGE	Extreme Ghostbusters - Code Ecto-1
+AGB-AEGP	Extreme Ghostbusters - Code Ecto-1
+AGB-AEHJ	Puzzle & Tantei Collection
+AGB-AEJE	Earthworm Jim
+AGB-AEKJ	Elemix!
+AGB-AELP	European Super League
+AGB-AEME	Egg Mania
+AGB-AEMJ	Egg Mania - Tsukande! Mawashite! Dossun Puzzle!!
+AGB-AEMP	Eggo Mania
+AGB-AENE	Serious Sam Advance
+AGB-AENP	Serious Sam Advance
+AGB-AEPP	Sheep
+AGB-AERE	Dora the Explorer - The Search for the Pirate Pig's Treasure
+AGB-AESE	Ecks vs Sever
+AGB-AESP	Ecks V Sever
+AGB-AETE	E.T. - The Extra-Terrestrial
+AGB-AETP	E.T. - The Extra-Terrestrial
+AGB-AEVE	Alienators - Evolution Continues
+AGB-AEWJ	Ui-Ire - World Soccer Winning Eleven
+AGB-AEXE	King of Fighters EX 2, The - Howling Blood
+AGB-AEXJ	King of Fighters EX 2, The - Howling Blood
+AGB-AEYE	Kim Possible - Revenge of Monkey Fist
+AGB-AEYP	Kim Possible
+AGB-AF3J	Zero One
+AGB-AF4J	Fushigi no Kuni no Alice
+AGB-AF5E	Shining Force - Resurrection of the Dark Dragon
+AGB-AF5J	Shining Force - Kuroki Ryuu no Fukkatsu
+AGB-AF5P	Shining Force - Resurrection of the Dark Dragon
+AGB-AF6E	Fairly OddParents!, The - Breakin' da Rules
+AGB-AF7J	Tokimeki Yume Series 1 - Ohanaya-san ni Narou!
+AGB-AF8E	F1 2002
+AGB-AF8X	F1 2002
+AGB-AF9J	Field of Nine - Digital Edition 2001
+AGB-AFAJ	Fushigi no Kuni no Angelique
+AGB-AFBE	Frogger's Adventures 2 - The Lost Wand
+AGB-AFBJ	Frogger - Mahou no Kuni no Daibouken
+AGB-AFBP	Frogger's Adventures 2 - The Lost Wand
+AGB-AFCJ	Rockman & Forte
+AGB-AFEC	Huo-Wen Zhanji - Fengyin Zhi Jian
+AGB-AFEJ	Fire Emblem - Fuuin no Tsurugi
+AGB-AFFE	Final Fight One
+AGB-AFFJ	Final Fight One
+AGB-AFFP	Final Fight One
+AGB-AFGE	American Tail, An - Fievel's Gold Rush
+AGB-AFGP	American Tail, An - Fievel's Gold Rush
+AGB-AFHE	Strike Force Hydra
+AGB-AFHP	Strike Force Hydra
+AGB-AFJE	FIFA Soccer 2003
+AGB-AFLP	FILA Decathlon
+AGB-AFMJ	Formation Soccer 2002
+AGB-AFNJ	Angel Collection - Mezase! Gakuen no Fashion Leader
+AGB-AFOE	Fortress
+AGB-AFPE	Fire Pro Wrestling
+AGB-AFPJ	Fire Pro Wrestling A
+AGB-AFQE	Frogger Advance - The Great Quest
+AGB-AFQP	Frogger Advance - The Great Quest
+AGB-AFRE	Frogger's Adventures - Temple of the Frog
+AGB-AFRP	Frogger's Adventures - Temple of the Frog
+AGB-AFSE	Flintstones, The - Big Trouble in Bedrock
+AGB-AFSP	Flintstones, The - Big Trouble in Bedrock
+AGB-AFTE	F-14 Tomcat
+AGB-AFUJ	Youkaidou
+AGB-AFVE	Fairly OddParents!, The - Enter the Cleft
+AGB-AFWJ	Final Fire Pro Wrestling - Yume no Dantai Unei!
+AGB-AFXE	Final Fantasy Tactics Advance
+AGB-AFXJ	Final Fantasy Tactics Advance
+AGB-AFXP	Final Fantasy Tactics Advance
+AGB-AFYE	Fire Pro Wrestling 2
+AGB-AFZC	Jisu F-Zero Weilai Saiche
+AGB-AFZE	F-Zero - Maximum Velocity
+AGB-AFZJ	F-Zero for Game Boy Advance
+AGB-AG2J	Kami no Kijutsu - Illusion of the Evil Eyes
+AGB-AG4E	Godzilla - Domination!
+AGB-AG4J	Gojira - Kaijuu Dairantou Advance
+AGB-AG4P	Godzilla - Domination!
+AGB-AG5E	Super Ghouls'n Ghosts
+AGB-AG6J	Mugenborg
+AGB-AG7J	Advance GTA
+AGB-AG8E	Galidor - Defenders of the Outer Dimension
+AGB-AG9J	Greatest Nine
+AGB-AGAE	Gradius Galaxies
+AGB-AGAJ	Gradius Generation
+AGB-AGAP	Gradius Advance
+AGB-AGBJ	Animaniacs - Hollywood Hypnotics
+AGB-AGCJ	Guru Logichamp
+AGB-AGDE	Lufia - The Ruins of Lore
+AGB-AGDJ	Chinmoku no Iseki - Estpolis Gaiden
+AGB-AGEE	Gekido Advance - Kintaro's Revenge
+AGB-AGEP	Gekido Advance - Kintaro's Revenge
+AGB-AGFD	Golden Sun - Die Vergessene Epoche
+AGB-AGFE	Golden Sun - The Lost Age
+AGB-AGFF	Golden Sun - L'Age Perdu
+AGB-AGFI	Golden Sun - L'Era Perduta
+AGB-AGFJ	Ougon no Taiyou - Ushinawareshi Toki
+AGB-AGFS	Golden Sun - La Edad Perdida
+AGB-AGGE	Gremlins - Stripe vs Gizmo
+AGB-AGGP	Gremlins - Stripe vs Gizmo
+AGB-AGHJ	Medarot G - Kabuto
+AGB-AGIJ	Medarot G - Kuwagata
+AGB-AGKJ	Gensou Suikoden - Card Stories
+AGB-AGLC	Fanqiejiang Wangguo Da Maoxian
+AGB-AGLJ	Tomato Adventure
+AGB-AGMJ	JGTO Kounin Golf Master Mobile - Japan Golf Tour Game
+AGB-AGNJ	Goemon - New Age Shutsudou!
+AGB-AGOJ	Kurohige no Golf Shiyouyo
+AGB-AGPE	No Rules - Get Phat
+AGB-AGQP	Go! Go! Beckham! - Adventure on Soccer Island
+AGB-AGRE	ESPN Final Round Golf 2002
+AGB-AGRJ	JGTO Kounin Golf Master - Japan Golf Tour Game
+AGB-AGRP	ESPN Final Round Golf
+AGB-AGSD	Golden Sun
+AGB-AGSE	Golden Sun
+AGB-AGSF	Golden Sun
+AGB-AGSI	Golden Sun
+AGB-AGSJ	Ougon no Taiyou - Hirakareshi Fuuin
+AGB-AGSS	Golden Sun
+AGB-AGTJ	Zen-Nihon GT Senshuken
+AGB-AGUE	Masters of the Universe - He-Man - Power of Grayskull
+AGB-AGVJ	Ghost Trap
+AGB-AGWE	GT Advance 2 - Rally Racing
+AGB-AGWP	GT Advance 2 - Rally Racing
+AGB-AGXE	Guilty Gear X - Advance Edition
+AGB-AGXJ	Guilty Gear X - Advance Edition
+AGB-AGXP	Guilty Gear X - Advance Edition
+AGB-AGZJ	Galaxy Angel Game Boy Advance - Moridakusan Tenshi no Full-Course - Okawari Jiyuu
+AGB-AH2E	Mat Hoffman's Pro BMX 2
+AGB-AH3E	Hamtaro - Ham-Ham Heartbreak
+AGB-AH3J	Tottoko Hamutarou 3 - Love Love Daibouken Dechu
+AGB-AH3P	Hamtaro - Ham-Ham Heartbreak
+AGB-AH4E	Shrek - Hassle at the Castle
+AGB-AH4P	Shrek - Hassle at the Castle
+AGB-AH5J	Beast Shooter - Mezase Beast King!
+AGB-AH6E	Hardcore Pinball
+AGB-AH7J	Nakayoshi Pet Advance Series 1 - Kawaii Hamster
+AGB-AH8E	Hot Wheels - Velocity X
+AGB-AH8P	Hot Wheels - Velocity X
+AGB-AH9E	Hobbit, The - The Prelude to the Lord of the Rings
+AGB-AH9J	Hobbit no Bouken - Lord of the Rings - Hajimari no Monogatari
+AGB-AH9P	Hobbit, The - The Prelude to the Lord of the Rings
+AGB-AHAJ	Hamster Paradise Advanchu
+AGB-AHBJ	Hamster Monogatari 2 GBA
+AGB-AHCJ	Mini Moni. - Mika no Happy Morning Chatty
+AGB-AHEJ	Bakuten Shoot Beyblade - Gekitou! Saikyou Blader
+AGB-AHHE	High Heat Major League Baseball 2003
+AGB-AHIJ	Hitsuji no Kimochi.
+AGB-AHJE	Hugo - The Evil Mirror
+AGB-AHJP	Hugo - The Evil Mirror
+AGB-AHKJ	Hikaru no Go
+AGB-AHLE	Incredible Hulk, The
+AGB-AHLP	Incredible Hulk, The
+AGB-AHMJ	Dai-mahjong.
+AGB-AHNE	Spy Hunter
+AGB-AHNP	Spy Hunter
+AGB-AHOE	Mat Hoffman's Pro BMX
+AGB-AHOX	Mat Hoffman's Pro BMX
+AGB-AHPE	Hot Potato!
+AGB-AHPP	Hot Potato!
+AGB-AHPX	Hot Potato!
+AGB-AHQJ	Harobots - Robo Hero Battling!!
+AGB-AHRE	Harry Potter and the Sorcerer's Stone
+AGB-AHRJ	Harry Potter to Kenja no Ishi
+AGB-AHSJ	Hatena Satena
+AGB-AHUE	Shining Soul
+AGB-AHUJ	Shining Soul
+AGB-AHUP	Shining Soul
+AGB-AHVJ	Nakayoshi Youchien - Sukoyaka Enji Ikusei Game
+AGB-AHWE	Hot Wheels - Burnin' Rubber
+AGB-AHWJ	Hot Wheels Advance
+AGB-AHWP	Hot Wheels - Burnin' Rubber
+AGB-AHXJ	High Heat Major League Baseball 2003
+AGB-AHZJ	Higanbana
+AGB-AI2E	Iridion II
+AGB-AI2P	Iridion II
+AGB-AI3E	Iridion 3D
+AGB-AI7J	Nakayoshi Pet Advance Series 2 - Kawaii Koinu
+AGB-AI8E	Barbie Horse Adventures - Blue Ribbon Race
+AGB-AI8P	Barbie Horse Adventures
+AGB-AI9J	Inukko Club
+AGB-AIAE	Ice Age
+AGB-AIAJ	Ice Age
+AGB-AIAP	Ice Age
+AGB-AIBJ	Guranbo
+AGB-AICJ	Oshaberi Inko Club
+AGB-AIDE	Space Invaders
+AGB-AIDF	Space Invaders
+AGB-AIDJ	Space Invaders EX
+AGB-AIEJ	Isseki Hatchou - Kore 1ppon de 8shurui!
+AGB-AIFE	Tom and Jerry in Infurnal Escape
+AGB-AIFP	Tom and Jerry in Infurnal Escape
+AGB-AIGE	Inspector Gadget - Advance Mission
+AGB-AIGP	Inspector Gadget - Advance Mission
+AGB-AIHE	Mission Impossible - Operation Surma
+AGB-AIHP	Mission Impossible - Operation Surma
+AGB-AIKP	International Karate Advanced
+AGB-AILE	Aggressive Inline
+AGB-AILP	Aggressive Inline
+AGB-AINJ	Initial D - Another Stage
+AGB-AIOE	Invincible Iron Man, The
+AGB-AIPE	Silent Scope
+AGB-AIPJ	Silent Scope
+AGB-AIPP	Silent Scope
+AGB-AIRP	Inspector Gadget Racing
+AGB-AISP	International Superstar Soccer
+AGB-AIVP	Invader
+AGB-AIYJ	Inuyasha - Naraku no Wana! Mayoi no Mori no Shoutaijou
+AGB-AJ2J	J.League Pocket 2
+AGB-AJ3E	Jurassic Park III - Park Builder
+AGB-AJ3J	Jurassic Park III - Kyouryuu ni Ainiikou!
+AGB-AJ3P	Jurassic Park III - Park Builder
+AGB-AJ4E	Earthworm Jim 2
+AGB-AJ4P	Earthworm Jim 2
+AGB-AJ6J	Aladdin
+AGB-AJ8J	Jurassic Park Institute Tour - Dinosaur Rescue
+AGB-AJ9J	Super Robot Taisen R
+AGB-AJAE	Monster Jam - Maximum Destruction
+AGB-AJAP	Monster Jam - Maximum Destruction
+AGB-AJCE	Jackie Chan Adventures - Legend of the Dark Hand
+AGB-AJCF	Aventures de Jackie Chan, Les - La Legende de la Main Noire
+AGB-AJDE	James Pond - Codename Robocod
+AGB-AJDP	James Pond - Codename Robocod
+AGB-AJEJ	Fancy Pocket
+AGB-AJFE	Jungle Book, The
+AGB-AJFP	Jungle Book 2, The
+AGB-AJGD	Tarzan - Rueckkehr in den Dschungel
+AGB-AJGE	Tarzan - Return to the Jungle
+AGB-AJGF	Tarzan - L'Appel de la Jungle
+AGB-AJHE	Petz - Hamsterz Life 2
+AGB-AJHJ	Hamster Club 3
+AGB-AJJE	Jazz Jackrabbit
+AGB-AJKJ	Jikkyou World Soccer Pocket 2
+AGB-AJLE	Justice League - Injustice for All
+AGB-AJLP	Justice League - Injustice for All
+AGB-AJME	Jonny Moseley Mad Trix
+AGB-AJNE	Jimmy Neutron - Boy Genius
+AGB-AJNX	Jimmy Neutron - Boy Genius
+AGB-AJOJ	Magical Houshin
+AGB-AJPJ	J.League Pocket
+AGB-AJQE	Jurassic Park III - Island Attack
+AGB-AJQJ	Jurassic Park III - Advanced Action
+AGB-AJQP	Jurassic Park III - Dino Attack
+AGB-AJRE	Jet Grind Radio
+AGB-AJRP	Jet Set Radio
+AGB-AJSJ	Space Hexcite - Maetel Legend EX
+AGB-AJTE	Samurai Jack - The Amulet of Time
+AGB-AJUJ	Jissen Pachi-Slot Hisshouhou! - Juuou Advance
+AGB-AJWJ	Jikkyou World Soccer Pocket
+AGB-AJXD	Adventures of Jimmy Neutron Boy Genius vs. Jimmy Negatron, The
+AGB-AJXE	Adventures of Jimmy Neutron Boy Genius vs. Jimmy Negatron, The
+AGB-AJYE	Drake & Josh
+AGB-AJZJ	Bomberman Jetters - Densetsu no Bomberman
+AGB-AK2E	Ultimate Muscle - The Kinnikuman Legacy - The Path of the Superhero
+AGB-AK2J	Kinnikuman II-Sei - Seigi Choujin e no Michi
+AGB-AK3E	Turbo Turtle Adventure
+AGB-AK4J	Kinniku Banzuke - Kongou-kun no Daibouken!
+AGB-AK5J	Kinniku Banzuke - Kimero! Kiseki no Kanzen Seiha
+AGB-AK6E	Soccer Kid
+AGB-AK7J	Klonoa Heroes - Densetsu no Star Medal
+AGB-AK8E	Medabots AX - Metabee Ver.
+AGB-AK8P	Medabots AX - Metabee Ver.
+AGB-AK9E	Medabots AX - Rokusho Ver.
+AGB-AK9P	Medabots AX - Rokusho Ver.
+AGB-AKAJ	Shaman King Card Game - Chou Senjiryakketsu 2
+AGB-AKBE	Sports Illustrated for Kids - Baseball
+AGB-AKCE	Konami Collector's Series - Arcade Advanced
+AGB-AKCJ	Konami Arcade Game Collection
+AGB-AKCP	Konami Collector's Series - Arcade Classics
+AGB-AKDJ	Kaeru B Back
+AGB-AKEJ	Hikaru no Go 2
+AGB-AKFE	Sports Illustrated for Kids - Football
+AGB-AKGE	Mech Platoon
+AGB-AKGJ	Kikaika Guntai - Mech Platoon
+AGB-AKGP	Mech Platoon
+AGB-AKIJ	Kiki Kaikai Advance
+AGB-AKKE	KAO the Kangaroo
+AGB-AKKP	KAO the Kangaroo
+AGB-AKLE	Klonoa - Empire of Dreams
+AGB-AKLJ	Kaze no Klonoa - Yumemiru Teikoku
+AGB-AKLP	Klonoa - Empire of Dreams
+AGB-AKMJ	Kiwame Mahjong Deluxe - Mirai Senshi 21
+AGB-AKOE	King of Fighters EX, The - NeoBlood
+AGB-AKOJ	King of Fighters EX, The - NeoBlood
+AGB-AKOP	King of Fighters EX, The - NeoBlood
+AGB-AKPJ	Nakayoshi Mahjong - KabuReach
+AGB-AKQE	Kong - The Animated Series
+AGB-AKQP	Kong - The Animated Series
+AGB-AKRC	Zhuanzhuanbang
+AGB-AKRJ	Kurukuru Kururin
+AGB-AKRP	Kurukuru Kururin
+AGB-AKSE	Mary-Kate and Ashley - Girls Night Out
+AGB-AKTJ	Hello Kitty Collection - Miracle Fashion Maker
+AGB-AKUJ	Kurohige no Kurutto Jintori
+AGB-AKVJ	K-1 Pocket Grand Prix
+AGB-AKWE	Konami Krazy Racers
+AGB-AKWJ	Konami Wai Wai Racing Advance
+AGB-AKWP	Konami Krazy Racers
+AGB-AKXD	Spider-Man
+AGB-AKXE	Spider-Man
+AGB-AKXF	Spider-Man
+AGB-AKYJ	Captain Tsubasa - Eikou no Kiseki
+AGB-AKZJ	Kamaitachi no Yoru Advance
+AGB-AL2E	LEGO Island 2 - The Brickster's Revenge
+AGB-AL2P	LEGO Island 2 - The Brickster's Revenge
+AGB-AL3J	Shaman King Card Game - Chou Senjiryakketsu 3
+AGB-AL4E	DemiKids - Light Version
+AGB-AL4J	Shin Megami Tensei Devil Children - Hikari no Sho
+AGB-AL9E	Lara Croft Tomb Raider - The Prophecy
+AGB-AL9P	Lara Croft Tomb Raider - The Prophecy
+AGB-ALAE	Land Before Time, The
+AGB-ALAP	Land Before Time, The
+AGB-ALBE	LEGO Bionicle
+AGB-ALBP	LEGO Bionicle
+AGB-ALCE	Little League Baseball 2002
+AGB-ALDE	Lady Sia
+AGB-ALDP	Lady Sia
+AGB-ALEE	Bruce Lee - Return of the Legend
+AGB-ALEP	Bruce Lee - Return of the Legend
+AGB-ALFE	Dragon Ball Z - The Legacy of Goku II
+AGB-ALFJ	Dragon Ball Z - The Legacy of Goku II International
+AGB-ALFP	Dragon Ball Z - The Legacy of Goku II
+AGB-ALGE	Dragon Ball Z - The Legacy of Goku
+AGB-ALGP	Dragon Ball Z - The Legacy of Goku
+AGB-ALHJ	Dark Empire
+AGB-ALIE	Haunted Mansion, The
+AGB-ALJE	Sea Trader - Rise of Taipan
+AGB-ALLP	Lucky Luke - Wanted!
+AGB-ALMJ	Pro Yakyuu Team o Tsukurou! Advance
+AGB-ALNE	Lunar Legend
+AGB-ALNJ	Lunar Legend
+AGB-ALOE	Lord of the Rings, The - The Fellowship of the Ring
+AGB-ALOP	Lord of the Rings, The - The Fellowship of the Ring
+AGB-ALPE	Lord of the Rings, The - The Two Towers
+AGB-ALPJ	Lord of the Rings, The - Futatsu no Tou
+AGB-ALQJ	Little Buster Q
+AGB-ALRE	LEGO Racers 2
+AGB-ALRP	LEGO Racers 2
+AGB-ALSE	Soccer Mania
+AGB-ALTE	Lilo & Stitch
+AGB-ALTP	Lilo & Stitch
+AGB-ALUE	Super Monkey Ball Jr.
+AGB-ALUP	Super Monkey Ball Jr.
+AGB-ALVE	Lost Vikings, The
+AGB-ALVP	Lost Vikings, The
+AGB-ALXP	Ace Lightning
+AGB-AM2P	Megaman - Battle Network 2
+AGB-AM3E	Midway's Greatest Arcade Hits
+AGB-AM4E	MotoGP
+AGB-AM4J	MotoGP
+AGB-AM4P	MotoGP
+AGB-AM5E	Mortal Kombat Advance
+AGB-AM5P	Mortal Kombat Advance
+AGB-AM6E	Mike Tyson Boxing
+AGB-AM7J	Hamepane - Tokyo Mew Mew
+AGB-AM8E	Monster Force
+AGB-AM8P	Monster Force
+AGB-AM9P	Mike Tyson Boxing
+AGB-AMAC	Chaoji Maliou 2
+AGB-AMAE	Super Mario Advance
+AGB-AMAJ	GBA Movie Player - 2nd Version
+AGB-AMBJ	Mobile Pro Yakyuu - Kantoku no Saihai
+AGB-AMCJ	Mail de Cute
+AGB-AMEE	Army Men - Operation Green
+AGB-AMFE	Monster Rancher Advance
+AGB-AMFJ	Monster Farm Advance
+AGB-AMGE	ESPN Great Outdoor Games - Bass 2002
+AGB-AMGJ	Exciting Bass
+AGB-AMGP	ESPN Great Outdoor Games - Bass Tournament
+AGB-AMHE	Bomberman Max 2 - Blue Advance
+AGB-AMHJ	Bomberman Max 2 - Bomberman Version
+AGB-AMHP	Bomberman Max 2 - Blue Advance
+AGB-AMIE	Men in Black - The Series
+AGB-AMIP	Men in Black - The Series
+AGB-AMJJ	Tweety no Hearty Party
+AGB-AMKC	Maliou Kadingche - Chaoji Saidao
+AGB-AMKE	Mario Kart - Super Circuit
+AGB-AMKJ	Mario Kart Advance
+AGB-AMKP	Mario Kart - Super Circuit
+AGB-AMLE	M&M's - Blast!
+AGB-AMMJ	Momotarou Matsuri
+AGB-AMNJ	Monster Guardians
+AGB-AMOJ	EX Monopoly
+AGB-AMPJ	Mahjong Keiji
+AGB-AMQE	Midnight Club - Street Racing
+AGB-AMQP	Midnight Club - Street Racing
+AGB-AMRE	Motocross Maniacs Advance
+AGB-AMRJ	Motocross Maniacs Advance
+AGB-AMRP	Maniac Racers Advance
+AGB-AMSJ	Morita Shougi Advance
+AGB-AMTC	Miteluode Ronghe
+AGB-AMTE	Metroid Fusion
+AGB-AMTJ	Metroid Fusion
+AGB-AMTP	Metroid Fusion
+AGB-AMUJ	Mutsu - Water Looper Mutsu
+AGB-AMVJ	Magical Vacation
+AGB-AMWE	Muppet Pinball Mayhem
+AGB-AMWP	Muppet Pinball Mayhem
+AGB-AMXD	Monster AG, Die
+AGB-AMXE	Monsters, Inc.
+AGB-AMXJ	Monsters, Inc.
+AGB-AMXX	Monsters, Inc.
+AGB-AMXY	Monsters, Inc.
+AGB-AMYE	Bomberman Max 2 - Red Advance
+AGB-AMYJ	Bomberman Max 2 - Max Version
+AGB-AMYP	Bomberman Max 2 - Red Advance
+AGB-AN2J	Natural 2 - Duo
+AGB-AN3E	Catz
+AGB-AN3J	Nakayoshi Pet Advance Series 3 - Kawaii Koneko
+AGB-AN3X	Catz
+AGB-AN4E	NHL Hitz 2003
+AGB-AN5J	Kawa no Nushi Tsuri 5 - Fushigi no Mori kara
+AGB-AN6E	Klonoa 2 - Dream Champ Tournament
+AGB-AN6J	Kaze no Klonoa G2 - Dream Champ Tournament
+AGB-AN7J	Famista Advance
+AGB-AN8E	Tales of Phantasia
+AGB-AN8J	Tales of Phantasia
+AGB-AN8P	Tales of Phantasia
+AGB-AN9J	Tales of the World - Narikiri Dungeon 2
+AGB-ANAJ	Medarot Navi - Kabuto
+AGB-ANBJ	Nobunaga no Yabou
+AGB-ANCE	ZooCube
+AGB-ANCJ	ZooCube
+AGB-ANCP	ZooCube
+AGB-ANDE	Nancy Drew - Message in a Haunted Mansion
+AGB-ANFJ	Monster Gate
+AGB-ANHE	NASCAR Heat 2002
+AGB-ANIP	Animaniacs - Lights, Camera, Action!
+AGB-ANJE	Madden NFL 2003
+AGB-ANKE	NFL Blitz 2003
+AGB-ANLE	NHL 2002
+AGB-ANME	Namco Museum
+AGB-ANMJ	Namco Museum
+AGB-ANMP	Namco Museum
+AGB-ANNJ	Gekitou Densetsu Noah - Dream Management
+AGB-ANOJ	Nobunaga Ibun
+AGB-ANPF	Aigle de Guerre, L'
+AGB-ANPJ	Napoleon
+AGB-ANQE	Nicktoons Racing
+AGB-ANQP	Nicktoons Racing
+AGB-ANRE	Cartoon Network Speedway
+AGB-ANSJ	Marie, Elie & Anis no Atelier - Soyokaze kara no Dengon
+AGB-ANTJ	Nihon Pro Mahjong Renmei Kounin - Tetsuman Advance - Menkyo Kaiden Series
+AGB-ANUE	Antz - Extreme Racing
+AGB-ANVJ	Shiren Monsters - Netsal
+AGB-ANWJ	Elevator Action - Old & New
+AGB-ANXE	Ninja Five-O
+AGB-ANXP	Ninja Cop
+AGB-ANYJ	Gachinko Pro Yakyuu
+AGB-ANZP	Antz - Extreme Racing
+AGB-AO2J	Oshare Princess 2 + Doubutsu Kyaranabi Uranai
+AGB-AO3E	Terminator 3 - Rise of the Machines
+AGB-AO3P	Terminator 3 - Rise of the Machines
+AGB-AO4E	Tom Clancy's Splinter Cell
+AGB-AO4P	Tom Clancy's Splinter Cell
+AGB-AO7J	From TV Animation One Piece - Nanatsu-jima no Daihihou
+AGB-AO7K	One Piece - Ilgop Seomui Debomool
+AGB-AOBP	Asterix & Obelix - Bash Them All!
+AGB-AOCJ	Chobits for Game Boy Advance - Atashi Dake no Hito
+AGB-AODJ	Minami no Umi no Odyssey
+AGB-AOEE	Drome Racers
+AGB-AOEX	Drome Racers
+AGB-AOGE	Super Robot Taisen - Original Generation
+AGB-AOGJ	Super Robot Taisen - Original Generation
+AGB-AOGP	Super Robot Taisen - Original Generation
+AGB-AOHJ	Mini Moni. - Onegai Ohoshi-sama!
+AGB-AOIE	Shrek - Reekin' Havoc
+AGB-AOIP	Shrek - Reekin' Havoc
+AGB-AOKJ	Okumanchouja Game - Nottori Daisakusen!
+AGB-AOME	Disney Sports - Motocross
+AGB-AOMJ	Disney Sports - Motocross
+AGB-AOMP	Disney Sports - Motocross
+AGB-AONE	Bubble Bobble - Old & New
+AGB-AONP	Bubble Bobble - Old & New
+AGB-AOPJ	Oshare Princess
+AGB-AORJ	Oriental Blue - Ao no Tengai
+AGB-AOSE	Samurai Deeper Kyo
+AGB-AOSJ	Samurai Deeper Kyo
+AGB-AOTE	Polly Pocket! - Super Splash Island
+AGB-AOTP	Polly Pocket! - Super Splash Island
+AGB-AOWE	Spyro - Attack of the Rhynocs
+AGB-AOWP	Spyro Adventure
+AGB-AP3J	Power Pro Kun Pocket 3
+AGB-AP4J	Power Pro Kun Pocket 4
+AGB-AP5E	Powerpuff Girls, The - Him and Seek
+AGB-AP5P	Powerpuff Girls, The - Him and Seek
+AGB-AP6J	Pinobee & Phoebee
+AGB-AP7P	Pink Panther - Pinkadelic Pursuit
+AGB-AP8D	Scooby-Doo
+AGB-AP8E	Scooby-Doo
+AGB-AP8F	Scooby-Doo
+AGB-AP8P	Scooby-Doo
+AGB-AP8S	Scooby-Doo
+AGB-AP9P	Pocket Music
+AGB-APBE	Pinobee - Wings of Adventure
+AGB-APBJ	Pinobee no Daibouken
+AGB-APCE	Pac-Man Collection
+AGB-APCJ	Pac-Man Collection
+AGB-APCP	Pac-Man Collection
+AGB-APDE	Pinball of the Dead, The
+AGB-APDP	Pinball of the Dead, The
+AGB-APEE	Pink Panther - Pinkadelic Pursuit
+AGB-APFE	Pitfall - The Mayan Adventure
+AGB-APGE	Punch King - Arcade Boxing
+AGB-APGP	Punch King - Arcade Boxing
+AGB-APHE	Prehistorik Man
+AGB-APIP	Pinky and the Brain - The Master Plan
+AGB-APJJ	Bouken Yuuki Pluster World - Densetsu no Plust Gate
+AGB-APKE	Pocky & Rocky with Becky
+AGB-APLP	Pinball Challenge Deluxe
+AGB-APME	Planet Monsters
+AGB-APMP	Planet Monsters
+AGB-APNJ	Pinky Monkey Town
+AGB-APOE	Popeye - Rush for Spinach
+AGB-APPE	Peter Pan - Return to Neverland
+AGB-APPP	Peter Pan - Return to Neverland
+AGB-APRD	Power Rangers - Time Force
+AGB-APRE	Power Rangers - Time Force
+AGB-APRF	Power Rangers - La Force du Temps
+AGB-APTE	Powerpuff Girls, The - Mojo Jojo A-Go-Go
+AGB-APTP	Powerpuff Girls, The - Mojo Jojo A-Go-Go
+AGB-APUJ	PukuPuku Tennen Kairanban
+AGB-APWE	Power Rangers - Wild Force
+AGB-APXE	Phalanx
+AGB-APXJ	Phalanx
+AGB-APXP	Phalanx
+AGB-APYE	Puyo Pop
+AGB-APYJ	Minna de Puyo Puyo
+AGB-APYP	Puyo Pop
+AGB-APZP	Pinball Advance
+AGB-AQ2J	Choro Q Advance 2
+AGB-AQ2P	Gadget Racers
+AGB-AQ3E	SpongeBob SquarePants - Revenge of the Flying Dutchman
+AGB-AQAE	Gadget Racers
+AGB-AQAJ	Choro Q Advance
+AGB-AQAP	Penny Racers
+AGB-AQBP	Scrabble
+AGB-AQCJ	Combat Choro Q - Advance Daisakusen
+AGB-AQDE	Crouching Tiger, Hidden Dragon
+AGB-AQDP	Crouching Tiger, Hidden Dragon
+AGB-AQDS	Disney Princesas
+AGB-AQHE	Rescue Heroes - Billy Blazes!
+AGB-AQME	Magical Quest 2 Starring Mickey & Minnie
+AGB-AQMP	Magical Quest 2 Starring Mickey & Minnie
+AGB-AQPD	Disneys Prinzessinnen
+AGB-AQPE	Disney Princess
+AGB-AQPF	Disney Princesse
+AGB-AQPI	Disney Principesse
+AGB-AQRE	ATV - Quad Power Racing
+AGB-AQRP	ATV - Quad Power Racing
+AGB-AQTE	Dr. Seuss' The Cat in the Hat
+AGB-AQTP	Cat in the Hat, The
+AGB-AQWE	Game & Watch Gallery 4
+AGB-AQWJ	Game Boy Gallery 4
+AGB-AQWP	Game & Watch Gallery Advance
+AGB-AQXE	Blackthorne
+AGB-AQXP	Blackthorne
+AGB-AR2E	Ready 2 Rumble Boxing - Round 2
+AGB-AR2P	Ready 2 Rumble Boxing - Round 2
+AGB-AR3E	Ice Nine
+AGB-AR4E	Rocket Power - Beach Bandits
+AGB-AR5E	Rugrats - I Gotta Go Party
+AGB-AR5F	Razmoket, Les - A Moi la Fiesta
+AGB-AR6E	Tom Clancy's Rainbow Six - Rogue Spear
+AGB-AR6P	Tom Clancy's Rainbow Six - Rogue Spear
+AGB-AR7J	Advance Rally
+AGB-AR8E	Rocky
+AGB-AR9E	Reign of Fire
+AGB-AR9P	Reign of Fire
+AGB-ARAJ	Shin Nihon Pro Wrestling - Toukon Retsuden Advance
+AGB-ARBE	Robotech - The Macross Saga
+AGB-ARCE	GP-1 Racing
+AGB-ARDE	Ripping Friends, The - The World's Most Manly Men!
+AGB-AREE	Mega Man - Battle Network
+AGB-AREJ	Battle Network - Rockman EXE
+AGB-AREP	Megaman - Battle Network
+AGB-ARFE	Razor Freestyle Scooter
+AGB-ARFP	Freestyle Scooter
+AGB-ARGE	Rugrats - Castle Capers
+AGB-ARGF	Razmoket, Les - Voler N'Est Pas Jouer
+AGB-ARGS	Rugrats - Travesuras en el Castillo
+AGB-ARHJ	Recca no Honoo - The Game
+AGB-ARIJ	Groove Adventure Rave - Hikari to Yami no Daikessen 2
+AGB-ARJJ	Custom Robo GX
+AGB-ARKE	Rocket Power - Dream Scheme
+AGB-ARKF	Rocket Power - Le Cauchemar d'Otto
+AGB-ARME	Minority Report - Everybody Runs
+AGB-ARNJ	Neoromance Game - Harukanaru Toki no Naka de
+AGB-AROP	Rocky
+AGB-ARPE	Robopon 2 - Ring Version
+AGB-ARPJ	Robot Poncots 2 - Ring Version
+AGB-ARQE	Cross Town Heroes
+AGB-ARQP	Cross Town Heroes
+AGB-ARSP	Robot Wars - Extreme Destruction
+AGB-ARUE	Robot Wars - Advanced Destruction
+AGB-ARVJ	Groove Adventure Rave - Hikari to Yami no Daikessen
+AGB-ARWP	Robot Wars - Advanced Destruction
+AGB-ARXE	Rampage - Puzzle Attack
+AGB-ARYE	Rayman Advance
+AGB-ARYP	Rayman Advance
+AGB-ARZJ	Rockman Zero
+AGB-AS2E	Star Wars - Episode II - Attack of the Clones
+AGB-AS2X	Star Wars - Episode II - Attack of the Clones
+AGB-AS3E	Kelly Slater's Pro Surfer
+AGB-AS4E	Shrek - Swamp Kart Speedway
+AGB-AS5E	Salt Lake 2002
+AGB-AS6P	Speedball 2
+AGB-AS8E	Star X
+AGB-AS8P	Star X
+AGB-ASAE	Army Men Advance
+AGB-ASBJ	Gyakuten Saiban
+AGB-ASCD	Shaun Palmer's Pro Snowboarder
+AGB-ASCE	Shaun Palmer's Pro Snowboarder
+AGB-ASDE	Scooby-Doo and the Cyber Chase
+AGB-ASDX	Scooby-Doo and the Cyber Chase
+AGB-ASEE	Spider-Man - Mysterio's Menace
+AGB-ASEJ	Spider-Man - Mysterio no Kyoui
+AGB-ASFJ	Slot! Pro Advance - Takarabune & Ooedo Sakurafubuki 2
+AGB-ASGE	Smuggler's Run
+AGB-ASGP	Smuggler's Run
+AGB-ASHJ	Play Novel - Silent Hill
+AGB-ASIE	Sims, The - Bustin' Out
+AGB-ASKJ	Sutakomi - Star Communicator
+AGB-ASLE	Stuart Little 2
+AGB-ASLF	Stuart Little 2
+AGB-ASLP	Stuart Little 2
+AGB-ASMJ	Saibara Rieko no Dendou Mahjong
+AGB-ASNC	Dog Trainer
+AGB-ASNJ	Samsara Naga 1x2
+AGB-ASOE	Sonic Advance
+AGB-ASOJ	Sonic Advance
+AGB-ASOP	Sonic Advance
+AGB-ASPE	SpongeBob SquarePants - SuperSponge
+AGB-ASQE	Snood
+AGB-ASQP	Snood
+AGB-ASRJ	Super Robot Taisen A
+AGB-ASSE	High Heat Major League Baseball 2002
+AGB-ASTC	Sitafei De Chuanshuo
+AGB-ASTJ	Densetsu no Stafy
+AGB-ASUE	Superman - Countdown to Apokolips
+AGB-ASUP	Superman - Countdown to Apokolips
+AGB-ASVJ	Shanghai Advance
+AGB-ASWE	Star Wars - Jedi Power Battles
+AGB-ASWX	Star Wars - Jedi Power Battles
+AGB-ASXJ	Sangokushi
+AGB-ASYE	Spyro - Season of Ice
+AGB-ASYP	Spyro - Season of Ice
+AGB-ASZE	Scorpion King, The - Sword of Osiris
+AGB-ASZP	Scorpion King, The - Sword of Osiris
+AGB-AT2J	Dragon Quest Characters - Torneko no Daibouken 2 Advance - Fushigi no Dungeon
+AGB-AT3D	Tony Hawk's Pro Skater 3
+AGB-AT3E	Tony Hawk's Pro Skater 3
+AGB-AT3F	Tony Hawk's Pro Skater 3
+AGB-AT4E	Turok - Evolution
+AGB-AT4P	Turok - Evolution
+AGB-AT5E	Tiger Woods PGA Tour Golf
+AGB-AT5X	Tiger Woods PGA Tour Golf
+AGB-AT6E	Tony Hawk's Pro Skater 4
+AGB-AT7F	Titeuf - Ze Gag Machine
+AGB-AT7P	Tootuff - The Gag Machine
+AGB-AT8P	Tennis Masters Series 2003
+AGB-AT9E	BMX Trick Racer
+AGB-ATAE	Tang Tang
+AGB-ATAP	Tang Tang
+AGB-ATBJ	Slot! Pro 2 Advance - GoGo Juggler & New Tairyou
+AGB-ATCE	Top Gear GT Championship
+AGB-ATCP	Top Gear GT Championship
+AGB-ATCX	GT Championship
+AGB-ATDJ	Daisuki Teddy
+AGB-ATEE	WTA Tour Tennis
+AGB-ATEP	Pro Tennis WTA Tour
+AGB-ATFP	Total Soccer Manager
+AGB-ATGE	Top Gun - Firestorm Advance
+AGB-ATHD	Tony Hawk's Pro Skater 2
+AGB-ATHE	Tony Hawk's Pro Skater 2
+AGB-ATHF	Tony Hawk's Pro Skater 2
+AGB-ATHJ	SK8 - Tony Hawk's Pro Skater 2
+AGB-ATIJ	Tennis no Ouji-sama - Genius Boys Academy
+AGB-ATJE	Tom and Jerry - The Magic Ring
+AGB-ATJP	Tom and Jerry - The Magic Ring
+AGB-ATKE	Tekken Advance
+AGB-ATKJ	Tekken Advance
+AGB-ATKP	Tekken Advance
+AGB-ATLE	Atlantis - The Lost Empire
+AGB-ATLX	Atlantis - The Lost Empire
+AGB-ATMD	Tweety and the Magic Gems
+AGB-ATME	Tweety and the Magic Gems
+AGB-ATMF	Titi et les Bijoux Magiques
+AGB-ATMH	Tweety and the Magic Gems
+AGB-ATMP	Tweety and the Magic Gems
+AGB-ATNP	Thunderbirds - International Rescue
+AGB-ATOE	Tactics Ogre - The Knight of Lodis
+AGB-ATOJ	Tactics Ogre Gaiden - The Knight of Lodis
+AGB-ATPJ	Keitai Denjuu Telefang 2 - Power
+AGB-ATQP	TOCA World Touring Cars
+AGB-ATRJ	Toy Robo Force
+AGB-ATSJ	Keitai Denjuu Telefang 2 - Speed
+AGB-ATTE	Tiny Toon Adventures - Scary Dreams
+AGB-ATTP	Tiny Toon Adventures - Buster's Bad Dream
+AGB-ATUJ	Total Soccer Advance
+AGB-ATUP	Total Soccer 2002
+AGB-ATVP	Tir et But - Edition Champions du Monde
+AGB-ATWE	Tetris Worlds
+AGB-ATWJ	Tetris Worlds
+AGB-ATWX	Tetris Worlds
+AGB-ATWY	Tetris Worlds
+AGB-ATXP	Next Generation Tennis
+AGB-ATYJ	Gambler Densetsu Tetsuya - Yomigaeru Densetsu
+AGB-ATZJ	Zoids Saga
+AGB-AU2E	Shining Soul II
+AGB-AU2J	Shining Soul II
+AGB-AU2P	Shining Soul II
+AGB-AU3P	Moorhen 3 - The Chicken Chase!
+AGB-AUCJ	Uchuu Daisakusen Choco Vader - Uchuu kara no Shinryakusha
+AGB-AUEJ	Naruto - Konoha Senki
+AGB-AUGE	Medal of Honor - Underground
+AGB-AUGP	Medal of Honor - Underground
+AGB-AUGX	Medal of Honor - Underground
+AGB-AUME	Mummy, The
+AGB-AUMP	Mummy, The
+AGB-AUQP	Butt-Ugly Martians - B.K.M. Battles
+AGB-AUSJ	From TV Animation One Piece - Mezase! King of Berry
+AGB-AUTJ	Lara Croft Tomb Raider - The Prophecy
+AGB-AUXE	Stuntman
+AGB-AUXP	Stuntman
+AGB-AUYJ	Yuureiyashiki no Nijuuyojikan
+AGB-AUZE	Santa Claus Saves the Earth
+AGB-AV3E	Spy Kids 3-D - Game Over
+AGB-AV3P	Spy Kids 3-D - Game Over
+AGB-AVAJ	Tennis no Ouji-sama - Aim at the Victory!
+AGB-AVBE	Barbie Software - Groovy Games
+AGB-AVBP	Barbie Software - Groovy Games
+AGB-AVCE	Corvette
+AGB-AVDJ	Legend of Dynamic - Goushouden - Houkai no Rondo
+AGB-AVEE	Ultimate Beach Soccer
+AGB-AVEP	Pro Beach Soccer
+AGB-AVFC	Sitafei De Chuanshuo 2
+AGB-AVFJ	Densetsu no Stafy 2
+AGB-AVIJ	Medarot Navi - Kuwagata
+AGB-AVKE	Virtual Kasparov
+AGB-AVKP	Virtual Kasparov
+AGB-AVLD	Daredevil
+AGB-AVLE	Daredevil
+AGB-AVLX	Daredevil
+AGB-AVMJ	V-Master Cross
+AGB-AVPP	V.I.P.
+AGB-AVRE	V-Rally 3
+AGB-AVRJ	V-Rally 3
+AGB-AVRP	V-Rally 3
+AGB-AVSE	Sword of Mana
+AGB-AVSJ	Shinyaku Seiken Densetsu
+AGB-AVSP	Sword of Mana
+AGB-AVSX	Sword of Mana
+AGB-AVSY	Sword of Mana
+AGB-AVTE	Virtua Tennis
+AGB-AVTP	Virtua Tennis
+AGB-AVYD	Buffy - Im Bann der Daemonen - Koenig Darkhuls Zorn
+AGB-AVYE	Buffy the Vampire Slayer - Wrath of the Darkhul King
+AGB-AVYF	Buffy contre les Vampires - La Colere de Darkhul
+AGB-AVZE	Super Bubble Pop
+AGB-AVZP	Super Bubble Pop
+AGB-AW2E	Advance Wars 2 - Black Hole Rising
+AGB-AW2P	Advance Wars 2 - Black Hole Rising
+AGB-AW3J	Yumemi-chan no Naritai Series 3 - Watashi no Makesalon
+AGB-AW4E	Mortal Kombat - Tournament Edition
+AGB-AW7J	Minna no Shiiku Series 2 - Boku no Kuwagata
+AGB-AW8E	WWE - Road to WrestleMania X8
+AGB-AW9E	Wing Commander - Prophecy
+AGB-AW9P	Wing Commander - Prophecy
+AGB-AWAC	Waliou Xunbao Ji
+AGB-AWAE	Wario Land 4
+AGB-AWAJ	Wario Land Advance - Youki no Otakara
+AGB-AWBP	Worms Blast
+AGB-AWCE	World Tennis Stars
+AGB-AWCP	World Tennis Stars
+AGB-AWDE	Wakeboarding Unleashed Featuring Shaun Murray
+AGB-AWEJ	Black Black - Bura Bura
+AGB-AWFE	WWF - Road to WrestleMania
+AGB-AWGP	Salt Lake 2002
+AGB-AWIE	ESPN International Winter Sports 2002
+AGB-AWIJ	Hyper Sports 2002 Winter
+AGB-AWIP	ESPN International Winter Sports
+AGB-AWKJ	Wagamama Fairy Mirumo de Pon! - Ougon Maracas no Densetsu
+AGB-AWLE	Wild Thornberrys Movie, The
+AGB-AWLF	Famille Delajungle, La - Le Film
+AGB-AWNE	Spirits & Spells
+AGB-AWNJ	Mahou no Pumpkin - Ann to Greg no Daibouken
+AGB-AWNP	Castleween
+AGB-AWOE	Wolfenstein 3D
+AGB-AWPJ	Winning Post for Game Boy Advance
+AGB-AWQE	Wings
+AGB-AWQP	Wings
+AGB-AWRC	Lu-Hai-Kong Dazhan
+AGB-AWRE	Advance Wars
+AGB-AWRP	Advance Wars
+AGB-AWSE	Tiny Toon Adventures - Wacky Stackers
+AGB-AWSP	Tiny Toon Adventures - Wacky Stackers
+AGB-AWTD	Expedition der Stachelbeeren - Zoff im Zoo
+AGB-AWTE	Wild Thornberrys, The - Chimp Chase
+AGB-AWTF	Famille Delajungle, La - A la Poursuite de Darwin
+AGB-AWUE	Sabre Wulf
+AGB-AWUP	Sabre Wulf
+AGB-AWVE	X2 - Wolverine's Revenge
+AGB-AWVF	X-Men 2 - La Vengeance de Wolverine
+AGB-AWWE	Woody Woodpecker in Crazy Castle 5
+AGB-AWWJ	Woody Woodpecker - Crazy Castle 5
+AGB-AWWP	Woody Woodpecker in Crazy Castle 5
+AGB-AWXE	ESPN Winter X-Games Snowboarding 2002
+AGB-AWXJ	ESPN Winter X-Games Snowboarding 2002
+AGB-AWXP	ESPN Winter X-Games Snowboarding 2
+AGB-AWYE	Worms - World Party
+AGB-AWYP	Worms - World Party
+AGB-AWZJ	Wizardry Summoner
+AGB-AX2E	Dave Mirra Freestyle BMX 2
+AGB-AX2P	Dave Mirra Freestyle BMX 2
+AGB-AX3E	xXx
+AGB-AX3F	xXx
+AGB-AX4E	Super Mario Advance 4 - Super Mario Bros. 3
+AGB-AX4J	Super Mario Advance 4 - Super Mario 3 + Mario Brothers
+AGB-AX4P	Super Mario Advance 4 - Super Mario Bros. 3
+AGB-AXBJ	Black Matrix Zero
+AGB-AXDE	Mortal Kombat - Deadly Alliance
+AGB-AXDP	Mortal Kombat - Deadly Alliance
+AGB-AXHJ	Dan Doh!! Xi
+AGB-AXIE	X-Bladez - Inline Skater
+AGB-AXIP	X-Bladez - Inline Skater
+AGB-AXME	X-Men - Reign of Apocalypse
+AGB-AXPD	Pokemon - Saphir-Edition
+AGB-AXPE	Pokemon - Sapphire Version
+AGB-AXPF	Pokemon - Version Saphir
+AGB-AXPI	Pokemon - Versione Zaffiro
+AGB-AXPJ	Pocket Monsters - Sapphire
+AGB-AXPS	Pokemon - Edicion Zafiro
+AGB-AXQF	Taxi 3
+AGB-AXRE	Super Street Fighter II Turbo - Revival
+AGB-AXRJ	Super Street Fighter II X - Revival
+AGB-AXRP	Super Street Fighter II Turbo - Revival
+AGB-AXSE	ESPN X-Games Skateboarding
+AGB-AXSJ	ESPN X-Games Skateboarding
+AGB-AXSP	ESPN X-Games Skateboarding
+AGB-AXTE	Island Xtreme Stunts
+AGB-AXVD	Pokemon - Rubin-Edition
+AGB-AXVE	Pokemon - Ruby Version
+AGB-AXVF	Pokemon - Version Rubis
+AGB-AXVI	Pokemon - Versione Rubino
+AGB-AXVJ	Pocket Monsters - Ruby
+AGB-AXVS	Pokemon - Edicion Rubi
+AGB-AXXP	Santa Claus Jr. Advance
+AGB-AXYE	SSX Tricky
+AGB-AXZP	Micro Machines
+AGB-AY2P	International Superstar Soccer Advance
+AGB-AY3E	Army Men - Turf Wars
+AGB-AY5E	Yu-Gi-Oh! - The Eternal Duelist Soul
+AGB-AY5J	Yu-Gi-Oh! Duel Monsters 5 Expert 1
+AGB-AY6J	Yu-Gi-Oh! Duel Monsters 6 Expert 2
+AGB-AY7E	Yu-Gi-Oh! - The Sacred Cards
+AGB-AY7J	Yu-Gi-Oh! Duel Monsters 7 - Kettou Toshi Densetsu
+AGB-AY7P	Yu-Gi-Oh! - The Sacred Cards
+AGB-AY8E	Yu-Gi-Oh! - Reshef of Destruction
+AGB-AY8J	Yu-Gi-Oh! Duel Monsters 8 - Hametsu no Daijashin
+AGB-AY8P	Yu-Gi-Oh! - Reshef of Destruction
+AGB-AYAJ	Dokodemo Taikyoku - Yakuman Advance
+AGB-AYBE	Backyard Basketball
+AGB-AYCE	Phantasy Star Collection
+AGB-AYCP	Phantasy Star Collection
+AGB-AYDE	Yu-Gi-Oh! - Dungeon Dice Monsters
+AGB-AYDJ	Yu-Gi-Oh! - Dungeon Dice Monsters
+AGB-AYDP	Yu-Gi-Oh! - Dungeon Dice Monsters
+AGB-AYEJ	Top Gear Rally
+AGB-AYFE	Backyard Football
+AGB-AYGE	Gauntlet - Dark Legacy
+AGB-AYHE	Starsky & Hutch
+AGB-AYHP	Starsky & Hutch
+AGB-AYIE	Urban Yeti!
+AGB-AYKE	Karnaaj Rally
+AGB-AYLE	SEGA Rally Championship
+AGB-AYLJ	SEGA Rally Championship
+AGB-AYLP	SEGA Rally Championship
+AGB-AYMJ	Tanbi Musou - Meine Liebe
+AGB-AYNE	Planet of the Apes
+AGB-AYNP	Planet of the Apes
+AGB-AYPE	SEGA Arcade Gallery
+AGB-AYPP	SEGA Arcade Gallery
+AGB-AYRJ	Narikiri Jockey Game - Yuushun Rhapsody
+AGB-AYSJ	Gakkou o Tsukurou!! Advance
+AGB-AYTJ	Yu-Gi-Oh! Duel Monsters 5 Expert 1 - Taikenban
+AGB-AYWE	Yu-Gi-Oh! - Worldwide Edition - Stairway to the Destined Duel
+AGB-AYWJ	Yu-Gi-Oh! Duel Monsters International - Worldwide Edition
+AGB-AYWP	Yu-Gi-Oh! - Worldwide Edition - Stairway to the Destined Duel
+AGB-AYZE	Rayman 3
+AGB-AYZP	Rayman 3
+AGB-AZ2E	Zoids - Legacy
+AGB-AZ2J	Zoids Saga II
+AGB-AZ3J	Cyberdrive Zoids - Kijuu no Senshi Hyuu
+AGB-AZ8E	Super Puzzle Fighter II
+AGB-AZ8P	Super Puzzle Fighter II
+AGB-AZ9J	Simple 2960 Tomodachi Series Vol. 2 - The Block Kuzushi
+AGB-AZAJ	Azumanga Daiou Advance
+AGB-AZBJ	Bass Tsuri Shiyouze! - Tournament wa Senryaku da!
+AGB-AZCE	Mega Man Zero
+AGB-AZDP	Zidane - Football Generation 2002
+AGB-AZEE	Zone of the Enders - The Fist of Mars
+AGB-AZEJ	Z.O.E. 2173 - Testament
+AGB-AZEP	Zone of the Enders - The Fist of Mars
+AGB-AZFE	Need for Speed - Porsche Unleashed
+AGB-AZFP	Need for Speed - Porsche Unleashed
+AGB-AZGJ	Jinsei Game Advance
+AGB-AZHP	Hugo - Bukkazoom!
+AGB-AZID	Findet Nemo
+AGB-AZIE	Finding Nemo
+AGB-AZIX	Finding Nemo
+AGB-AZIY	Finding Nemo
+AGB-AZJE	Dragon Ball Z - Supersonic Warriors
+AGB-AZJJ	Dragon Ball Z - Bukuu Tougeki
+AGB-AZJK	Dragon Ball Z - Moogongtoogeuk
+AGB-AZJP	Dragon Ball Z - Supersonic Warriors
+AGB-AZKJ	Simple 2960 Tomodachi Series Vol. 1 - The Table Game Collection - Mahjong, Shougi, Hanafuda, Reversi
+AGB-AZLE	Legend of Zelda, The - A Link to the Past & Four Swords
+AGB-AZLJ	Zelda no Densetsu - Kamigami no Triforce & 4tsu no Tsurugi
+AGB-AZLP	Legend of Zelda, The - A Link to the Past & Four Swords
+AGB-AZME	Muppets, The - On with the Show!
+AGB-AZNE	Super Dropzone - Intergalactic Rescue Mission
+AGB-AZNP	Super Dropzone - Intergalactic Rescue Mission
+AGB-AZOJ	Pinball of the Dead, The
+AGB-AZPE	Zapper - One Wicked Cricket!
+AGB-AZPP	Zapper
+AGB-AZQE	Treasure Planet
+AGB-AZQP	Treasure Planet
+AGB-AZRP	Mr Nutz
+AGB-AZSE	Gem Smashers
+AGB-AZTJ	Zero-Tours
+AGB-AZUE	Street Fighter Alpha 3
+AGB-AZUJ	Street Fighter Zero 3 Upper
+AGB-AZUP	Street Fighter Alpha 3
+AGB-AZWC	Waliou Zhizao
+AGB-AZWE	WarioWare, Inc. - Mega Microgame$!
+AGB-AZWJ	Made in Wario
+AGB-AZWP	WarioWare, Inc. - Minigame Mania
+AGB-AZZE	Rocket Power - Zero Gravity Zone
+AGB-B08J	One Piece - Going Baseball - Kaizoku Yakyuu
+AGB-B23E	Sportsmans Pack 2 in 1 - Cabela's Big Game Hunter + Rapala Pro Fishing
+AGB-B24E	Pokemon Mystery Dungeon - Red Rescue Team
+AGB-B24J	Pokemon Fushigi no Dungeon - Aka no Kyuujotai
+AGB-B24P	Pokemon Mystery Dungeon - Red Rescue Team
+AGB-B25E	Scooby-Doo! - Unmasked
+AGB-B25X	Scooby-Doo! - Unmasked
+AGB-B25Y	Scooby-Doo! - Unmasked
+AGB-B26E	World Poker Tour
+AGB-B27E	Top Spin 2
+AGB-B27P	Top Spin 2
+AGB-B2AP	2 in 1 - Asterix & Obelix - Bash Them All! + Asterix & Obelix XXL
+AGB-B2BP	2 Games in 1 - The SpongeBob SquarePants Movie + SpongeBob SquarePants and Friends in Freeze Frame Frenzy
+AGB-B2CE	Pac-Man World 2
+AGB-B2CP	Pac-Man World 2
+AGB-B2DE	Donkey Kong Country 2
+AGB-B2DJ	Super Donkey Kong 2
+AGB-B2DP	Donkey Kong Country 2
+AGB-B2EE	Dora the Explorer Double Pack
+AGB-B2FE	Family Feud
+AGB-B2HP	Hugo 2 in 1
+AGB-B2KJ	Kiss x Kiss - Seirei Gakuen
+AGB-B2LE	Totally Spies! 2 - Undercover
+AGB-B2LP	Totally Spies! 2 - Undercover
+AGB-B2ME	Shaman King - Master of Spirits 2
+AGB-B2MP	Shaman King - Master of Spirits 2
+AGB-B2NE	Arthur and the Invisibles
+AGB-B2NP	Arthur and the Minimoys
+AGB-B2OJ	Pro Mahjong Tsuwamono GBA
+AGB-B2PJ	Twin Series 7 - Twin Puzzle - Kisekae Wanko EX + Nyaa to Chuu no Rainbow Magic 2
+AGB-B2QP	Prince of Persia - The Sands of Time & Lara Croft Tomb Raider - The Prophecy
+AGB-B2RE	Super Robot Taisen - Original Generation 2
+AGB-B2RJ	Super Robot Taisen - Original Generation 2
+AGB-B2SJ	Cinnamon - Yume no Daibouken
+AGB-B2TE	Tony Hawk's Underground 2
+AGB-B2VE	Snood 2 - On Vacation
+AGB-B2VP	Snood 2 - On Vacation
+AGB-B2WE	Chronicles of Narnia, The - The Lion, the Witch and the Wardrobe
+AGB-B2YE	2K Sports - Major League Baseball 2K7
+AGB-B33E	Santa Clause 3, The - The Escape Clause
+AGB-B34E	Let's Ride! - Sunshine Stables
+AGB-B35E	Strawberry Shortcake - Summertime Adventure
+AGB-B35P	Strawberry Shortcake - Ice Cream Island - Riding Camp
+AGB-B36E	Dynasty Warriors Advance
+AGB-B36J	Shin Sangoku Musou Advance
+AGB-B36P	Dynasty Warriors Advance
+AGB-B3AE	Lord of the Rings, The - The Third Age
+AGB-B3AJ	Lord of the Rings, The - Nakatsukuni Daisanki
+AGB-B3BE	ATV - Thunder Ridge Riders
+AGB-B3BP	ATV - Thunder Ridge Riders
+AGB-B3CJ	Summon Night - Craft Sword Monogatari - Hajimari no Ishi
+AGB-B3DJ	Densetsu no Stafy 3
+AGB-B3EJ	Sangokushi - Eiketsuden
+AGB-B3FE	Polly Pocket! - Super Splash Island
+AGB-B3FP	Polly Pocket! - Super Splash Island
+AGB-B3GE	Sigma Star Saga
+AGB-B3HE	Shrek the Third
+AGB-B3HP	Shrek the Third
+AGB-B3IJ	Mirakuru! Panzou - 7-tsu no Hoshi no Uchuu Kaizoku
+AGB-B3JE	Curious George
+AGB-B3JP	Curious George
+AGB-B3KJ	Croket! 3 - Granu Oukoku no Nazo
+AGB-B3LE	Killer 3D Pool
+AGB-B3LP	Killer 3D Pool
+AGB-B3MJ	Mermaid Melody - Pichi Pichi Pitch - Pichi Pichitto Live Start!
+AGB-B3NE	Majesco's Sports Pack
+AGB-B3NP	Majesco's Sports Pack
+AGB-B3OE	3 Game Pack! - Mouse Trap + Simon + Operation
+AGB-B3PJ	PukuPuku Tennen Kairanban - Youkoso! Illusion Land he
+AGB-B3QJ	Sangokushi - Koumeiden
+AGB-B3RE	Driv3r
+AGB-B3RP	Driv3r
+AGB-B3SE	Sonic Advance 3
+AGB-B3SJ	Sonic Advance 3
+AGB-B3SP	Sonic Advance 3
+AGB-B3TJ	Tales of the World - Narikiri Dungeon 3
+AGB-B3UE	3 Game Pack! - The Game of Life + Payday + Yahtzee
+AGB-B3XE	X-Men - The Official Game
+AGB-B3XP	X-Men - The Official Game
+AGB-B3YE	Legend of Spyro, The - A New Beginning
+AGB-B3YP	Legend of Spyro, The - A New Beginning
+AGB-B3ZE	Global Star - Sudoku Fever
+AGB-B3ZP	Global Star - Sudoku Fever
+AGB-B42J	Kidou Senshi Gundam SEED Destiny
+AGB-B43J	Cinnamon - Fuwafuwa Daisakusen
+AGB-B44P	3 Games in 1 - Rugrats - I Gotta Go Party + SpongeBob SquarePants - SuperSponge + Tak and the Power of Juju
+AGB-B46E	Sims 2, The
+AGB-B4BE	Mega Man - Battle Network 4 - Blue Moon
+AGB-B4BJ	Rockman EXE 4 - Tournament Blue Moon
+AGB-B4BP	Megaman - Battle Network 4 - Blue Moon
+AGB-B4DE	Sky Dancers - They Magically Fly!
+AGB-B4DP	Sky Dancers - They Magically Fly!
+AGB-B4GJ	Tennis no Ouji-sama 2004 - Glorious Gold
+AGB-B4IE	Shrek - Smash n' Crash Racing
+AGB-B4IP	Shrek - Smash n' Crash Racing
+AGB-B4KJ	Shikakui Atama o Maruku Suru. Advance - Kanji, Keisan
+AGB-B4LJ	Sugar Sugar Rune - Heart Ga Ippai! Moegi Gakuen
+AGB-B4ME	Marvel - Ultimate Alliance
+AGB-B4MP	Marvel - Ultimate Alliance
+AGB-B4OE	Sims 2, The - Pets
+AGB-B4OX	Sims 2, The - Pets
+AGB-B4PJ	Sims, The
+AGB-B4RJ	Shikakui Atama o Maruku Suru. Advance - Kokugo, Sansuu, Shakai, Rika
+AGB-B4SJ	Tennis no Ouji-sama 2004 - Stylish Silver
+AGB-B4TE	Strawberry Shortcake - Sweet Dreams
+AGB-B4UE	Shrek - Super Slam
+AGB-B4UP	Shrek - Super Slam
+AGB-B4WE	Mega Man - Battle Network 4 - Red Sun
+AGB-B4WJ	Rockman EXE 4 - Tournament Red Sun
+AGB-B4WP	Megaman - Battle Network 4 - Red Sun
+AGB-B4ZE	Mega Man Zero 4
+AGB-B4ZJ	Rockman Zero 4
+AGB-B4ZP	Megaman Zero 4
+AGB-B52P	Crash & Spyro Super Pack Volume 2
+AGB-B53P	Crash & Spyro Super Pack Volume 3
+AGB-B54E	Crash & Spyro Superpack - Spyro - Season of Ice + Crash Bandicoot - The Huge Adventure
+AGB-B55P	Who Wants to Be a Millionaire - 2nd Edition
+AGB-B5AP	Crash & Spyro Super Pack Volume 1
+AGB-B5BJ	Pocket Monsters Diamond - Pocket Monsters Pearl - Manaphy Present Campaign Senyou Cartridge
+AGB-B5NE	Namco Museum - 50th Anniversary
+AGB-B5NP	Namco Museum - 50th Anniversary
+AGB-B62E	3 Games in One! - Super Breakout + Millipede + Lunar Lander
+AGB-B62P	3 Games in One! - Super Breakout + Millipede + Lunar Lander
+AGB-B63E	Big Mutha Truckers
+AGB-B63P	Big Mutha Truckers
+AGB-B64E	3 Games in One! - Yars' Revenge + Asteroids + Pong
+AGB-B64P	3 Games in One! - Yars' Revenge + Asteroids + Pong
+AGB-B65E	Three-in-One Pack - Connect Four + Perfection + Trouble
+AGB-B66E	Three-in-One Pack - Risk + Battleship + Clue
+AGB-B67E	Three-in-One Pack - Sorry! + Aggravation + Scrabble Junior
+AGB-B68E	2 Games in One! - Marble Madness + Klax
+AGB-B68P	2 Games in One! - Marble Madness + Klax
+AGB-B69E	2 Games in One! - Gauntlet + Rampart
+AGB-B69P	2 Games in One! - Gauntlet + Rampart
+AGB-B6AE	2 Games in One! - Spy Hunter + Super Sprint
+AGB-B6AP	2 Games in One! - Spy Hunter + Super Sprint
+AGB-B6BE	2 Games in One! - Paperboy + Rampage
+AGB-B6BP	2 Games in One! - Paperboy + Rampage
+AGB-B6EE	Board Game Classics
+AGB-B6EP	Board Game Classics - Backgammon & Chess & Draughts
+AGB-B6FE	Chicken Shoot
+AGB-B6FP	Chicken Shoot
+AGB-B6GE	Chicken Shoot 2
+AGB-B6GP	Chicken Shoot 2
+AGB-B6JJ	Super Robot Taisen J
+AGB-B6ME	Madden NFL 06
+AGB-B6PE	2 Great Games! - Pac-Man World + Ms. Pac-Man - Maze Madness
+AGB-B6PP	Pac-Man World & Ms. Pac-Man - Maze Madness
+AGB-B6WE	2006 FIFA World Cup - Germany 2006
+AGB-B6ZE	3 Games in One! - Breakout + Centipede + Warlords
+AGB-B6ZP	3 Games in One! - Breakout + Centipede + Warlords
+AGB-B72J	Hudson Best Collection Vol. 2 - Lode Runner Collection
+AGB-B73J	Hudson Best Collection Vol. 3 - Action Collection
+AGB-B74J	Hudson Best Collection Vol. 4 - Nazotoki Collection
+AGB-B75J	Hudson Best Collection Vol. 5 - Shooting Collection
+AGB-B76J	Hudson Best Collection Vol. 6 - Bouken-jima Collection
+AGB-B7FE	FIFA Soccer 07
+AGB-B7IJ	Hudson Best Collection Vol. 1 - Bomberman Collection
+AGB-B7ME	Madden NFL 07
+AGB-B82E	Dogz
+AGB-B82J	Kawaii Koinu Wonderful
+AGB-B82P	Dogz
+AGB-B82X	Dogz
+AGB-B82Y	Dogz
+AGB-B85A	Hamtaro - Ham-Ham Games
+AGB-B85P	Hamtaro - Ham-Ham Games
+AGB-B86E	Hello Kitty - Happy Party Pals
+AGB-B86P	Hello Kitty - Happy Party Pals
+AGB-B86X	Hello Kitty - Happy Party Pals
+AGB-B8AE	Crash Superpack - Crash Bandicoot 2 - N-Tranced + Crash Nitro Kart
+AGB-B8CE	Kingdom Hearts - Chain of Memories
+AGB-B8CJ	Kingdom Hearts - Chain of Memories
+AGB-B8CP	Kingdom Hearts - Chain of Memories
+AGB-B8DE	Around the World in 80 Days
+AGB-B8DP	Around the World in 80 Days
+AGB-B8FE	Herbie - Fully Loaded
+AGB-B8FP	Herbie - Fully Loaded
+AGB-B8KE	Kirby & The Amazing Mirror
+AGB-B8KJ	Hoshi no Kirby - Kagami no Daimeikyuu
+AGB-B8KP	Kirby & The Amazing Mirror
+AGB-B8ME	Mario Party Advance
+AGB-B8MJ	Mario Party Advance
+AGB-B8MP	Mario Party Advance
+AGB-B8PJ	Power Pro Kun Pocket 1, 2
+AGB-B8QE	Pirates of the Caribbean - Dead Man's Chest
+AGB-B8SE	Spyro Superpack - Spyro - Season of Ice + Spyro 2 - Season of Flame
+AGB-B94D	Pferd & Pony - Mein Pferdehof & Pferd and Pony - Lass Uns Reiten 2
+AGB-B9AJ	Kunio-kun Nekketsu Collection 1
+AGB-B9BJ	Kunio-kun Nekketsu Collection 2
+AGB-B9CJ	Kunio-kun Nekketsu Collection 3
+AGB-B9SP	Trick Star
+AGB-B9TJ	Shark Tale
+AGB-BAAE	Operation Armored Liberty
+AGB-BABJ	Aleck Bordon Adventure - Tower & Shaft Advance
+AGB-BACP	Action Man - Robot Atak
+AGB-BADE	Aladdin
+AGB-BADP	Aladdin
+AGB-BAEE	Ace Combat Advance
+AGB-BAGJ	Advance Guardian Heroes
+AGB-BAHP	Alien Hominid
+AGB-BAJE	Banjo-Pilot
+AGB-BAJP	Banjo-Pilot
+AGB-BAKE	Koala Brothers - Outback Adventures
+AGB-BAKP	Koala Brothers - Outback Adventures
+AGB-BALE	All Grown Up! - Express Yourself
+AGB-BALX	Razbitume! - Restez Branches!
+AGB-BAMJ	Ashita no Joe - Makka ni Moeagare!
+AGB-BANE	Van Helsing
+AGB-BANP	Van Helsing
+AGB-BAPE	American Dragon - Jake Long - Rise of the Huntsclan
+AGB-BAQP	Premier Action Soccer
+AGB-BARP	2 Games in 1 - Moto GP + GT Advance 3 - Pro Concept Racing
+AGB-BASJ	Gakuen Alice - Dokidoki Fushigi Taiken
+AGB-BATE	Batman - Rise of Sin Tzu
+AGB-BAUE	Barbie - The Princess and the Pauper
+AGB-BAUP	Barbie - The Princess and the Pauper
+AGB-BAVE	Activision Anthology
+AGB-BAWE	Alex Rider - Stormbreaker
+AGB-BAWX	Alex Rider - Stormbreaker
+AGB-BAXJ	Animal Yokochou - Doki Doki Shinkyuu Shiken! no Maki
+AGB-BAYJ	Animal Yokochou - Doki Doki Kyuushutsu Daisakusen! no Maki
+AGB-BAZJ	Aka-chan Doubutsuen
+AGB-BB2E	Beyblade G-Revolution
+AGB-BB2P	Beyblade G-Revolution
+AGB-BB3E	Barbie in the 12 Dancing Princesses
+AGB-BB3P	Barbie in the 12 Dancing Princesses
+AGB-BB4E	2 Game Pack! - Matchbox Missions - Emergency Response + Air, Land and Sea Rescue
+AGB-BB4P	2 Game Pack! - Matchbox Missions - Emergency Response & Air, Land and Sea Rescue
+AGB-BB5E	Arctic Tale
+AGB-BB7E	Backyard Sports - Basketball 2007
+AGB-BB8E	Word Safari - The Friendship Totems
+AGB-BB9J	Boboboubo Boubobo - 9 Kyoku Senshi Gag Yuugou
+AGB-BBAP	Shamu's Deep Sea Adventures
+AGB-BBCE	Back to Stone
+AGB-BBCP	Back to Stone
+AGB-BBDE	BattleBots - Design & Destroy
+AGB-BBEE	Barbie Superpack - Secret Agent + Groovy Games
+AGB-BBEP	Barbie Superpack - Secret Agent + Groovy Games
+AGB-BBFJ	Battle X Battle - Kyodai Gyo Densetsu
+AGB-BBGE	Batman Begins
+AGB-BBHE	Blades of Thunder
+AGB-BBIE	Barbie Diaries, The - High School Mystery
+AGB-BBIP	Barbie Diaries, The - High School Mystery
+AGB-BBJP	2 Games in 1 - SpongeBob SquarePants - Battle for Bikini Bottom + Jimmy Neutron Boy Genius
+AGB-BBKC	Yaobai Senxigang
+AGB-BBKE	DK - King of Swing
+AGB-BBKJ	Bura Bura Donkey
+AGB-BBKP	DK - King of Swing
+AGB-BBLE	Teen Titans
+AGB-BBME	Battle B-Daman - Fire Spirits!
+AGB-BBMJ	B-Densetsu! Battle B-Daman - Fire Spirits!
+AGB-BBNE	Barbie as The Island Princess
+AGB-BBOE	Berenstain Bears and the Spooky Old Tree, The
+AGB-BBQJ	Power Poke Dash
+AGB-BBRE	Brother Bear
+AGB-BBRP	Brother Bear
+AGB-BBRX	Brother Bear
+AGB-BBSJ	Boukyaku no Senritsu
+AGB-BBUD	Bratz - The Movie
+AGB-BBUE	Bratz - The Movie
+AGB-BBUP	Bratz - The Movie
+AGB-BBUX	Bratz - The Movie
+AGB-BBVE	Babar to the Rescue
+AGB-BBVP	Babar to the Rescue
+AGB-BBWE	Avatar - The Last Airbender - The Burning Earth
+AGB-BBWP	Avatar - The Legend of Aang - The Burning Earth
+AGB-BBXD	Bibi Blocksberg - Der Magische Hexenkreis
+AGB-BBYE	Barnyard
+AGB-BBYX	Barnyard
+AGB-BBZE	Bratz - Babyz
+AGB-BBZP	Bratz - Babyz
+AGB-BC2S	Shin chan contra los Munecos de Shock Gahn
+AGB-BC3P	CT Special Forces 3 - Bioterror
+AGB-BC4E	3 Game Pack! - Candy Land + Chutes and Ladders + Original Memory Game
+AGB-BC5P	Cocoto - Kart Racer
+AGB-BC6E	Capcom Classics Mini Mix
+AGB-BC7E	Backyard Sports - Baseball 2007
+AGB-BC8P	Cocoto - Platform Jumper
+AGB-BC9E	Spider-Man - Battle for New York
+AGB-BC9P	Spider-Man - Battle for New York
+AGB-BCAD	Cars
+AGB-BCAE	Cars
+AGB-BCAI	Cars - Motori Ruggenti
+AGB-BCAJ	Cars
+AGB-BCAX	Cars
+AGB-BCAY	Cars
+AGB-BCAZ	Cars
+AGB-BCBE	Crushed Baseball
+AGB-BCCE	Nicktoons - Freeze Frame Frenzy
+AGB-BCCX	SpongeBob SquarePants and Friends in Freeze Frame Frenzy
+AGB-BCDE	Cinderella - Magical Dreams
+AGB-BCDP	Cinderella - Magical Dreams
+AGB-BCFE	Charlie and the Chocolate Factory
+AGB-BCFP	Charlie and the Chocolate Factory
+AGB-BCGE	Cabbage Patch Kids - The Patch Puppy Rescue
+AGB-BCGP	Cabbage Patch Kids - The Patch Puppy Rescue
+AGB-BCHE	Chicken Little
+AGB-BCHJ	Chicken Little
+AGB-BCJE	Charlotte's Web
+AGB-BCJP	Charlotte's Web
+AGB-BCKE	Star Wars Trilogy - Apprentice of the Force
+AGB-BCKP	Star Wars Trilogy - Apprentice of the Force
+AGB-BCLE	Super Collapse! II
+AGB-BCME	CIMA - The Enemy
+AGB-BCMJ	Frontier Stories
+AGB-BCNE	Crash Nitro Kart
+AGB-BCNJ	Crash Bandicoot Bakusou! Nitro Cart
+AGB-BCNP	Crash Nitro Kart
+AGB-BCPE	Cars - Mater-National Championship
+AGB-BCPP	Cars - Mater-National Championship
+AGB-BCQE	Cheetah Girls, The
+AGB-BCRP	Crazy Frog Racer
+AGB-BCSP	2 in 1 - V-Rally 3 + Stuntman
+AGB-BCTE	Cat in the Hat, The
+AGB-BCUJ	Ochaken no Yume Bouken
+AGB-BCVE	2 Games in 1 - Scooby-Doo! - Mystery Mayhem + Scooby-Doo and the Cyber Chase
+AGB-BCVP	2 Games in 1 - Scooby-Doo! - Mystery Mayhem + Scooby-Doo and the Cyber Chase
+AGB-BCWE	Catwoman
+AGB-BCXE	Kid's Cards
+AGB-BCYE	Backyard Baseball 2006
+AGB-BCZE	Street Racing Syndicate
+AGB-BCZP	Street Racing Syndicate
+AGB-BD2J	Duel Masters 2 - Invincible Advance
+AGB-BD3J	Dragon Quest Characters - Torneko no Daibouken 3 Advance - Fushigi no Dungeon
+AGB-BD4E	Crash Bandicoot Purple - Ripto's Rampage
+AGB-BD4P	Crash Bandicoot Fusion
+AGB-BD5J	Duel Masters 2 - Kirifuda Shoubu Ver.
+AGB-BD6E	Duel Masters - Kaijudo Showdown
+AGB-BD6P	Duel Masters - Kaijudo Showdown
+AGB-BD7E	Proud Family, The
+AGB-BD8E	Disney's Party
+AGB-BD9E	Dragon Tales - Dragon Adventures
+AGB-BDAJ	Don-chan Puzzle - Hanabi de Doon! Advance
+AGB-BDBE	Dragon Ball Z - Taiketsu
+AGB-BDBP	Dragon Ball Z - Taiketsu
+AGB-BDCJ	Doubutsu-jima no Chobigurumi 2 - Tama-chan Monogatari
+AGB-BDDE	Double Dragon Advance
+AGB-BDDJ	Double Dragon Advance
+AGB-BDEE	Dead to Rights
+AGB-BDEP	Dead to Rights
+AGB-BDFE	2 Games in 1 - SpongeBob SquarePants - Revenge of the Flying Dutchman + SpongeBob SquarePants - SuperSponge
+AGB-BDFP	2 Games in 1 - SpongeBob SquarePants - Revenge of the Flying Dutchman + SpongeBob SquarePants - SuperSponge
+AGB-BDGE	Digimon Racing
+AGB-BDGP	Digimon Racing
+AGB-BDHJ	Shin Megami Tensei - Devil Children - Honoo no Sho
+AGB-BDIJ	Koinu to Issho - Aijou Monogatari
+AGB-BDJJ	Digimon Racing
+AGB-BDKJ	DigiCommunication Nyo - Datou! Black Gemagema Dan
+AGB-BDLJ	Shin Megami Tensei - Devil Children - Messiah Riser
+AGB-BDMJ	Super Real Mahjong Dousoukai
+AGB-BDNJ	Dan Doh!! Tobase Shouri no Smile Shot
+AGB-BDOE	Dora the Explorer - Super Star Adventures!
+AGB-BDOP	Dora the Explorer - Super Star Adventures!
+AGB-BDPE	Super Duper Sumos
+AGB-BDQE	Donkey Kong Country 3
+AGB-BDQJ	Super Donkey Kong 3
+AGB-BDQP	Donkey Kong Country 3
+AGB-BDRJ	Ochaken no Heya
+AGB-BDSE	Digimon - Battle Spirit 2
+AGB-BDSP	Digimon - Battle Spirit 2
+AGB-BDTE	River City Ransom EX
+AGB-BDTJ	Downtown - Nekketsu Monogatari EX
+AGB-BDUE	Duel Masters - Shadow of the Code
+AGB-BDUJ	Duel Masters 3
+AGB-BDUP	Duel Masters - Shadow of the Code
+AGB-BDVE	Dragon Ball - Advanced Adventure
+AGB-BDVJ	Dragon Ball - Advance Adventure
+AGB-BDVK	Dragon Ball - Advance Adventure
+AGB-BDVP	Dragon Ball - Advanced Adventure
+AGB-BDXE	Battle B-Daman
+AGB-BDXJ	B-Densetsu! Battle B-Daman - Moero! B-Damashii!!
+AGB-BDYJ	Shin Megami Tensei - Devil Children - Koori no Sho
+AGB-BDZD	2 Games in 1 - Die Monster AG + Findet Nemo
+AGB-BDZE	2 Games in 1 - Monsters, Inc. + Finding Nemo
+AGB-BDZF	2 Games in 1 - Monstres & Cie + Le Monde de Nemo
+AGB-BDZH	2 Games in 1 - Monsters en Co. + Finding Nemo
+AGB-BDZI	2 Games in 1 - Monsters & Co. + Alla Ricerca di Nemo
+AGB-BDZP	2 Games in 1 - Monsters, Inc. + Finding Nemo
+AGB-BDZS	2 Games in 1 - Monstruos, S.A. + Buscando a Nemo
+AGB-BE2J	Majokko Cream-chan no Gokko Series 2 - Kisekae Angel
+AGB-BE3E	Star Wars - Episode III - Revenge of the Sith
+AGB-BE3P	Star Wars - Episode III - Revenge of the Sith
+AGB-BE4J	Eyeshield 21 - DevilBats DevilDays
+AGB-BE5E	Barbie and the Magic of Pegasus
+AGB-BE5P	Barbie and the Magic of Pegasus
+AGB-BE8E	Fire Emblem - The Sacred Stones
+AGB-BE8J	Fire Emblem - Seima no Kouseki
+AGB-BE8P	Fire Emblem - The Sacred Stones
+AGB-BEAE	Care Bears - The Care Quest
+AGB-BEAP	Care Bears - The Care Quest
+AGB-BEBE	Elf Bowling 1 & 2
+AGB-BECJ	Angel Collection 2 - Pichimo ni Narou
+AGB-BEDE	Ed, Edd n Eddy - The Mis-Edventures
+AGB-BEDP	Ed, Edd n Eddy - The Mis-Edventures
+AGB-BEEP	Maya the Bee - Sweet Gold
+AGB-BEFE	Let's Ride! - Friends Forever
+AGB-BEFP	Pferd & Pony - Best Friends - Mein Pferd
+AGB-BEIE	Little Einsteins
+AGB-BEJJ	Erementar Gerad - Tozasareshi Uta
+AGB-BELE	Elf - The Movie
+AGB-BELP	Elf - The Movie
+AGB-BEME	M&M's - Break' Em
+AGB-BENE	Eragon
+AGB-BENP	Eragon
+AGB-BERE	Dora the Explorer - Super Spies
+AGB-BESE	Extreme Skate Adventure
+AGB-BESX	Extreme Skate Adventure
+AGB-BETE	Atomic Betty
+AGB-BEVE	everGirl
+AGB-BEXE	TMNT
+AGB-BEXP	TMNT - Teenage Mutant Ninja Turtles
+AGB-BEYE	Beyblade V-Force - Ultimate Blader Jam
+AGB-BEYP	Beyblade V-Force - Ultimate Blader Jam
+AGB-BF2D	Cosmo & Wanda - Wenn Elfen Helfen! - Das Schattenduell
+AGB-BF2E	Fairly OddParents!, The - Shadow Showdown
+AGB-BF2P	Fairly OddParents!, The - Shadow Showdown
+AGB-BF3E	Ford Racing 3
+AGB-BF3P	Ford Racing 3
+AGB-BF4E	Fantastic 4
+AGB-BF4I	Fantastici 4, I
+AGB-BF4P	Fantastic 4
+AGB-BF4X	Fantastic 4
+AGB-BF5E	FIFA Soccer 2005
+AGB-BF6E	FIFA Soccer 06
+AGB-BF7E	Backyard Sports - Football 2007
+AGB-BF8E	Super Hornet FA 18F
+AGB-BFBP	2 Disney Games - Disney Sports - Football + Disney Sports - Skateboarding
+AGB-BFCJ	Fantastic Children
+AGB-BFDJ	Fruits Mura no Doubutsu-tachi
+AGB-BFEE	Dogz - Fashion
+AGB-BFEP	Dogz - Fashion
+AGB-BFFE	Final Fantasy I & II - Dawn of Souls
+AGB-BFFJ	Final Fantasy I, II Advance
+AGB-BFFP	Final Fantasy I & II - Dawn of Souls
+AGB-BFGE	Harvest Moon - More Friends of Mineral Town
+AGB-BFGJ	Bokujou Monogatari - Mineral Town no Nakama-tachi for Girl
+AGB-BFIE	FIFA Soccer 2004
+AGB-BFJE	Frogger's Journey - The Forgotten Relic
+AGB-BFJJ	Frogger - Kodaibunmei no Nazo
+AGB-BFKE	Franklin the Turtle
+AGB-BFKP	Franklin the Turtle
+AGB-BFLE	Franklin's Great Adventures
+AGB-BFLP	Franklin's Great Adventures
+AGB-BFMJ	Futari wa Pretty Cure Max Heart - Maji Maji! Fight de IN Janai
+AGB-BFNJ	Finding Nemo
+AGB-BFOE	Fairly OddParents!, The - Clash with the Anti-World
+AGB-BFOP	Fairly OddParents!, The - Clash with the Anti-World
+AGB-BFPJ	Futari wa Pretty Cure - Arienaai! Yume no Sono wa Daimeikyuu
+AGB-BFQE	Mazes of Fate
+AGB-BFSE	Freekstyle
+AGB-BFSP	Freekstyle
+AGB-BFTJ	F-Zero - Climax
+AGB-BFUE	Fear Factor - Unleashed
+AGB-BFVJ	Twin Series 1 - Mezase Debut! - Fashion Designer Monogatari + Kawaii Pet Game Gallery 2
+AGB-BFWP	2 Games in 1 - Finding Nemo + Finding Nemo - The Continuing Adventures
+AGB-BFWX	2 Games in 1 - Finding Nemo + Finding Nemo - The Continuing Adventures
+AGB-BFWY	2 Games in 1 - Findet Nemo + Findet Nemo - Das Abenteuer Geht Weiter
+AGB-BFWZ	2 Games in 1 - Finding Nemo + Finding Nemo - The Continuing Adventures
+AGB-BFXE	Phil of the Future
+AGB-BFYE	Foster's Home for Imaginary Friends
+AGB-BFYP	Foster's Home for Imaginary Friends
+AGB-BFZE	F-Zero - GP Legend
+AGB-BFZJ	F-Zero - Falcon Densetsu
+AGB-BFZP	F-Zero - GP Legend
+AGB-BG2J	Kessaku Sen! - Ganbare Goemon 1, 2 - Yuki Hime to Magginesu
+AGB-BG3E	Dragon Ball Z - Buu's Fury
+AGB-BG4J	SD Gundam Force
+AGB-BG5E	Cabela's Big Game Hunter - 2005 Adventures
+AGB-BG6E	Super Army War
+AGB-BG6P	Essence of War, The - Glory Days
+AGB-BG7E	Games Explosion!
+AGB-BG8J	Ganbare! Dodge Fighters
+AGB-BG9E	Garfield and His Nine Lives
+AGB-BG9P	Garfield and His Nine Lives
+AGB-BGAJ	SD Gundam G Generation Advance
+AGB-BGBJ	Get! - Boku no Mushi Tsukamaete
+AGB-BGCE	Advance Guardian Heroes
+AGB-BGCP	Advance Guardian Heroes
+AGB-BGDE	Baldur's Gate - Dark Alliance
+AGB-BGDP	Baldur's Gate - Dark Alliance
+AGB-BGEE	SD Gundam Force
+AGB-BGFJ	GetBackers Dakkanya - Jagan Fuuin!
+AGB-BGGE	Golden Nugget Casino
+AGB-BGHJ	Gakkou no Kaidan - Hyakuyoubako no Fuuin
+AGB-BGIJ	Get Ride! Amdriver - Senkou no Hero Tanjou!
+AGB-BGJJ	Genseishin Justirisers - Souchaku! Hoshi no Senshi-tachi
+AGB-BGKJ	Gegege no Kitarou - Kikiippatsu! Youkai Rettou
+AGB-BGMJ	Gensou Maden Saiyuuki - Hangyaku no Toushin-taishi
+AGB-BGNE	Mobile Suit Gundam SEED - Battle Assault
+AGB-BGNJ	Kidou Senshi Gundam SEED - Tomo to Kimi to Koko de.
+AGB-BGOE	Garfield - The Search for Pooky
+AGB-BGOP	Garfield - The Search for Pooky
+AGB-BGPJ	Get Ride! Amdriver - Shutsugeki! Battle Party
+AGB-BGQE	Greg Hastings' Tournament Paintball Max'd
+AGB-BGSJ	Gakuen Senki Muryou
+AGB-BGTE	Grand Theft Auto
+AGB-BGTP	Grand Theft Auto
+AGB-BGVE	Gumby vs. the Astrobots
+AGB-BGWJ	Game Boy Wars Advance 1+2
+AGB-BGXJ	Gunstar Super Heroes
+AGB-BGYJ	Konjiki no Gashbell!! - Unare! Yuujou no Zakeru 2
+AGB-BGZE	Madagascar
+AGB-BGZH	Madagascar
+AGB-BGZI	Madagascar
+AGB-BGZJ	Madagascar
+AGB-BGZP	Madagascar
+AGB-BGZS	Madagascar
+AGB-BGZX	Madagascar
+AGB-BH2J	Hagane no Renkinjutsushi - Omoide no Sonata
+AGB-BH4E	Fantastic 4 - Flame On
+AGB-BH4P	Fantastic 4 - Flame On
+AGB-BH5D	Ab durch die Hecke
+AGB-BH5E	Over the Hedge
+AGB-BH5F	Nos Voisins, les Hommes
+AGB-BH5H	Over the Hedge - Beesten bij de Buren
+AGB-BH5I	Gang del Bosco, La
+AGB-BH5P	Over the Hedge
+AGB-BH5S	Vecinos Invasores
+AGB-BH6J	Kidou Gekidan Haro Ichiza - Haro no Puyo Puyo
+AGB-BH7E	Over the Hedge - Hammy Goes Nuts!
+AGB-BH7P	Over the Hedge - Hammy Goes Nuts!
+AGB-BH8E	Harry Potter and the Goblet of Fire
+AGB-BH9E	Tony Hawk's American Sk8land
+AGB-BH9P	Tony Hawk's American Sk8land
+AGB-BH9X	Tony Hawk's American Sk8land
+AGB-BHAJ	Hanabi Hyakkei Advance
+AGB-BHBE	Paws & Claws - Best Friends - Dogs & Cats
+AGB-BHBP	Best Friends - Hunde & Katzen
+AGB-BHCJ	Hamster Monogatari Collection
+AGB-BHDJ	Hello! Idol Debut - Kids Idol Ikusei Game
+AGB-BHEE	Hot Wheels - Stunt Track Challenge
+AGB-BHFJ	Twin Series 4 - Hamu Hamu Monster EX - Hamster Monogatari RPG + Fantasy Puzzle - Hamster Monogatari - Mahou no Meikyuu 1.2.3
+AGB-BHGE	Gunstar Super Heroes
+AGB-BHGP	Gunstar Future Heroes
+AGB-BHHE	Hi Hi Puffy AmiYumi - Kaznapped!
+AGB-BHHJ	Hi Hi Puffy AmiYumi
+AGB-BHHP	Hi Hi Puffy AmiYumi - Kaznapped!
+AGB-BHJP	Heidi - The Game
+AGB-BHLE	Shaman King - Legacy of the Spirits - Soaring Hawk
+AGB-BHME	Home on the Range
+AGB-BHMP	Home on the Range
+AGB-BHNE	Harlem Globetrotters - World Tour
+AGB-BHNP	Harlem Globetrotters - World Tour
+AGB-BHOF	Hardcore Pool
+AGB-BHOP	Hardcore Pool
+AGB-BHPE	Harry Potter - Quidditch World Cup
+AGB-BHPJ	Harry Potter - Quidditch World Cup
+AGB-BHQP	Agent Hugo - Roborumble
+AGB-BHRJ	Hagane no Renkinjutsushi - Meisou no Rondo
+AGB-BHSJ	Hamster Monogatari 3EX 4 Special
+AGB-BHTE	Harry Potter and the Prisoner of Azkaban
+AGB-BHTJ	Harry Potter to Azkaban no Shuujin
+AGB-BHUE	Horsez
+AGB-BHUP	Pferd & Pony - Mein Gestuet
+AGB-BHVE	Scurge - Hive
+AGB-BHVP	Scurge - Hive
+AGB-BHWE	Hot Wheels - World Race
+AGB-BHWP	Hot Wheels - World Race
+AGB-BHXE	Hot Wheels - All Out
+AGB-BHXP	Hot Wheels - All Out
+AGB-BHYJ	Minna no Soft Series - Hyokkori Hyoutan-jima - Don Gabacho Daikatsuyaku no Maki
+AGB-BHZE	2 Games in 1 - Hot Wheels - Velocity X + Hot Wheels - World Race
+AGB-BHZP	2 Games in 1 - Hot Wheels - Velocity X + Hot Wheels - World Race
+AGB-BI2J	Koinu to Issho 2
+AGB-BI3D	Spider-Man 3
+AGB-BI3E	Spider-Man 3
+AGB-BI3F	Spider-Man 3
+AGB-BI3I	Spider-Man 3
+AGB-BI3P	Spider-Man 3
+AGB-BI3S	Spider-Man 3
+AGB-BI4E	4 Games on One Game Pak
+AGB-BI6E	4 Games on One Game Pak
+AGB-BI7E	4 Games on One Game Pak
+AGB-BIAE	Ice Age 2 - The Meltdown
+AGB-BIAP	Ice Age 2 - The Meltdown
+AGB-BIBE	Bible Game, The
+AGB-BICD	Unglaublichen, Die
+AGB-BICE	Incredibles, The
+AGB-BICI	Incredibili, Gli - Una 'Normale' Famiglia di Supereroi
+AGB-BICJ	Mr. Incredible
+AGB-BICS	Increibles, Los
+AGB-BICX	Incredibles, The
+AGB-BIDD	Deutschland Sucht den Superstar
+AGB-BIDE	American Idol
+AGB-BIDP	Pop Idol
+AGB-BIEE	Grim Adventures of Billy & Mandy, The
+AGB-BIHE	Bionicle Heroes
+AGB-BIHP	Bionicle Heroes
+AGB-BIIC	Tongqin Yi Bi
+AGB-BIIE	Polarium Advance
+AGB-BIIJ	Tsuukin Hitofude
+AGB-BIIP	Polarium Advance
+AGB-BIJE	Sonic The Hedgehog - Genesis
+AGB-BIKJ	Ochaken Kururin - Honwaka Puzzle de Hotto Shiyo
+AGB-BILE	Bionicle - Maze of Shadows
+AGB-BILP	Bionicle - Maze of Shadows
+AGB-BIME	Dogz 2
+AGB-BIMP	Dogz 2
+AGB-BIMX	Dogz 2
+AGB-BIND	2 Games in 1 - Findet Nemo + Die Unglaublichen
+AGB-BINP	2 Games in 1 - Finding Nemo + The Incredibles
+AGB-BINX	2 Games in 1 - Finding Nemo + The Incredibles
+AGB-BINY	2 Games in 1 - Alla Ricerca di Nemo + Gli Incredibili - Una 'Normale' Famiglia di Supereroi
+AGB-BINZ	2 Games in 1 - Buscando a Nemo + Los Increibles
+AGB-BIOE	Bionicle
+AGB-BIOP	Bionicle
+AGB-BIPJ	One Piece - Dragon Dream
+AGB-BIQE	Incredibles, The - Rise of the Underminer
+AGB-BIQJ	Mr. Incredible - Kyouteki Underminer Toujou
+AGB-BIQX	Incredibles, The - Rise of the Underminer
+AGB-BIRK	Iron Kid
+AGB-BISJ	Koinu-chan no Hajimete no Osanpo - Koinu no Kokoro Ikusei Game
+AGB-BITJ	Onmyou Taisenki - Zeroshiki
+AGB-BIVP	Ignition Collection - Volume 1
+AGB-BIWE	Holy Bible, The - World English Bible
+AGB-BIXJ	Calciobit
+AGB-BIYE	Math Patrol - The Kleptoid Threat
+AGB-BJ2E	High School Musical - Livin' the Dream
+AGB-BJ3J	Zettaizetsumei Dangerous Jiisan 3 - Hateshinaki Mamonogatari
+AGB-BJAP	GT Racers
+AGB-BJBE	007 - Everything or Nothing
+AGB-BJBJ	007 - Everything or Nothing
+AGB-BJCJ	Moero!! Jaleco Collection
+AGB-BJDP	Dragon's Rock
+AGB-BJGE	Glucoboy
+AGB-BJHE	Justice League Heroes - The Flash
+AGB-BJHP	Justice League Heroes - The Flash
+AGB-BJKE	Juka and the Monophonic Menace
+AGB-BJKP	Juka and the Monophonic Menace
+AGB-BJLE	Justice League - Chronicles
+AGB-BJNE	Adventures of Jimmy Neutron Boy Genius, The - Jet Fusion
+AGB-BJTE	Tom and Jerry Tales
+AGB-BJTP	Tom and Jerry Tales
+AGB-BJUE	Tak and the Power of Juju
+AGB-BJUP	Tak and the Power of Juju
+AGB-BJUX	Tak and the Power of Juju
+AGB-BJWE	Tak - The Great Juju Challenge
+AGB-BJWX	Tak - The Great Juju Challenge
+AGB-BJXE	Harry Potter and the Order of the Phoenix
+AGB-BJYE	Adventures of Jimmy Neutron Boy Genius, The - Attack of the Twonkies
+AGB-BJYF	Jimmy Neutron un Garcon Genial - L'Attaque des Twonkies
+AGB-BK2J	Croket! 2 - Yami no Bank to Banqueen
+AGB-BK3J	Cardcaptor Sakura - Sakura Card de Mini Game
+AGB-BK4J	Croket! 4 - Bank no Mori no Mamorigami
+AGB-BK5J	Croket! Great - Toki no Boukensha
+AGB-BK6J	Kouchuu Ouja Mushiking - Greatest Champion e no Michi
+AGB-BK7E	Kong - King of Atlantis
+AGB-BK7P	Kong - King of Atlantis
+AGB-BK8J	Kappa no Kai-kata - Kaatan Daibouken!
+AGB-BKAJ	Sennen Kazoku
+AGB-BKBJ	Konjiki no Gashbell!! - Makai no Bookmark
+AGB-BKCJ	Crayon Shin-chan - Arashi o Yobu Cinemaland no Daibouken!
+AGB-BKCS	Shin chan - Aventuras en Cineland
+AGB-BKDJ	Crash Bandicoot Advance - Wakuwaku Tomodachi Daisakusen!
+AGB-BKEJ	Konjiki no Gashbell!! The Card Battle for GBA
+AGB-BKFE	Bee Game, The
+AGB-BKFX	Biene Maja, Die - Klatschmohnwiese in Gefahr
+AGB-BKGJ	Kawaii Pet Game Gallery
+AGB-BKHE	Kill Switch
+AGB-BKHP	Kill Switch
+AGB-BKIJ	Nakayoshi Pet Advance Series 4 - Kawaii Koinu Mini - Wanko to Asobou!! Kogata-ken
+AGB-BKJJ	Keroro Gunsou - Taiketsu! Gekisou Keronprix Daisakusen de Arimasu!!
+AGB-BKKJ	Minna no Shiiku Series - Boku no Kabuto, Kuwagata
+AGB-BKME	Kim Possible 2 - Drakken's Demise
+AGB-BKMJ	Kim Possible
+AGB-BKMP	Kim Possible 2 - Drakken's Demise
+AGB-BKNE	Knights' Kingdom
+AGB-BKNP	Knights' Kingdom
+AGB-BKOJ	Kaiketsu Zorori to Mahou no Yuuenchi - Ohimesama o Sukue!
+AGB-BKPJ	Kawaii Pet Game Gallery 2
+AGB-BKQE	Kong - The 8th Wonder of the World
+AGB-BKQP	King Kong - The Official Game of the Movie
+AGB-BKQX	King Kong - The Official Game of the Movie
+AGB-BKRJ	No No No Puzzle Chailien
+AGB-BKSJ	Cardcaptor Sakura - Sakura Card Hen - Sakura to Card to Otomodachi
+AGB-BKTJ	Koutetsu Teikoku
+AGB-BKTP	Steel Empire
+AGB-BKUJ	Shingata Medarot - Kuwagata Version
+AGB-BKVJ	Shingata Medarot - Kabuto Version
+AGB-BKWE	Bookworm
+AGB-BKZE	Banjo-Kazooie - Grunty's Revenge
+AGB-BKZI	Banjo-Kazooie - La Vendetta di Grunty
+AGB-BKZS	Banjo-Kazooie - La Venganza de Grunty
+AGB-BKZX	Banjo-Kazooie - Grunty's Revenge
+AGB-BL2E	Lizzie McGuire 2 - Lizzie Diaries
+AGB-BL3E	Lizzie McGuire 3 - Homecoming Havoc
+AGB-BL4E	Disney's Game + TV Episode - Lizzie McGuire 2 - Lizzie Diaries
+AGB-BL5P	2 Games in 1 - Bionicle + Knights' Kingdom
+AGB-BL6E	My Little Pony - Crystal Princess - The Runaway Rainbow
+AGB-BL7E	LEGO Star Wars II - The Original Trilogy
+AGB-BL7P	LEGO Star Wars II - The Original Trilogy
+AGB-BL8E	Lara Croft Tomb Raider - Legend
+AGB-BL8P	Lara Croft Tomb Raider - Legend
+AGB-BL9E	Let's Ride! - Dreamer
+AGB-BLAE	Scrabble Blast!
+AGB-BLAP	Scrabble Scramble!
+AGB-BLAX	Scrabble Scramble!
+AGB-BLBX	2 Games in 1 - Brother Bear + The Lion King
+AGB-BLCE	Camp Lazlo - Leaky Lake Games
+AGB-BLCP	Camp Lazlo - Leaky Lake Games
+AGB-BLDP	2 Games in 1 - Disney Princess + Lizzie McGuire
+AGB-BLDS	2 Games in 1 - Disney Princesas + Lizzie McGuire
+AGB-BLEJ	Bleach Advance - Kurenai ni Somaru Soul Society
+AGB-BLFE	2 Games in 1 - Dragon Ball Z - The Legacy of Goku I & II
+AGB-BLHE	Flushed Away
+AGB-BLHP	Flushed Away
+AGB-BLIJ	Little Patissier - Cake no Oshiro
+AGB-BLJJ	Legendz - Yomigaeru Shiren no Shima
+AGB-BLJK	Legendz - Buhwarhaneun Siryeonyi Seom
+AGB-BLKE	Lion King 1 1-2, The
+AGB-BLKP	Lion King, The
+AGB-BLME	Lizzie McGuire - On the Go!
+AGB-BLMP	Lizzie McGuire
+AGB-BLNE	Looney Tunes Double Pack
+AGB-BLNP	Looney Tunes Double Pack
+AGB-BLOE	Land Before Time, The - Into the Mysterious Beyond
+AGB-BLOP	Land Before Time, The - Into the Mysterious Beyond
+AGB-BLPD	2 Games in 1 - Disneys Prinzessinnen + Der Koenig der Loewen
+AGB-BLPF	2 Games in 1 - Disney Princesse + Le Roi Lion
+AGB-BLPI	2 Games in 1 - Disney Principesse + Il Re Leone
+AGB-BLPP	2 Games in 1 - The Lion King + Disney Princess
+AGB-BLPS	2 Games in 1 - Disney Princesas + El Rey Leon
+AGB-BLQP	2 Disney Games - Lilo & Stitch 2 + Peter Pan - Return to Neverland
+AGB-BLRE	Lord of the Rings, The - The Return of the King
+AGB-BLRJ	Lord of the Rings, The - Ou no Kikan
+AGB-BLSE	Lilo & Stitch 2 - Haemsterviel Havoc
+AGB-BLSJ	Lilo & Stitch
+AGB-BLSP	Lilo & Stitch 2
+AGB-BLTE	Looney Tunes - Back in Action
+AGB-BLVJ	Legendz - Sign of Nekuromu
+AGB-BLWE	LEGO Star Wars - The Video Game
+AGB-BLWJ	LEGO Star Wars - The Video Game
+AGB-BLXP	Asterix & Obelix XXL
+AGB-BLYD	Lemony Snicket - Raetselhafte Ereignisse
+AGB-BLYE	Lemony Snicket's A Series of Unfortunate Events
+AGB-BLYI	Lemony Snicket - Una Serie di Sfortunati Eventi
+AGB-BLYX	Lemony Snicket's A Series of Unfortunate Events
+AGB-BM2J	Momotarou Dentetsu G - Gold Deck o Tsukure!
+AGB-BM3J	Mickey to Donald no Magical Quest 3
+AGB-BM4J	Mickey no Pocket Resort
+AGB-BM5E	Mario vs. Donkey Kong
+AGB-BM5J	Mario vs. Donkey Kong
+AGB-BM5P	Mario vs. Donkey Kong
+AGB-BM7E	Madagascar - Operation Penguin
+AGB-BM7P	Madagascar - Operation Penguin
+AGB-BM7S	Madagascar - Operacion Pinguino
+AGB-BM7X	Madagascar - Operation Penguin
+AGB-BM7Y	Madagascar - Operation Penguin
+AGB-BM8J	Mermaid Melody - Pichi Pichi Pitch - Pichi Pichi Party
+AGB-BM9J	MAER Heaven - Knockin' on Heaven's Door
+AGB-BMAJ	Mermaid Melody - Pichi Pichi Pitch
+AGB-BMBE	Mighty Beanz - Pocket Puzzles
+AGB-BMCE	Monster Trucks
+AGB-BMDE	Madden NFL 2004
+AGB-BMEE	Max Payne
+AGB-BMEP	Max Payne Advance
+AGB-BMFE	Madden NFL 2005
+AGB-BMGD	Mario Golf - Advance Tour
+AGB-BMGE	Mario Golf - Advance Tour
+AGB-BMGF	Mario Golf - Advance Tour
+AGB-BMGI	Mario Golf - Advance Tour
+AGB-BMGJ	Mario Golf - GBA Tour
+AGB-BMGP	Mario Golf - Advance Tour
+AGB-BMGS	Mario Golf - Advance Tour
+AGB-BMGU	Mario Golf - Advance Tour
+AGB-BMHE	Medal of Honor - Infiltrator
+AGB-BMHJ	Medal of Honor Advance
+AGB-BMIJ	Wagamama Fairy Mirumo de Pon! - Dokidoki Memorial Panic
+AGB-BMJJ	Minna no Soft Series - Minna no Mahjong
+AGB-BMKJ	Mezase! Koushien
+AGB-BMLE	Mucha Lucha! - Mascaritas of the Lost Code
+AGB-BMME	Scooby-Doo! - Mystery Mayhem
+AGB-BMMP	Scooby-Doo! - Mystery Mayhem
+AGB-BMNS	Morning Adventure, The
+AGB-BMOJ	Minna no Ouji-sama
+AGB-BMPJ	Wagamama Fairy Mirumo de Pon! - Taisen Mahoudama
+AGB-BMQE	Magical Quest 3 Starring Mickey & Donald
+AGB-BMQP	Magical Quest 3 Starring Mickey & Donald
+AGB-BMRJ	Matantei Loki Ragnarok - Gensou no Labyrinth
+AGB-BMTE	Monster Truck Madness
+AGB-BMUE	Scooby-Doo 2 - Monsters Unleashed
+AGB-BMUX	Scooby-Doo 2 - Monsters Unleashed
+AGB-BMVE	Mario Pinball Land
+AGB-BMVJ	Super Mario Ball
+AGB-BMVP	Super Mario Ball
+AGB-BMWJ	Twin Series 5 - Mahou no Kuni no Cake-ya-san Monogatari + Wanwan Meitantei EX
+AGB-BMXC	Miteluode - Lingdian Renwu
+AGB-BMXE	Metroid - Zero Mission
+AGB-BMXJ	Metroid - Zero Mission
+AGB-BMXP	Metroid - Zero Mission
+AGB-BMYJ	Wagamama Fairy Mirumo de Pon! - 8 Nin no Toki no Yousei
+AGB-BMZJ	Minna no Soft Series - Zooo
+AGB-BMZP	Zooo - Action Puzzle Game
+AGB-BN2E	Naruto - Ninja Council 2
+AGB-BN2J	Naruto - Saikyou Ninja Daikesshuu 2
+AGB-BN4J	Kawa no Nushi Tsuri 3 & 4
+AGB-BN7E	Need for Speed - Carbon - Own the City
+AGB-BN9E	Little Mermaid, The - Magic in Two Kingdoms
+AGB-BNBE	Petz Vet
+AGB-BNBJ	Himawari Doubutsu Byouin - Pet no Oishasan Ikusei Game
+AGB-BNCE	Tim Burton's The Nightmare Before Christmas - The Pumpkin King
+AGB-BNCJ	Tim Burton's The Nightmare Before Christmas - The Pumpkin King
+AGB-BNDE	Codename - Kids Next Door - Operation S.O.D.A.
+AGB-BNEE	2 Games in 1 - Finding Nemo - The Continuing Adventures + The Incredibles
+AGB-BNFE	Need for Speed - Underground 2
+AGB-BNGJ	Mahou Sensei Negima! - Private Lesson - Damedesuu Toshokan-jima
+AGB-BNJJ	Jajamaru Jr. Denshouki - Jalecolle mo Arisourou
+AGB-BNKE	Noddy - A Day in Toyland
+AGB-BNKP	Noddy - A Day in Toyland
+AGB-BNLE	Ratatouille
+AGB-BNLP	Ratatouille
+AGB-BNLU	Ratatouille
+AGB-BNLX	Ratatouille
+AGB-BNLY	Ratatouille
+AGB-BNMJ	Mahou Sensei Negima! - Private Lesson 2 - Ojamashimasuu Parasite de Chuu
+AGB-BNPE	Princess Natasha - Student, Secret Agent, Princess
+AGB-BNPP	Princess Natasha - Student, Secret Agent, Princess
+AGB-BNRJ	Naruto RPG - Uketsugareshi Hi no Ishi
+AGB-BNSE	Need for Speed - Underground
+AGB-BNTE	Teenage Mutant Ninja Turtles
+AGB-BNTP	Teenage Mutant Ninja Turtles
+AGB-BNUE	Nicktoons Unite!
+AGB-BNUP	SpongeBob SquarePants and Friends Unite!
+AGB-BNVE	Nicktoons - Battle for Volcano Island
+AGB-BNVP	SpongeBob SquarePants and Friends - Battle for Volcano Island
+AGB-BNWE	Need for Speed - Most Wanted
+AGB-BNYJ	Nyan Nyan Nyanko no NyanCollection
+AGB-BO2J	Ochaken no Bouken-jima - Honwaka Yume no Island
+AGB-BO3J	Oshare Princess 3
+AGB-BO5J	Oshare Princess 5
+AGB-BO8K	One Piece - Going Baseball - Haejeok Yaku
+AGB-BOAE	Open Season
+AGB-BOAP	Open Season
+AGB-BOAX	Open Season
+AGB-BOBJ	Boboboubo Boubobo - Maji de!! Shinken Battle
+AGB-BOCE	Urbz, The - Sims in the City
+AGB-BOCJ	Urbz, The - Sims in the City
+AGB-BODD	Oddworld - Munch's Oddysee
+AGB-BODE	Oddworld - Munch's Oddysee
+AGB-BOFD	Ottifanten Pinball
+AGB-BOJJ	Ojarumaru - Gekkouchou Sanpo de Ojaru
+AGB-BOMJ	Bomberman Jetters - Game Collection
+AGB-BONE	One Piece
+AGB-BOPJ	Twin Series 2 - Oshare Princess 4 + Renai Uranai Daisakusen! + Renai Party Game - Sweet Heart
+AGB-BOSJ	Boboboubo Boubobo - Bakutou Hajike Taisen
+AGB-BOVJ	Bouken-ou Beet - Busters Road
+AGB-BOXP	FightBox
+AGB-BOZE	Ozzy & Drix
+AGB-BP3J	Pia Carrot e Youkoso!! 3.3
+AGB-BP4P	Premier Manager 2004-2005
+AGB-BP5P	Premier Manager 2005-2006
+AGB-BP6J	Power Pro Kun Pocket 6
+AGB-BP7J	Power Pro Kun Pocket 7
+AGB-BP8E	Pac-Man Pinball Advance
+AGB-BP8P	Pac-Man Pinball Advance
+AGB-BP9E	World Championship Poker
+AGB-BP9P	World Championship Poker
+AGB-BPAE	Pac-Man World
+AGB-BPAP	Pac-Man World
+AGB-BPBJ	Pyuu to Fuku! Jaguar - Byoo to Deru! Megane-kun
+AGB-BPCE	Ms. Pac-Man - Maze Madness
+AGB-BPCP	Ms. Pac-Man - Maze Madness
+AGB-BPDJ	Bouken Yuuki Pluster World - Densetsu no Plust Gate EX
+AGB-BPED	Pokemon - Smaragd-Edition
+AGB-BPEE	Pokemon - Emerald Version
+AGB-BPEF	Pokemon - Version Emeraude
+AGB-BPEI	Pokemon - Versione Smeraldo
+AGB-BPEJ	Pocket Monsters - Emerald
+AGB-BPES	Pokemon - Edicion Esmeralda
+AGB-BPFJ	Puyo Puyo Fever
+AGB-BPFP	Puyo Pop Fever
+AGB-BPGD	Pokemon - Blattgruene Edition
+AGB-BPGE	Pokemon - LeafGreen Version
+AGB-BPGF	Pokemon - Version Vert Feuille
+AGB-BPGI	Pokemon - Versione Verde Foglia
+AGB-BPGJ	Pocket Monsters - LeafGreen
+AGB-BPGS	Pokemon - Edicion Verde Hoja
+AGB-BPHE	Pitfall - The Lost Expedition
+AGB-BPHF	Pitfall - L'Expedition Perdue
+AGB-BPHP	Pitfall - The Lost Expedition
+AGB-BPIE	It's Mr. Pants
+AGB-BPJE	Pocket Professor - Kwik Notes - Volume One
+AGB-BPKP	Payback
+AGB-BPLE	Archer Maclean's 3D Pool
+AGB-BPMP	Premier Manager 2003-04
+AGB-BPNJ	Pikapika Nurse Monogatari - Nurse Ikusei Game
+AGB-BPOE	Power Rangers - Dino Thunder
+AGB-BPOX	Power Rangers - Dino Thunder
+AGB-BPPE	Pokemon Pinball - Ruby & Sapphire
+AGB-BPPJ	Pokemon Pinball - Ruby & Sapphire
+AGB-BPPP	Pokemon Pinball - Ruby & Sapphire
+AGB-BPQJ	PukuPuku Tennen Kairanban - Koi no Cupid Daisakusen
+AGB-BPRD	Pokemon - Feuerrote Edition
+AGB-BPRE	Pokemon - FireRed Version
+AGB-BPRF	Pokemon - Version Rouge Feu
+AGB-BPRI	Pokemon - Versione Rosso Fuoco
+AGB-BPRJ	Pocket Monsters - FireRed
+AGB-BPRS	Pokemon - Edicion Rojo Fuego
+AGB-BPSJ	Cinnamoroll - Koko ni Iru yo
+AGB-BPTE	Peter Pan - The Motion Picture Event
+AGB-BPTP	Peter Pan - The Motion Picture Event
+AGB-BPUE	2 Games in 1 - Scooby-Doo + Scooby-Doo 2 - Monsters Unleashed
+AGB-BPUF	2 Games in 1 - Scooby-Doo + Scooby-Doo 2 - Les Monstres Se Dechainent
+AGB-BPUP	2 Games in 1 - Scooby-Doo + Scooby-Doo 2 - Monsters Unleashed
+AGB-BPUS	2 Games in 1 - Scooby-Doo + Scooby-Doo 2 - Desatado
+AGB-BPVP	Pferd & Pony - Mein Pferdehof
+AGB-BPVX	Pippa Funnell - Stable Adventure
+AGB-BPVY	Paard & Pony - Mijn Manege
+AGB-BPWE	Power Rangers - Ninja Storm
+AGB-BPWP	Power Rangers - Ninja Storm
+AGB-BPXE	Polar Express, The
+AGB-BPYE	Prince of Persia - The Sands of Time
+AGB-BPYP	Prince of Persia - The Sands of Time
+AGB-BPZJ	Pazuninn - Umininn no Puzzle de Nimu
+AGB-BQ3E	Rayman - Raving Rabbids
+AGB-BQ3P	Rayman - Raving Rabbids
+AGB-BQ4E	SpongeBob SquarePants - Creature from the Krusty Krab
+AGB-BQ4P	SpongeBob SquarePants - Creature from the Krusty Krab
+AGB-BQ7E	Monster House
+AGB-BQ7P	Monster House
+AGB-BQ7X	Monster House
+AGB-BQ9Q	Pixeline i Pixieland
+AGB-BQAJ	Meitantei Conan - Akatsuki no Monument
+AGB-BQBJ	Konchuu Monster - Battle Master
+AGB-BQCE	Crash of the Titans
+AGB-BQCP	Crash of the Titans
+AGB-BQDE	Quad Desert Fury
+AGB-BQJE	2 Game Pack! - Hot Wheels - Stunt Track Challenge + Hot Wheels - World Race
+AGB-BQKJ	Konchuu no Mori no Daibouken - Fushigi na Sekai no Juunin-tachi
+AGB-BQLE	March of the Penguins
+AGB-BQLP	March of the Penguins
+AGB-BQMJ	Twin Series 3 - Konchuu Monster - Ouja Ketteisen + Super Chinese Labyrinth
+AGB-BQNE	Disney Princess - Royal Adventure
+AGB-BQNP	Disney Princess - Royal Adventure
+AGB-BQPE	Kim Possible 3 - Team Possible
+AGB-BQQE	SpongeBob SquarePants - Lights, Camera, Pants!
+AGB-BQQX	SpongeBob SquarePants - Lights, Camera, Pants!
+AGB-BQSJ	Konchuu Monster - Battle Stadium
+AGB-BQTF	Lea - Passion Veterinaire
+AGB-BQTP	Meine Tierpension
+AGB-BQTX	Mijn Dierenpension
+AGB-BQVE	Paws & Claws - Pet Vet
+AGB-BQVP	Meine Tierarztpraxis
+AGB-BQVX	Mijn Dierenpraktijk
+AGB-BQWE	Strawberry Shortcake - Summertime Adventure - Special Edition
+AGB-BQXE	Superman Returns - Fortress of Solitude
+AGB-BQYD	Danny Phantom - Dschungelstadt
+AGB-BQYE	Danny Phantom - Urban Jungle
+AGB-BQZE	Avatar - The Last Airbender
+AGB-BQZP	Avatar - The Legend of Aang
+AGB-BR2E	Mr. Driller 2
+AGB-BR3E	R-Type III - The Third Lightning
+AGB-BR3P	R-Type III - The Third Lightning
+AGB-BR4J	Rockman EXE 4.5 - Real Operation
+AGB-BR5E	Mega Man - Battle Network 6 - Cybeast Gregar
+AGB-BR5J	Rockman EXE 6 - Dennoujuu Gregar
+AGB-BR5P	Megaman - Battle Network 6 - Cybeast Gregar
+AGB-BR6E	Mega Man - Battle Network 6 - Cybeast Falzar
+AGB-BR6J	Rockman EXE 6 - Dennoujuu Falzar
+AGB-BR6P	Megaman - Battle Network 6 - Cybeast Falzar
+AGB-BR7E	Rock'em Sock'em Robots
+AGB-BR7P	Rock'em Sock'em Robots
+AGB-BR8E	Ghost Rider
+AGB-BR9J	Relaxuma na Mainichi
+AGB-BRAE	Racing Gears Advance
+AGB-BRAP	Racing Gears Advance
+AGB-BRBE	Mega Man - Battle Network 5 - Team Protoman
+AGB-BRBJ	Rockman EXE 5 - Team of Blues
+AGB-BRBP	Megaman - Battle Network 5 - Team Protoman
+AGB-BRDE	Power Rangers S.P.D.
+AGB-BRDX	Power Rangers S.P.D.
+AGB-BRDY	Power Rangers S.P.D.
+AGB-BREE	Riviera - The Promised Land
+AGB-BREJ	Riviera - Yakusoku no Chi Riviera
+AGB-BRFE	Rapala Pro Fishing
+AGB-BRGE	Yu Yu Hakusho - Ghostfiles - Tournament Tactics
+AGB-BRHE	Meet the Robinsons
+AGB-BRHP	Meet the Robinsons
+AGB-BRIJ	Rhythm Tengoku
+AGB-BRKE	Mega Man - Battle Network 5 - Team Colonel
+AGB-BRKJ	Rockman EXE 5 - Team of Colonel
+AGB-BRKP	Megaman - Battle Network 5 - Team Colonel
+AGB-BRLE	Rebelstar - Tactical Command
+AGB-BRLP	Rebelstar - Tactical Command
+AGB-BRME	Rave Master - Special Attack Force!
+AGB-BRNJ	Licca-chan no Oshare Nikki
+AGB-BROP	Postman Pat and the Greendale Rocket
+AGB-BRPJ	Lilliput Oukoku - Lillimoni to Issho Puni!
+AGB-BRQE	3 Games in One - Darts + Roll-a-Ball + Shuffle Bowl
+AGB-BRQP	3 Games in One - Darts + Roll-a-Ball + Shuffle Bowl
+AGB-BRRD	Bratz - Rock Angelz
+AGB-BRRE	Bratz - Rock Angelz
+AGB-BRRF	Bratz - Rock Angelz
+AGB-BRRS	Bratz - Rock Angelz
+AGB-BRSF	2 Games in 1 - Les Razmoket Rencontrent les Delajungle + SpongeBob SquarePants - SuperSponge
+AGB-BRSP	2 Games in 1 - Rugrats - Go Wild + SpongeBob SquarePants - SuperSponge
+AGB-BRTE	Robots
+AGB-BRTJ	Robots
+AGB-BRTP	Robots
+AGB-BRVE	That's So Raven
+AGB-BRWF	Racing Fever
+AGB-BRWP	Racing Fever
+AGB-BRXJ	Vattroller X
+AGB-BRYE	Rayman - Hoodlum's Revenge
+AGB-BRYP	Rayman - Hoodlums' Revenge
+AGB-BRZD	2 Games in 1 - Power Rangers - Ninja Storm + Power Rangers - Time Force
+AGB-BRZE	2 Games in 1 - Power Rangers - Ninja Storm + Power Rangers - Time Force
+AGB-BRZF	2 Games in 1 - Power Rangers - Ninja Storm + Power Rangers - La Force du Temps
+AGB-BRZP	2 Games in 1 - Power Rangers - Ninja Storm + Power Rangers - Time Force
+AGB-BS3J	Simple 2960 Tomodachi Series Vol. 3 - The Itsudemo Puzzle - Massugu Soroete Straws
+AGB-BS4J	Simple 2960 Tomodachi Series Vol. 4 - The Trump - Minna de Asoberu 12 Shurui no Trump Game
+AGB-BS5J	Sylvanian Families - Yousei no Stick to Fushigi no Ki - Marron-inu no Onnanoko
+AGB-BS6E	Backyard Skateboarding
+AGB-BS7E	2 in 1 Game Pack - Shrek 2 + Shark Tale
+AGB-BS7P	2 in 1 Game Pack - Shrek 2 & Shark Tale
+AGB-BS8J	Spyro Advance - Wakuwaku Tomodachi Daisakusen!
+AGB-BSAJ	Super Chinese 1, 2 Advance
+AGB-BSBE	Sonic Battle
+AGB-BSBJ	Sonic Battle
+AGB-BSBP	Sonic Battle
+AGB-BSDE	Sitting Ducks
+AGB-BSDP	Sitting Ducks
+AGB-BSEE	Shrek 2
+AGB-BSEX	Shrek 2
+AGB-BSFJ	Sylvanian Families - Fashion Designer ni Naritai! - Kurumi-risu no Onnanoko
+AGB-BSGJ	Minna no Soft Series - Minna no Shougi
+AGB-BSHJ	Minna no Soft Series - Shanghai
+AGB-BSIE	Shrek 2 - Beg for Mercy
+AGB-BSIX	Shrek 2 - Beg for Mercy
+AGB-BSKE	Summon Night - Swordcraft Story 2
+AGB-BSKJ	Summon Night - Craft Sword Monogatari 2
+AGB-BSLE	Tom Clancy's Splinter Cell - Pandora Tomorrow
+AGB-BSLP	Tom Clancy's Splinter Cell - Pandora Tomorrow
+AGB-BSME	Metal Slug Advance
+AGB-BSMJ	Metal Slug Advance
+AGB-BSMP	Metal Slug Advance
+AGB-BSNE	SpongeBob SquarePants Movie, The
+AGB-BSNX	SpongeBob SquarePants Movie, The
+AGB-BSOE	Shaman King - Master of Spirits
+AGB-BSOP	Shaman King - Master of Spirits
+AGB-BSPE	Spider-Man 2
+AGB-BSPI	Spider-Man 2
+AGB-BSPX	Spider-Man 2
+AGB-BSQE	SpongeBob SquarePants - Battle for Bikini Bottom
+AGB-BSQP	SpongeBob SquarePants - Battle for Bikini Bottom
+AGB-BSRE	Wade Hixton's Counter Punch
+AGB-BSSE	Spy Muppets - License to Croak
+AGB-BSTE	Spyro Orange - The Cortex Conspiracy
+AGB-BSTP	Spyro Fusion
+AGB-BSUE	Shark Tale
+AGB-BSUI	Shark Tale
+AGB-BSUX	Shark Tale
+AGB-BSVE	Smashing Drive
+AGB-BSVP	Smashing Drive
+AGB-BSWE	Star Wars - Flight of the Falcon
+AGB-BSWP	Star Wars - Flight of the Falcon
+AGB-BSXE	SSX 3
+AGB-BSYJ	Sentouin Yamada Hajime
+AGB-BSZP	2 Games in 1 - SpongeBob SquarePants - SuperSponge + SpongeBob SquarePants - Battle for Bikini Bottom
+AGB-BSZX	2 Games in 1 - SpongeBob SquarePants - SuperSponge + SpongeBob SquarePants - Battle for Bikini Bottom
+AGB-BT2E	Teenage Mutant Ninja Turtles 2 - Battle Nexus
+AGB-BT2P	Teenage Mutant Ninja Turtles 2 - Battle Nexus
+AGB-BT3J	Tantei Jinguuji Saburou - Shiroi Kage no Shoujo
+AGB-BT4E	Dragon Ball GT - Transformation
+AGB-BT5F	2 Jeux en 1 - Titeuf - Ze Gag Machine + Titeuf - Mega Compet
+AGB-BT6E	Trollz - Hair Affair!
+AGB-BT6P	Trollz - Hair Affair!
+AGB-BT6X	Trollz - Hair Affair!
+AGB-BT6Y	Trollz - Hair Affair!
+AGB-BT7E	Tonka - On the Job
+AGB-BT8E	Teenage Mutant Ninja Turtles Double Pack
+AGB-BT8P	Teenage Mutant Ninja Turtles Double Pack
+AGB-BT9E	Tak 2 - The Staff of Dreams
+AGB-BT9X	Tak 2 - The Staff of Dreams
+AGB-BTAE	Astro Boy - Omega Factor
+AGB-BTAJ	Astro Boy - Tetsuwan Atom - Atom Heart no Himitsu
+AGB-BTAP	Astro Boy - Omega Factor
+AGB-BTBE	Thunderbirds
+AGB-BTCF	Titeuf - Mega Compet
+AGB-BTDE	Pocket Dogs
+AGB-BTDJ	Poke Inu
+AGB-BTFJ	Tokyo Majin Gakuen - Fuju Houroku
+AGB-BTGE	Top Gear Rally
+AGB-BTGP	TG Rally
+AGB-BTGX	Top Gear Rally
+AGB-BTHE	Thunder Alley
+AGB-BTIJ	Tantei Gakuen Q - Kyuukyoku Trick ni Idome!
+AGB-BTJE	Tringo
+AGB-BTJP	Tringo
+AGB-BTLJ	Minna no Soft Series - Happy Trump 20
+AGB-BTME	Mario Tennis - Power Tour
+AGB-BTMJ	Mario Tennis Advance
+AGB-BTMP	Mario Power Tennis
+AGB-BTNE	Tron 2.0 - Killer App
+AGB-BTNP	Tron 2.0 - Killer App
+AGB-BTOE	Tony Hawk's Underground
+AGB-BTPE	Ten Pin Alley 2
+AGB-BTQJ	Tantei Gakuen Q - Meitantei wa Kimi da!
+AGB-BTRE	Tower SP, The
+AGB-BTRJ	Tower SP, The
+AGB-BTTJ	Minna no Soft Series - Tetris Advance
+AGB-BTUE	Totally Spies!
+AGB-BTUP	Totally Spies!
+AGB-BTVE	Ty the Tasmanian Tiger 3 - Night of the Quinkan
+AGB-BTWE	Tiger Woods PGA Tour 2004
+AGB-BTYE	Ty the Tasmanian Tiger 2 - Bush Rescue
+AGB-BTZE	Tokyo Xtreme Racer Advance
+AGB-BTZP	Tokyo Xtreme Racer Advance
+AGB-BU2E	2 Games in 1 - SpongeBob SquarePants - Battle for Bikini Bottom + Nicktoons - Freeze Frame Frenzy
+AGB-BU4E	Unfabulous
+AGB-BU5E	Uno 52
+AGB-BU5P	Uno 52
+AGB-BU6J	Taiketsu! Ultra Hero
+AGB-BUAE	Ultimate Puzzle Games
+AGB-BUCE	Ultimate Card Games
+AGB-BUDJ	Konjiki no Gashbell!! Yuujou no Zakeru - Dream Tag Tournament
+AGB-BUEE	Danny Phantom - The Ultimate Enemy
+AGB-BUEP	Danny Phantom - The Ultimate Enemy
+AGB-BUEX	Danny Phantom - The Ultimate Enemy
+AGB-BUFE	2 Games in 1! - Dragon Ball Z - Buu's Fury + Dragon Ball GT - Transformation
+AGB-BUHJ	Ueki no Housoku - Jingi Sakuretsu! Nouryokusha Battle
+AGB-BUIE	Uno - Free Fall
+AGB-BUIP	Uno - Free Fall
+AGB-BUJE	Nicktoons - Attack of the Toybots
+AGB-BUJX	SpongeBob and Friends - Attack of the Toybots
+AGB-BULE	Ultimate Spider-Man
+AGB-BULP	Ultimate Spider-Man
+AGB-BULX	Ultimate Spider-Man
+AGB-BUME	Monopoly
+AGB-BUMP	Monopoly
+AGB-BUOE	Dr. Sudoku
+AGB-BUOJ	Minna no Soft Series - Numpla Advance
+AGB-BUOP	Dr. Sudoku
+AGB-BUQE	2 Game Pack! - Uno + Skip-Bo
+AGB-BUQP	2 Game Pack! - Uno & Skip-Bo
+AGB-BURE	Paws & Claws - Pet Resort
+AGB-BUSE	Green Eggs and Ham by Dr. Seuss
+AGB-BUTJ	Ultra Keibitai - Monster Attack
+AGB-BUUJ	Pokemon - 10th Anniversary Distribution
+AGB-BUVJ	Uchuu no Stellvia
+AGB-BUWE	Ultimate Winter Games
+AGB-BUXD	Bibi und Tina - Ferien auf dem Martinshof
+AGB-BUYE	Ant Bully, The
+AGB-BUYP	Ant Bully, The
+AGB-BUZE	Ultimate Arcade Games
+AGB-BVAJ	bit Generations - Coloris
+AGB-BVBJ	bit Generations - Dialhex
+AGB-BVCJ	bit Generations - Dotstream
+AGB-BVDJ	bit Generations - Boundish
+AGB-BVEJ	bit Generations - Orbital
+AGB-BVGJ	bit Generations - Soundvoyager
+AGB-BVHJ	bit Generations - Digidrive
+AGB-BW2E	2 Games in 1 - Cartoon Network Block Party + Cartoon Network Speedway
+AGB-BW2P	Double Game! - Cartoon Network Block Party & Cartoon Network Speedway
+AGB-BW3J	Double Pack - Sonic Advance & ChuChu Rocket!
+AGB-BW3P	2 Games in 1 - Sonic Advance + ChuChu Rocket!
+AGB-BW4J	Double Pack - Sonic Battle & Sonic Advance
+AGB-BW4P	2 Games in 1 - Sonic Advance + Sonic Battle
+AGB-BW5E	Combo Pack - Sonic Advance + Sonic Pinball Party
+AGB-BW5P	2 Games in 1 - Sonic Advance + Sonic Pinball Party
+AGB-BW6J	Double Pack - Sonic Pinball Party & Sonic Battle
+AGB-BW6P	2 Games in 1 - Sonic Battle + Sonic Pinball Party
+AGB-BW7P	2 Games in 1 - Sonic Battle + ChuChu Rocket!
+AGB-BW8P	2 Games in 1 - Sonic Pinball Party + Columns Crown
+AGB-BW9P	2 Games in 1 - Columns Crown + ChuChu Rocket!
+AGB-BWAJ	Majokko Cream-chan no Gokko Series 1 - Wannyan Idol Gakuen
+AGB-BWBD	2 Games in 1 - Disneys Prinzessinnen + Baerenbrueder
+AGB-BWBF	2 Games in 1 - Disney Princesse + Frere des Ours
+AGB-BWBI	2 Games in 1 - Disney Principesse + Koda, Fratello Orso
+AGB-BWBP	2 Games in 1 - Disney Princess + Brother Bear
+AGB-BWBS	2 Games in 1 - Disney Princesas + Hermano Oso
+AGB-BWCE	2 Games in 1 - Golden Nugget Casino + Texas Hold 'em Poker
+AGB-BWCP	Double Game! - Golden Nugget Casino & Texas Hold 'em Poker
+AGB-BWDJ	Wannyan Doubutsu Byouin - Doubutsu no Oishasan Ikusei Game
+AGB-BWEE	Whac-A-Mole
+AGB-BWFJ	Wagamama Fairy Mirumo de Pon! - Yume no Kakera
+AGB-BWHE	Winnie the Pooh's Rumbly Tumbly Adventure
+AGB-BWHP	Winnie the Pooh's Rumbly Tumbly Adventure
+AGB-BWIE	WinX Club
+AGB-BWIP	WinX Club
+AGB-BWJP	Who Wants to Be a Millionaire Junior
+AGB-BWKJ	Wanko de Kururin! Wancle
+AGB-BWLE	Wild, The
+AGB-BWMJ	Wanwan Meitantei
+AGB-BWNJ	Twin Series 6 - Wannyan Idol Gakuen + Koinu to Issho Special
+AGB-BWOP	World Poker Tour
+AGB-BWPJ	Wagamama Fairy Mirumo de Pon! - Nazo no Kagi to Shinjitsu no Tobira
+AGB-BWQE	2 Games in 1 - Quad Desert Fury + Monster Trucks
+AGB-BWQP	Double Game! - Quad Desert Fury & Monster Trucks
+AGB-BWRE	World Reborn
+AGB-BWSE	Shaman King - Legacy of the Spirits - Sprinting Wolf
+AGB-BWTP	W.i.t.c.h.
+AGB-BWUD	Wilden Fussball-Kerle, Die - Entscheidung im Teufelstopf
+AGB-BWVE	WinX Club - Quest for the Codex
+AGB-BWVP	WinX Club - Quest for the Codex
+AGB-BWWE	WWE - Survivor Series
+AGB-BWXJ	Wanko Mix Chiwanko World
+AGB-BWYP	Winter Sports
+AGB-BWZP	Winnie the Pooh's Rumbly Tumbly Adventure & Rayman 3
+AGB-BX2E	2 in 1 Game Pack - Spider-Man - Mysterio's Menace + X2 - Wolverine's Revenge
+AGB-BX3P	2 in 1 Game Pack - Spider-Man & Spider-Man 2
+AGB-BX4E	2 in 1 Game Pack - Tony Hawk's Underground + Kelly Slater's Pro Surfer
+AGB-BX5E	Rayman - 10th Anniversary
+AGB-BX5P	Rayman - 10th Anniversary
+AGB-BX6E	2 Games in 1 - SpongeBob SquarePants - Battle for Bikini Bottom + The Fairly OddParents! - Breakin' da Rules
+AGB-BXAE	Texas Hold 'em Poker
+AGB-BXCE	3 Game Pack! - Ker Plunk! + Toss Across + Tip It
+AGB-BXFD	Bratz - Forever Diamondz
+AGB-BXFE	Bratz - Forever Diamondz
+AGB-BXFP	Bratz - Forever Diamondz
+AGB-BXGE	2-in-1 Fun Pack - Shrek 2 + Madagascar
+AGB-BXGP	2-in-1 Fun Pack - Shrek 2 + Madagascar
+AGB-BXHE	2-in-1 Fun Pack - Shrek 2 + Madagascar - Operation Penguin
+AGB-BXHP	2-in-1 Fun Pack - Shrek 2 + Madagascar - Operation Penguin
+AGB-BXKE	Castlevania Double Pack
+AGB-BXKP	Castlevania Double Pack
+AGB-BXME	XS Moto
+AGB-BXPE	Dora the Explorer - Dora's World Adventure!
+AGB-BXSE	Tony Hawk's Downhill Jam
+AGB-BXSP	Tony Hawk's Downhill Jam
+AGB-BXUE	Surf's Up
+AGB-BXUP	Surf's Up
+AGB-BXUX	Surf's Up
+AGB-BXWD	Wilden Fussball-Kerle, Die - Gefahr im Wilde Kerle Land
+AGB-BY2E	Yu-Gi-Oh! Double Pack
+AGB-BY2P	Yu-Gi-Oh! Double Pack
+AGB-BY3J	Yu-Gi-Oh! Duel Monsters Expert 3
+AGB-BY6E	Yu-Gi-Oh! - Ultimate Masters - World Championship Tournament 2006
+AGB-BY6J	Yu-Gi-Oh! Duel Monsters Expert 2006
+AGB-BY6P	Yu-Gi-Oh! - Ultimate Masters Edition - World Championship Tournament 2006
+AGB-BY7E	Yu-Gi-Oh! - 7 Trials to Glory - World Championship Tournament 2005
+AGB-BYAE	F24 Stealth Fighter
+AGB-BYDE	Yu-Gi-Oh! - Destiny Board Traveler
+AGB-BYDP	Yu-Gi-Oh! - Destiny Board Traveler
+AGB-BYFE	Backyard Football 2006
+AGB-BYGE	Yu-Gi-Oh! GX - Duel Academy
+AGB-BYGJ	Yu-Gi-Oh! Duel Monsters GX - Mezase Duel King!
+AGB-BYGP	Yu-Gi-Oh! GX - Duel Academy
+AGB-BYHE	Backyard Hockey
+AGB-BYIJ	Yu-Gi-Oh! Duel Monsters International 2
+AGB-BYLP	Kid Paddle
+AGB-BYME	Monster Trucks Mayhem
+AGB-BYMP	Monster Trucks Mayhem
+AGB-BYOP	Yu-Gi-Oh! - Day of the Duelist - World Championship Tournament 2005
+AGB-BYPP	Pferd & Pony - Lass Uns Reiten 2
+AGB-BYPX	Pippa Funnell 2
+AGB-BYPY	Paard & Pony - Paard in Galop
+AGB-BYSJ	Yu-Gi-Oh! - Sugoroku no Sugoroku
+AGB-BYVE	Yu-Gi-Oh! Double Pack 2
+AGB-BYWE	Yu-Gi-Oh! - World Championship Tournament 2004
+AGB-BYWP	Yu-Gi-Oh! - World Championship Tournament 2004
+AGB-BYXE	Puppy Luv - Spa and Resort
+AGB-BYYE	Yu Yu Hakusho - Ghostfiles - Spirit Detective
+AGB-BYYP	Yu Yu Hakusho - Ghostfiles - Spirit Detective
+AGB-BZ2J	Zettaizetsumei Dangerous Jiisan Tsuu - Ikari no Oshioki Blues
+AGB-BZ3E	Mega Man Zero 3
+AGB-BZ3J	Rockman Zero 3
+AGB-BZ3P	Megaman Zero 3
+AGB-BZ4E	Final Fantasy IV Advance
+AGB-BZ4J	Final Fantasy IV Advance
+AGB-BZ4P	Final Fantasy IV Advance
+AGB-BZ5E	Final Fantasy V Advance
+AGB-BZ5J	Final Fantasy V Advance
+AGB-BZ5P	Final Fantasy V Advance
+AGB-BZ6E	Final Fantasy VI Advance
+AGB-BZ6J	Final Fantasy VI Advance
+AGB-BZ6P	Final Fantasy VI Advance
+AGB-BZCE	Suite Life of Zack & Cody, The - Tipton Caper
+AGB-BZDJ	Zettaizetsumei Dangerous Jiisan - Shijou Saikyou no Dogeza
+AGB-BZFJ	Zoids Saga - Fuzors
+AGB-BZGJ	Zettaizetsumei Dangerous Jiisan - Naki no 1-kai - Zettaifukujuu Violence Kouchou - Wagahai ga 1-ban Erainjai!!
+AGB-BZIE	Finding Nemo - The Continuing Adventures
+AGB-BZIJ	Finding Nemo - Aratanaru Bouken
+AGB-BZIX	Finding Nemo - The Continuing Adventures
+AGB-BZIY	Finding Nemo - The Continuing Adventures
+AGB-BZME	Legend of Zelda, The - The Minish Cap
+AGB-BZMJ	Zelda no Densetsu - Fushigi no Boushi
+AGB-BZMP	Legend of Zelda, The - The Minish Cap
+AGB-BZNE	Deal or No Deal
+AGB-BZOJ	Zero One SP
+AGB-BZPE	2 Games in One! - Dr. Mario + Puzzle League
+AGB-BZPJ	Dr. Mario & Panel de Pon
+AGB-BZPP	2 Games in 1 - Dr. Mario + Puzzle League
+AGB-BZRE	Enchanted - Once Upon Andalasia
+AGB-BZSE	That's So Raven 2 - Supernatural Style
+AGB-BZTE	VeggieTales - LarryBoy and the Bad Apple
+AGB-BZUE	Teen Titans 2
+AGB-BZWJ	Touhai Densetsu Akagi - Yami ni Mai Orita Tensai
+AGB-BZXE	SpongeBob's Atlantis SquarePantis
+AGB-BZYE	Zoey 101
+AGB-CUNE	Inky and the Alien Aquarium
+AGB-FADE	Classic NES Series - Castlevania
+AGB-FADJ	Famicom Mini 29 - Akumajou Dracula
+AGB-FADP	NES Classics - Castlevania
+AGB-FBFJ	Famicom Mini 13 - Balloon Fight
+AGB-FBME	Classic NES Series - Bomberman
+AGB-FBMJ	Famicom Mini 09 - Bomberman
+AGB-FCLJ	Famicom Mini 12 - Clu Clu Land
+AGB-FDDJ	Famicom Mini 16 - Dig Dug
+AGB-FDKE	Classic NES Series - Donkey Kong
+AGB-FDKJ	Famicom Mini 02 - Donkey Kong
+AGB-FDME	Classic NES Series - Dr. Mario
+AGB-FDMJ	Famicom Mini 15 - Dr. Mario
+AGB-FEBE	Classic NES Series - Excitebike
+AGB-FEBJ	Famicom Mini 04 - Excitebike
+AGB-FFMJ	Famicom Mini 26 - Famicom Mukashibanashi - Shin Onigashima - Zen, Kouhen
+AGB-FGGJ	Famicom Mini 20 - Ganbare Goemon! - Karakuri Douchuu
+AGB-FGZJ	Famicom Mini - Kidou Senshi Z Gundam - Hot Scramble
+AGB-FICC	Famicom Mini Collection
+AGB-FICE	Classic NES Series - Ice Climber
+AGB-FICJ	Famicom Mini 03 - Ice Climber
+AGB-FLBE	Classic NES Series - Zelda II - The Adventure of Link
+AGB-FLBJ	Famicom Mini 25 - The Legend of Zelda 2 - Link no Bouken
+AGB-FM2J	Famicom Mini 21 - Super Mario Bros. 2
+AGB-FMBJ	Famicom Mini 11 - Mario Bros.
+AGB-FMKJ	Famicom Mini 18 - Makaimura
+AGB-FMPJ	Famicom Mini 08 - Mappy
+AGB-FMRE	Classic NES Series - Metroid
+AGB-FMRJ	Famicom Mini 23 - Metroid
+AGB-FNMJ	Famicom Mini 22 - Nazo no Murasame Jou
+AGB-FP7E	Classic NES Series - Pac-Man
+AGB-FPMJ	Famicom Mini 06 - Pac-Man
+AGB-FPTJ	Famicom Mini 24 - Hikari Shinwa - Palthena no Kagami
+AGB-FSDJ	Famicom Mini 30 - SD Gundam World - Gachapon Senshi Scramble Wars
+AGB-FSME	Classic NES Series - Super Mario Bros.
+AGB-FSMJ	Famicom Mini 01 - Super Mario Bros.
+AGB-FSOJ	Famicom Mini 10 - Star Soldier
+AGB-FSRJ	Famicom Mini - Dai-2-ji Super Robot Taisen
+AGB-FTBJ	Famicom Mini 17 - Takahashi Meijin no Bouken-jima
+AGB-FTKJ	Famicom Mini 27 - Famicom Tantei Club - Kieta Koukeisha - Zen, Kouhen
+AGB-FTUJ	Famicom Mini 28 - Famicom Tantei Club Part II - Ushiro ni Tatsu Shoujo - Zen, Kouhen
+AGB-FTWJ	Famicom Mini 19 - Twin Bee
+AGB-FWCJ	Famicom Mini 14 - Wrecking Crew
+AGB-FXVE	Classic NES Series - Xevious
+AGB-FXVJ	Famicom Mini 07 - Xevious
+AGB-FZLE	Classic NES Series - The Legend of Zelda
+AGB-FZLJ	Famicom Mini 05 - Zelda no Densetsu 1 - The Hyrule Fantasy
+AGB-GHTJ	Hikaru no Go 3 - Senyou Joy Carry Cartridge
+AGB-JPAJ	Pokemon - Aurora Ticket Distribution
+AGB-KHPJ	Korokoro Puzzle - Happy Panecchu!
+AGB-KYGE	Yoshi Topsy-Turvy
+AGB-KYGJ	Yoshi no Banyuuinryoku
+AGB-KYGP	Yoshi's Universal Gravitation
+AGB-MCAT	Mooncat's Trio
+AGB-PDA1	GBA Personal Organizer
+AGB-PEAJ	Card e-Reader
+AGB-PSAE	e-Reader
+AGB-PSAJ	Card e-Reader+
+AGB-RARE	Battletoads
+AGB-RZWE	WarioWare - Twisted!
+AGB-RZWJ	Mawaru - Made in Wario
+AGB-SBFP	Tremblay Island
+AGB-U32E	Boktai 2 - Solar Boy Django
+AGB-U32J	Zoku Bokura no Taiyou - Taiyou Shounen Django
+AGB-U32P	Boktai 2 - Solar Boy Django
+AGB-U33J	Shin Bokura no Taiyou - Gyakushuu no Sabata
+AGB-U3IE	Boktai - The Sun Is in Your Hand
+AGB-U3IJ	Bokura no Taiyou - Taiyou Action RPG
+AGB-U3IP	Boktai - The Sun Is in Your Hand
+AGB-V49E	Drill Dozer
+AGB-V49J	Screw Breaker - Goushin DoriRureRo
+AGB-V49P	Drill Dozer
+AGB-XXXE	Kien
+AGB-ZBBJ	Daigassou! Band-Brothers - Request Selection
+AGB-ZMBJ	Play-Yan Micro
+AGB-ZMDE	Nintendo MP3 Player
+AGB-ZMPE	GBA Jukebox
+AGB-ZMPJ	Music Recorder MP3

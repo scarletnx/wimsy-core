@@ -830,6 +830,12 @@ static void test_mcp(void) {
     t = call(&m, "list_games", "{}");
     HAS(t, "\\\"count\\\":1");
     free(t);
+    t = call(&m, "list_games", "{\"console\":\"switch\"}");
+    HAS(t, "\\\"count\\\":1");
+    free(t);
+    t = call(&m, "search_reports", "{\"console\":\"3DS\"}");
+    HAS(t, "\\\"matched\\\":0");
+    free(t);
     t = call(&m, "list_games", "{\"query\":\"zelda\"}");
     HAS(t, "\\\"count\\\":0");
     free(t);
@@ -941,6 +947,7 @@ static void test_rescan(void) {
     SAME(r.signature, "svcBreak in _ZN2nn3hid18GetNpadJoyHoldTypeEv");
     SAME(r.title, "Some Game"); /* the game stays as it was */
     SAME(r.missed, "1 service command");
+    SAME(r.console, "Switch");
     st_report_free(&r);
     CHECK(tr_rescan(&tracer, "a") == 0); /* the same summary: nothing to do */
     /* a report filed under another game than its log names (an older summary's mistake) is filed again */
@@ -986,7 +993,7 @@ static void test_missed(void) {
 
 static void test_titles(void) {
     static const char list_text[] = "# title ID, name\n0100EEEE00000000\tListed Game\nnot a line\n"
-                                    "0100aaaabbbb0000\tSome Game From The List\n";
+                                    "0100aaaabbbb0000\tSome Game From The List\nAGB-BPEE\tPokemon - Emerald Version\n";
     static char bare[sizeof LOG + 16];
     Titles list;
     char *path = at("titles.tsv"), *t, *name;
@@ -995,12 +1002,16 @@ static void test_titles(void) {
     long first, second;
     CHECK(!site_write(site, "titles.tsv", list_text, sizeof list_text - 1));
     CHECK(!tr_titles_load(&list, path));
-    CHECK(list.n == 2 && strlen(list.version) == 16);
-    SAME(tr_titles_name(&list, "0100EEEE00000000"), "Listed Game");
-    SAME(tr_titles_name(&list, "0100eeee00000800"), "Listed Game");
-    SAME(tr_titles_name(&list, "0100EEEE00001001"), "Listed Game");
-    CHECK(!tr_titles_name(&list, "0100FFFF00000000"));
-    CHECK(!tr_titles_name(NULL, "0100EEEE00000000"));
+    CHECK(list.n == 3 && strlen(list.version) == 16);
+    SAME(tr_titles_name(&list, "GBA", "bpee"), "Pokemon - Emerald Version");
+    SAME(tr_titles_name(&list, "Switch", "0100EEEE00000000"), "Listed Game");
+    CHECK(!tr_titles_name(&list, "3DS", "0100EEEE00000000")); /* the list has the Switch's and the GBA's */
+    CHECK(!tr_titles_name(&list, "GBA", "BPEJ"));
+    SAME(tr_titles_name(&list, NULL, "0100EEEE00000000"), "Listed Game");
+    SAME(tr_titles_name(&list, NULL, "0100eeee00000800"), "Listed Game");
+    SAME(tr_titles_name(&list, NULL, "0100EEEE00001001"), "Listed Game");
+    CHECK(!tr_titles_name(&list, NULL, "0100FFFF00000000"));
+    CHECK(!tr_titles_name(NULL, NULL, "0100EEEE00000000"));
     name = strstr(strcpy(bare, LOG), "Some Game");
     memmove(name + 16, name + 9, strlen(name + 9) + 1);
     memcpy(name, "0100EEEE00000000", 16);
@@ -1033,6 +1044,46 @@ static void test_titles(void) {
         char* p = page("index.html");
         HAS(p, ">Listed Game<");
         free(p);
+    }
+    /* the other consoles: a 3DS game by its title ID, a Vita game by its name, a GBA game by its code and the list */
+    {
+        static const char three[] = "Game: Some 3DS Game (0004000000179400) - ScarletNX main d22bbab (clang 23.1.4, "
+                                    "Linux x86_64)\nNo Vulkan device: no frames will be drawn, shown or saved\n";
+        static const char vita[] = "Game: Some Vita Game - ScarletNX main 1234abc (clang 23.1.3, Linux x86_64)\n";
+        static const char gba[] = "ScarletNX - POKEMON EMER (GBA)\nbuild: ScarletNX main 1234abc (clang 23.1.3, Linux "
+                                  "x86_64)\ncartridge: BPEE\n";
+        static const struct {
+            const char *text, *url, *key, *title, *console, *reply;
+        } cases[] = {{three, "https://cdn.discordapp.com/7/3ds.log", "0004000000179400", "Some 3DS Game", "3DS",
+                      ": Some 3DS Game (3DS)\""},
+                     {vita, "https://cdn.discordapp.com/7/vita.log", "n-vita-some-vita-game", "Some Vita Game", "Vita",
+                      ": Some Vita Game (Vita)\""},
+                     {gba, "https://cdn.discordapp.com/7/gba.log", "gba-BPEE", "Pokemon - Emerald Version", "GBA",
+                      ": Pokemon - Emerald Version (GBA)\""}};
+        size_t c;
+        for (c = 0; c < sizeof cases / sizeof *cases; ++c) {
+            long id;
+            serve(cases[c].url, cases[c].text, strlen(cases[c].text));
+            m = message(6100 + (u64)c, 121, "<@99>");
+            attach(&m, "last-run.log.txt", cases[c].url, 10);
+            t = answer_text(respond(&m));
+            HAS(t, cases[c].reply);
+            free(t);
+            tr_message_free(&m);
+            id = st_by_message(tracer.store, 6100 + (u64)c);
+            CHECK(st_get(tracer.store, id, &r, NULL, NULL) == 1);
+            SAME(r.key, cases[c].key);
+            SAME(r.title, cases[c].title);
+            SAME(r.console, cases[c].console);
+            st_report_free(&r);
+        }
+        {
+            char* p = page("index.html");
+            HAS(p, "data-console=\"GBA\"");
+            HAS(p, "GBA · BPEE");
+            free(p);
+        }
+        for (c = 0; c < sizeof cases / sizeof *cases; ++c) CHECK(tr_forget(&tracer, 6100 + (u64)c));
     }
     CHECK(tr_forget(&tracer, 6000) && tr_forget(&tracer, 6001) && first && second);
     tracer.titles = NULL;

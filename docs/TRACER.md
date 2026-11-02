@@ -15,10 +15,14 @@ A message that mentions it with a ScarletNX log attached becomes a report:
   reply and not kept.
 - Its screenshots (PNG, JPEG, WebP or GIF, read from their bytes; 8 at most, 25 MiB each) lose their metadata: EXIF
   and its place and camera, XMP, PNG's text and time, JPEG's comments.
-- The game is the first log's: its title ID, else its name. A log that has the title ID alone takes the name other
-  reports' logs gave the game, else the name `tracer/titles.tsv` lists for it (base applications by title ID, from
-  [titledb](https://github.com/blawar/titledb); an update's or an add-on's ID finds its game); one that has the name
-  alone goes with the reports that have its title ID. The message's text
+- The game is the first log's, of the console its runtime's header says: the Switch, the 3DS, the Vita or the GBA.
+  Its key is its title ID (the GBA's: `gba-` and its game code), else `n-`, the console's name but the Switch's, and
+  its name. A log that has the title ID alone takes the name other reports' logs gave the game, else the name
+  `tracer/titles.tsv` lists for it: the Switch's base applications by title ID, from
+  [titledb](https://github.com/blawar/titledb) (an update's or an add-on's ID finds its game), and the GBA's games by
+  game code, from No-Intro's list in [libretro-database](https://github.com/libretro/libretro-database), which names a
+  GBA game before its cartridge's 12-letter title. One that has the name alone goes with the reports that have its
+  title ID. The 3DS's and the Vita's headers have the game's own name. The message's text
   names the game only when the log says neither, and is kept as the report's note.
 - The reply links the report's page, with how the run ended, its signature and build, and what was not kept.
 - Beside how the run ended, what the runtime missed, counted from the first log's summary: "1116 shaders, 1 texture
@@ -74,8 +78,8 @@ it. Read-only and public, as the site is: it names no one either.
 
 | Tool | What it gives |
 |---|---|
-| `list_games` | the games, their report counts and latest outcome; by words of the title or title ID, by outcome |
-| `search_reports` | reports, the newest first; by words, game, outcome, signature, branch, GPU |
+| `list_games` | the games, their console, report counts and latest outcome; by words of the title or title ID, by console, by outcome |
+| `search_reports` | reports, the newest first; by words, game, console, outcome, signature, branch, GPU |
 | `get_report` | a report's facts and each log's summary (how it ended, where, its frames, what the runtime missed), and for a log that failed what ScarletNX's `symbolize` asks for |
 | `read_log` | a log's lines with their numbers, from a line on or those that hold some text, and where to go on |
 | `get_screenshot` | one of a report's screenshots, as an image (8 MiB at most; a larger one is named by its address) |

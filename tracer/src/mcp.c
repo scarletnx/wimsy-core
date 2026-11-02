@@ -12,11 +12,13 @@ static const char* const VERSIONS[] = {"2025-06-18", "2025-03-26", "2024-11-05"}
 
 static const char INSTRUCTIONS[] =
     "ScarletNX game reports: the logs and screenshots that players sent to Tracer on Discord, one report each, grouped "
-    "by game. A game's key is its title ID, or n- and its name for a game whose logs name no title ID. list_games and "
+    "by game, for each console ScarletNX runs: the Switch, the 3DS, the Vita and the GBA (a report's console field). A "
+    "game's key is its title ID (the GBA's: gba- and its game code), or n- and its name for a game whose logs name no "
+    "ID. list_games and "
     "search_reports find reports; signatures groups the failures that happened in the same place, across games; "
     "get_report gives a report's facts and each log's summary (how the run ended and where, its frames, the service "
     "commands and what else the runtime missed, the last lines); read_log reads or searches the log itself; "
-    "get_screenshot shows a report's screenshot. Home folders in the logs are ~. A log that failed has a symbolize "
+    "get_screenshot shows a report's screenshot. Home folders in the logs are ~. A Switch log that failed has a symbolize "
     "object in get_report: its title ID, game version and game addresses. ScarletNX's own MCP server (scarletnx "
     "--mcp), where a copy of the game is, names them: its find_game with that title_id, the game whose version is "
     "game_version, then its symbolize (or disassemble) with that game's path and the addresses. This server has no "
@@ -27,6 +29,7 @@ static const char TOOLS[] =
     "one's key, title, title ID, report count, the latest report's date and outcome, and its page. Filtered by words "
     "of the title or title ID, and by the latest outcome.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{"
     "\"query\":{\"type\":\"string\",\"description\":\"words the title or title ID holds, in any case\"},"
+    "\"console\":{\"type\":\"string\",\"description\":\"Switch, 3DS, Vita or GBA\"},"
     "\"outcome\":{\"type\":\"string\",\"description\":\"the latest report's outcome: crash, svcBreak, exception, brk, "
     "unsupported instruction, thread stopped, host abort, fatal, or no failure logged\"}}},\"annotations\":{"
     "\"readOnlyHint\":true,\"openWorldHint\":false}},"
@@ -35,6 +38,7 @@ static const char TOOLS[] =
     "filter given must match.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{"
     "\"query\":{\"type\":\"string\",\"description\":\"words found anywhere in the report's fields, in any case\"},"
     "\"game\":{\"type\":\"string\",\"description\":\"a game's key or title ID, or words of its title\"},"
+    "\"console\":{\"type\":\"string\",\"description\":\"Switch, 3DS, Vita or GBA\"},"
     "\"outcome\":{\"type\":\"string\",\"description\":\"how the run ended, as list_games names it\"},"
     "\"signature\":{\"type\":\"string\",\"description\":\"text the failure's signature holds\"},"
     "\"branch\":{\"type\":\"string\",\"description\":\"the ScarletNX branch of the build\"},"
@@ -157,7 +161,7 @@ static char* printed(cJSON* o) {
 
 static char* list_games(const Mcp* m, const cJSON* args, int* error) {
     cJSON *all = read_json(m->root, "api/games.json"), *out = cJSON_CreateObject(), *list, *g;
-    const char *query = jstr(args, "query"), *outcome = jstr(args, "outcome");
+    const char *query = jstr(args, "query"), *outcome = jstr(args, "outcome"), *console = jstr(args, "console");
     int count = 0;
     if (!all) {
         cJSON_Delete(out);
@@ -168,7 +172,9 @@ static char* list_games(const Mcp* m, const cJSON* args, int* error) {
     cJSON_ArrayForEach(g, cJSON_GetObjectItemCaseSensitive(all, "games")) {
         char* url;
         cJSON* copy;
-        if (!words_in(g, query) || (outcome && *outcome && !same(jstr(g, "outcome"), outcome))) continue;
+        if (!words_in(g, query) || (outcome && *outcome && !same(jstr(g, "outcome"), outcome)) ||
+            (console && *console && !same(jstr(g, "console"), console)))
+            continue;
         url = rei_format("%s/g/%s.html", m->url, jstr(g, "game") ? jstr(g, "game") : "");
         copy = cJSON_Duplicate(g, 1);
         jset(copy, "url", url);
@@ -184,7 +190,8 @@ static char* list_games(const Mcp* m, const cJSON* args, int* error) {
 static char* search_reports(const Mcp* m, const cJSON* args, int* error) {
     cJSON *all = read_json(m->root, "api/reports.json"), *out = cJSON_CreateObject(), *list, *r;
     const char *query = jstr(args, "query"), *game = jstr(args, "game"), *outcome = jstr(args, "outcome"),
-               *signature = jstr(args, "signature"), *branch = jstr(args, "branch"), *gpu = jstr(args, "gpu");
+               *signature = jstr(args, "signature"), *branch = jstr(args, "branch"), *gpu = jstr(args, "gpu"),
+               *console = jstr(args, "console");
     int limit = integer(args, "limit", 50, 1, 500), matched = 0;
     if (!all) {
         cJSON_Delete(out);
@@ -197,7 +204,7 @@ static char* search_reports(const Mcp* m, const cJSON* args, int* error) {
         cJSON* copy;
         if (!words_in(r, query) || !is_game(r, game) || (outcome && *outcome && !same(jstr(r, "outcome"), outcome)) ||
             !holds(jstr(r, "signature"), signature) || (branch && *branch && !same(jstr(r, "branch"), branch)) ||
-            !holds(jstr(r, "gpu"), gpu))
+            !holds(jstr(r, "gpu"), gpu) || (console && *console && !same(jstr(r, "console"), console)))
             continue;
         if (matched++ >= limit) continue;
         url = rei_format("%s/r/%.0f/", m->url, jnum(r, "id"));
@@ -239,7 +246,7 @@ static int hex_address(const char* s) {
 static void symbolizing(cJSON* f) {
     const cJSON *summary = cJSON_GetObjectItemCaseSensitive(f, "summary"), *frame;
     const cJSON* failure = cJSON_GetObjectItemCaseSensitive(summary, "failure");
-    const char* id = jstr(summary, "title_id");
+    const char *id = jstr(summary, "title_id"), *console = jstr(summary, "console");
     cJSON *s, *list = cJSON_CreateArray(), *each;
     const char* at;
     cJSON_ArrayForEach(frame, cJSON_GetObjectItemCaseSensitive(failure, "frames")) {
@@ -251,7 +258,7 @@ static void symbolizing(cJSON* f) {
     }
     at = jstr(failure, "game_address");
     if (hex_address(at)) cJSON_AddItemToArray(list, cJSON_CreateString(at));
-    if (!id || !cJSON_GetArraySize(list)) {
+    if (!id || !cJSON_GetArraySize(list) || (console && strcmp(console, "Switch"))) { /* find_game knows the Switch's */
         cJSON_Delete(list);
         return;
     }

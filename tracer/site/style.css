@@ -184,6 +184,7 @@ tbody tr:last-child td { border-bottom: 0; }
 tbody tr:hover { background: color-mix(in srgb, var(--blue) 6%, transparent); }
 .reports td.mono { max-width: 380px; overflow-wrap: anywhere; }
 .reports td:first-child, .reports td:nth-child(2) { white-space: nowrap; }
+.reports small { color: var(--muted); }
 
 .facts {
   display: grid;

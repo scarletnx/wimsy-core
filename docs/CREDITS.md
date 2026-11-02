@@ -11,7 +11,8 @@ wimsy-core is [GPL-3.0-or-later](../LICENSE).
 | [reflect-c](https://github.com/lcsmuller/reflect-c) | Concord's submodule | MIT |
 | [libcurl](https://curl.se/libcurl/) | linked by the programs, the system's | curl |
 | [SQLite](https://sqlite.org) | Tracer's database, the system's | public domain |
-| [titledb](https://github.com/blawar/titledb) | the games' names by title ID, `tracer/titles.tsv` (`scripts/make-titles.py`) | MIT |
+| [titledb](https://github.com/blawar/titledb) | the Switch games' names by title ID, `tracer/titles.tsv` (`scripts/make-titles.py`) | MIT |
+| [libretro-database](https://github.com/libretro/libretro-database) (No-Intro's list) | the GBA games' names by game code, `tracer/titles.tsv` | CC-BY-SA-4.0, which GPL-3.0 takes |
 | [libmicrohttpd](https://www.gnu.org/software/libmicrohttpd/) | the HTTP of `tracer-mcp`, the system's | LGPL-2.1-or-later |
 | [libarchive](https://libarchive.org) | Tracer's `.gz` and `.zip` logs, FreeBSD's base | BSD-2-Clause |
 | ScarletNX's log summary (`logscan.c`, `demangle.c`, `ascii.h`) | `tracer/third_party/logscan`, its commit in `COMMIT` | GPL-3.0-or-later |

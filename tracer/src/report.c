@@ -63,20 +63,32 @@ static char* upper(const char* s, size_t n) {
 }
 /* n- and the name's letters and digits, lowered, other runs a -; FNV-1a of the name when it has none (a name in
    another script) */
-static char* name_key(const char* name) {
+static int on_switch(const char* console) { return !console || !strcmp(console, "Switch"); }
+static int on_gba(const char* console) { return console && !strcmp(console, "GBA"); }
+
+/* n-, the console's name but the Switch's ("n-vita-"), so that two consoles' games of one name stay apart */
+static char* name_key(const char* name, const char* console) {
     Buf b = {0};
     const char* s;
+    size_t start;
     int dash = 0;
     buf_add(&b, "n-");
+    for (s = console; !on_switch(console) && *s; ++s)
+        if (isalnum((unsigned char)*s)) {
+            char c = (char)tolower((unsigned char)*s);
+            buf_addn(&b, &c, 1);
+        }
+    if (b.len > 2) buf_add(&b, "-");
+    start = b.len;
     for (s = name; *s && b.len < TR_KEY - 1; ++s)
         if (isalnum((unsigned char)*s) && !((unsigned char)*s & 0x80)) {
             char c = (char)tolower((unsigned char)*s);
-            if (dash && b.len > 2) buf_add(&b, "-");
+            if (dash && b.len > start) buf_add(&b, "-");
             dash = 0;
             buf_addn(&b, &c, 1);
         } else
             dash = 1;
-    if (b.len == 2) {
+    if (b.len == start) {
         unsigned long h = 2166136261UL;
         for (s = name; *s; ++s) h = ((h ^ (unsigned char)*s) * 16777619UL) & 0xffffffffUL;
         buf_printf(&b, "%08lx", h);
@@ -138,13 +150,16 @@ char* tr_missed(const cJSON* summary) {
 }
 
 int tr_game(const cJSON* summary, const char* note, char** key, char** title, char** tid, int* named) {
-    const char *id = jstr(summary, "title_id"), *name = jstr(summary, "title");
+    const char *id = jstr(summary, "title_id"), *name = jstr(summary, "title"), *console = jstr(summary, "console");
     char* got = NULL;
     size_t n = 0;
     *key = *title = *tid = NULL;
     *named = 0;
-    if (id && title_id(id, strlen(id))) *tid = upper(id, 16);
-    if (name) { /* "Name", "0100...", or as older builds wrote it "Name (0100.../0100...)" */
+    if (id && title_id(id, strlen(id)))
+        *tid = upper(id, 16);
+    else if (on_gba(console) && id && strlen(id) == 4 && strspn(id, "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ") == 4)
+        *tid = upper(id, 4); /* the GBA's game code */
+    if (name) {              /* "Name", "0100...", or as older builds wrote it "Name (0100.../0100...)" */
         const char* open = strstr(name, " (");
         n = strlen(name);
         if (title_id(name, n)) {
@@ -167,7 +182,7 @@ int tr_game(const cJSON* summary, const char* note, char** key, char** title, ch
         *title = rei_strdup(note);
     else
         return -1;
-    *key = *tid ? rei_strdup(*tid) : name_key(*title);
+    *key = *tid ? (on_gba(console) ? rei_format("gba-%s", *tid) : rei_strdup(*tid)) : name_key(*title, console);
     return 0;
 }
 
@@ -389,8 +404,9 @@ static void take(Tracer* t, Taken* k, const TrMessage* m) {
 }
 
 static cJSON* made(Tracer* t, const StReport* r, const Taken* k) {
-    char *title = rei_format("Report #%ld: %s", r->id, r->title), *cut = plain(title, 250),
-         *sig = plain(r->signature, 900);
+    char *title = on_switch(r->console) ? rei_format("Report #%ld: %s", r->id, r->title)
+                                        : rei_format("Report #%ld: %s (%s)", r->id, r->title, r->console),
+         *cut = plain(title, 250), *sig = plain(r->signature, 900);
     char *url = rei_format("%s/r/%ld/", t->url, r->id), *text, *files;
     const char* tone = tone_name(r->outcome);
     cJSON* e;
@@ -436,10 +452,19 @@ static cJSON* made(Tracer* t, const StReport* r, const Taken* k) {
 
 /* the name of a game its logs did not name: one another report's log gave it, else the list's (titles.tsv); owned, or
    NULL */
-static char* known_name(Tracer* t, const char* key, const char* title_id) {
-    char* known = st_title_of_key(t->store, key);
-    const char* listed = known ? NULL : tr_titles_name(t->titles, title_id);
+static char* known_name(Tracer* t, const char* key, const char* title_id, const char* console) {
+    char* known = on_gba(console) ? NULL : st_title_of_key(t->store, key);
+    const char* listed = known ? NULL : tr_titles_name(t->titles, console, title_id);
     return known ? known : listed ? rei_strdup(listed) : NULL;
+}
+/* a game's name to give a report when its logs name none, or (a GBA cartridge's title being 12 letters at most) the
+   list's for a GBA game; *named becomes 1 for the list's name of a GBA game. Owned, or NULL to keep the title */
+static char* better_name(Tracer* t, const char* key, const char* title_id, const char* console, int* named) {
+    char* known;
+    if (*named && !on_gba(console)) return NULL;
+    known = known_name(t, key, title_id, console);
+    if (known && on_gba(console)) *named = 1;
+    return known;
 }
 
 static cJSON* reported(Tracer* t, const TrMessage* m, char* note, long* report) {
@@ -474,14 +499,15 @@ static cJSON* reported(Tracer* t, const TrMessage* m, char* note, long* report) 
             r.key = known;
         }
     }
-    if (!r.named) { /* a log without the game's name: another report's log's, else the list's */
-        char* known = known_name(t, r.key, r.title_id);
+    { /* a log without the game's name: another report's log's, else the list's; a GBA game's, the list's */
+        char* known = better_name(t, r.key, r.title_id, jstr(k.first, "console"), &r.named);
         if (known) {
             free(r.title);
             r.title = known;
         }
     }
     r.when = rei_now();
+    r.console = dup_of(k.first, "console");
     r.guild = m->guild;
     r.channel = m->channel;
     r.message = m->id;
@@ -549,7 +575,7 @@ static int renamed(Tracer* t, StReport* r, const Taken* k, char** old) {
     if (named && (!r->title_id || !tid || !strcmp(tid, r->title_id))) {
         const char* id = r->title_id ? r->title_id : tid;
         char* now = id ? rei_strdup(id) : st_key_of_title(t->store, title);
-        if (!now) now = name_key(title);
+        if (!now) now = name_key(title, jstr(k->first, "console"));
         if (!st_set_game(t->store, r->id, now, title, id, 1)) {
             *old = r->key;
             r->key = now;
@@ -681,8 +707,8 @@ static void refile(Tracer* t, const StReport* r, const cJSON* s) {
     char *key, *title, *tid;
     int named;
     if (tr_game(s, r->note, &key, &title, &tid, &named)) return;
-    if (!named) { /* a log without the game's name: another report's log's, else the list's */
-        char* known = known_name(t, key, tid);
+    { /* a log without the game's name: another report's log's, else the list's; a GBA game's, the list's */
+        char* known = better_name(t, key, tid, jstr(s, "console"), &named);
         if (known) {
             free(title);
             title = known;
@@ -693,7 +719,8 @@ static void refile(Tracer* t, const StReport* r, const cJSON* s) {
             rei_log("report #%ld filed again under %s, not %s", r->id, key, r->key);
             site_update(t->store, t->root, 0, r->key);
         }
-    } else if (!r->named && strcmp(title, r->title) && !st_set_game(t->store, r->id, key, title, tid, named))
+    } else if ((!r->named || on_gba(jstr(s, "console"))) && strcmp(title, r->title) &&
+               !st_set_game(t->store, r->id, key, title, tid, named))
         rei_log("report #%ld named %s", r->id, title);
     free(key);
     free(title);
@@ -748,6 +775,7 @@ int tr_rescan(Tracer* t, const char* version) {
                 facts.outcome = (char*)jstr(s, "outcome");
                 facts.signature = (char*)jstr(s, "signature");
                 facts.missed = tr_missed(s);
+                facts.console = (char*)jstr(s, "console");
                 st_set_facts(t->store, &facts);
                 free(facts.missed);
                 cJSON_Delete(s);
