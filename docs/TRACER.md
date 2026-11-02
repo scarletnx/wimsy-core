@@ -32,6 +32,9 @@ sent it, the server's owner and administrators (the Administrator permission), a
 on Discord takes back what it sent: the whole report, or what it added to one. Ten reports an hour from one person at
 most. A report's number is never another's after it is deleted, as replies link to it.
 
+When the log summary changes (`scripts/sync-logscan.sh`), the next start summarizes each kept log again, draws each
+report's facts again from its first log, and files a report whose first log now names another game under that game.
+
 The site does not say who sent a report. The database keeps the sender's user id (for the deletion, the updates and
 the hourly limit) and the ids of the messages that lead to a report, nothing else of them; it keeps nothing of
 messages that do not mention it. It asks for no privileged intent: Discord sends the text and the attachments of a

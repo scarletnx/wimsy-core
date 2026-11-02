@@ -935,6 +935,24 @@ static void test_rescan(void) {
     SAME(r.title, "Some Game"); /* the game stays as it was */
     st_report_free(&r);
     CHECK(tr_rescan(&tracer, "a") == 0); /* the same summary: nothing to do */
+    /* a report filed under another game than its log names (an older summary's mistake) is filed again */
+    CHECK(!st_set_game(tracer.store, 2, "0100DDDD00000000", "Wrong Game", "0100DDDD00000000", 1));
+    CHECK(!site_update(tracer.store, site, 2, "0100DDDD00000000"));
+    {
+        char* path = at("g/0100DDDD00000000.html");
+        CHECK(exists(path));
+        free(path);
+    }
+    CHECK(tr_rescan(&tracer, "c") == 12);
+    CHECK(st_get(tracer.store, 2, &r, NULL, NULL) == 1);
+    SAME(r.key, "0100AAAABBBB0000");
+    SAME(r.title, "Some Game");
+    st_report_free(&r);
+    {
+        char* path = at("g/0100DDDD00000000.html");
+        CHECK(!exists(path)); /* the wrong game's page went with its last report */
+        free(path);
+    }
     CHECK(tr_rescan(&tracer, "b") == 12);
 }
 

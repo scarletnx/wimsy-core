@@ -616,6 +616,30 @@ cJSON* tr_answer(Tracer* t, const TrMessage* m, long* report) {
     return e;
 }
 
+/* report r filed again under the game its first log's summary s names, when that is another game than r's (a log
+   summary that read the log better): its old game's page drawn again, gone when that game has no report left */
+static void refile(Tracer* t, const StReport* r, const cJSON* s) {
+    char *key, *title, *tid;
+    int named;
+    if (tr_game(s, r->note, &key, &title, &tid, &named)) return;
+    if (strcmp(key, r->key)) {
+        if (!named) { /* a log without the game's name, of a game other reports name */
+            char* known = st_title_of_key(t->store, key);
+            if (known) {
+                free(title);
+                title = known;
+            }
+        }
+        if (!st_set_game(t->store, r->id, key, title, tid, named)) {
+            rei_log("report #%ld filed again under %s, not %s", r->id, key, r->key);
+            site_update(t->store, t->root, 0, r->key);
+        }
+    }
+    free(key);
+    free(title);
+    free(tid);
+}
+
 int tr_rescan(Tracer* t, const char* version) {
     char* was = st_meta(t->store, "logscan");
     StReport* all;
@@ -650,9 +674,10 @@ int tr_rescan(Tracer* t, const char* version) {
             free(text);
             if (!summary) continue;
             st_set_summary(t->store, r->id, files[k].n, summary);
-            if (first) { /* the report's facts are its first log's */
+            if (first) { /* the report's facts are its first log's, and so is its game when the log names another */
                 cJSON* s = cJSON_Parse(summary);
                 StReport facts = *r;
+                refile(t, r, s);
                 facts.version = (char*)jstr(s, "game_version");
                 facts.build = (char*)jstr(s, "build");
                 facts.commit = (char*)jstr(s, "commit");
