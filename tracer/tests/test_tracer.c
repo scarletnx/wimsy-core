@@ -17,6 +17,7 @@
 
 #include "common/utilities/demangle.h"
 #include "common/utilities/logscan.h"
+#include "channels.h"
 #include "files.h"
 #include "mcp.h"
 #include "message.h"
@@ -524,7 +525,8 @@ static void test_game(void) {
     game("{\"title\":\"E\xef\xbf\xbdJ\x01G\",\"title_id\":\"0100BEEF0000A000\"}", "", 1, "0100BEEF0000A000",
          "0100BEEF0000A000", "0100BEEF0000A000", 0);
     game("{\"title\":\"0100F00D12340000\"}", "", 1, "0100F00D12340000", "0100F00D12340000", "0100F00D12340000", 0);
-    game("{\"title\":\"Tale: Of a Made Up Game\"}", "", 1, "n-tale-of-a-made-up-game", "Tale: Of a Made Up Game", NULL, 1);
+    game("{\"title\":\"Tale: Of a Made Up Game\"}", "", 1, "n-tale-of-a-made-up-game", "Tale: Of a Made Up Game", NULL,
+         1);
     game("{\"build\":\"ScarletNX main 1\"}", "My Game!", 1, "n-my-game", "My Game!", NULL, 0);
     game("{\"build\":\"ScarletNX main 1\"}", "\xe3\x82\xb2\xe3\x83\xbc\xe3\x83\xa0", 1, "n-0adc07b2",
          "\xe3\x82\xb2\xe3\x83\xbc\xe3\x83\xa0", NULL, 0);
@@ -1224,8 +1226,9 @@ static void test_missed(void) {
 }
 
 static void test_titles(void) {
-    static const char list_text[] = "# title ID, name\n0100EEEE00000000\tListed Game\nnot a line\n"
-                                    "0100aaaabbbb0000\tSome Game From The List\nAGB-ZQXE\tMade Up Quest - Green Version\n";
+    static const char list_text[] =
+        "# title ID, name\n0100EEEE00000000\tListed Game\nnot a line\n"
+        "0100aaaabbbb0000\tSome Game From The List\nAGB-ZQXE\tMade Up Quest - Green Version\n";
     static char bare[sizeof LOG + 16];
     Titles list;
     char *path = at("titles.tsv"), *t, *name;
@@ -1466,6 +1469,31 @@ static void test_mcp_grep(void) {
     free(grep);
 }
 
+/* the channels: none without a list, a listed one, a thread of one asked once */
+static int parents_asked;
+static u64 fake_parent(void* ctx, u64 channel) {
+    (void)ctx;
+    ++parents_asked;
+    return channel == 701 ? 70 : 0; /* thread 701 is channel 70's */
+}
+static void test_channels(void) {
+    static const u64 listed[2] = {70, 71};
+    TrParents cache;
+    char* said;
+    memset(&cache, 0, sizeof cache);
+    CHECK(!tr_answers_in(listed, 0, &cache, 70, fake_parent, NULL) && !parents_asked); /* no list: no channel */
+    said = tr_channels_said(listed, 0);
+    SAME(said, "none, as TRACER_CHANNELS is not set: no report is taken");
+    free(said);
+    said = tr_channels_said(listed, 2);
+    SAME(said, "70,71");
+    free(said);
+    CHECK(tr_answers_in(listed, 2, &cache, 71, fake_parent, NULL) && !parents_asked);
+    CHECK(tr_answers_in(listed, 2, &cache, 701, fake_parent, NULL) && parents_asked == 1);
+    CHECK(tr_answers_in(listed, 2, &cache, 701, fake_parent, NULL) && parents_asked == 1);
+    CHECK(!tr_answers_in(listed, 2, &cache, 702, fake_parent, NULL) && parents_asked == 2);
+}
+
 int main(void) {
     char *db, *command;
     rei_now = clock_now;
@@ -1488,6 +1516,7 @@ int main(void) {
     test_images();
     test_unpack();
     test_public_log();
+    test_channels();
     test_game();
     if (tracer.store) {
         test_reports();

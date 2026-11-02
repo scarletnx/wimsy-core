@@ -21,6 +21,7 @@ sends the text and the attachments of a message that mentions it */
 
 #include <discord.h> /* Concord's */
 
+#include "channels.h"
 #include "fetch.h"
 #include "http.h"
 #include "report.h"
@@ -30,7 +31,6 @@ sends the text and the attachments of a message that mentions it */
 
 #define LISTED  64   /* the channels and the admins named, at most */
 #define WAITING 1024 /* the events that wait for the thread, at most */
-#define PARENTS 256  /* the threads whose channel is remembered */
 
 static struct {
     const char *token, *url, *db, *site, *assets, *titles;
@@ -129,28 +129,17 @@ static void push(int kind, const char* json, size_t len, u64 id) {
 
 /* ---- the channels it answers in ---- */
 
-static int listed(u64 channel) {
-    int i;
-    for (i = 0; i < env.nchannels; ++i)
-        if (env.channels[i] == channel) return 1;
-    return 0;
-}
-/* a channel listed, or a thread of one (a forum's post too): the thread's parent asked of Discord once */
-static int answers_in(u64 channel) {
-    static u64 known[PARENTS];
-    static int answer[PARENTS], next;
-    char* url;
+/* channel's parent (a thread's channel, a forum post's forum), asked of Discord; 0 for none or no answer (said) */
+static u64 parent_of(void* ctx, u64 channel) {
+    char* url = rei_format(DC_API "channels/%llu", (unsigned long long)channel);
     RgAnswer a;
     cJSON* c;
-    int i, yes = 0;
-    if (!env.nchannels || listed(channel)) return 1;
-    for (i = 0; i < PARENTS; ++i)
-        if (known[i] == channel) return answer[i];
-    url = rei_format(DC_API "channels/%llu", (unsigned long long)channel);
+    u64 parent = 0;
+    (void)ctx;
     rh_fetch(&discord_auth, "GET", url, NULL, NULL, &a);
     if (a.status == 200 && (c = cJSON_Parse(a.body))) {
-        const char* parent = jstr(c, "parent_id");
-        yes = parent && listed(strtoull(parent, NULL, 10));
+        const char* id = jstr(c, "parent_id");
+        parent = id ? strtoull(id, NULL, 10) : 0;
         cJSON_Delete(c);
     } else
         rei_log("channel %llu could not be read: %s", (unsigned long long)channel, a.error ? a.error : "no access");
@@ -158,10 +147,11 @@ static int answers_in(u64 channel) {
     free(a.body);
     free(a.etag);
     free(a.error);
-    known[next] = channel;
-    answer[next] = yes;
-    next = (next + 1) % PARENTS;
-    return yes;
+    return parent;
+}
+static TrParents parents;
+static int answers_in(u64 channel) {
+    return tr_answers_in(env.channels, env.nchannels, &parents, channel, parent_of, NULL);
 }
 #define ADMINISTRATOR 0x8ULL /* the permission's bit */
 /* guild's owner, or a member whose roles (and @everyone, the role whose id is the guild's) give Administrator: the
@@ -246,8 +236,11 @@ static void ready(const char* json, size_t size) {
     static int started;
     char* name;
     self = tr_ready(json, size, &name);
-    rei_log("up as %s, the site at %s; channels: %s", name ? name : "a user READY did not name", env.url,
-            env.nchannels ? "those named" : "every channel it sees");
+    {
+        char* channels = tr_channels_said(env.channels, env.nchannels);
+        rei_log("up as %s, the site at %s; channels: %s", name ? name : "a user READY did not name", env.url, channels);
+        free(channels);
+    }
     free(name);
     if (!started) {
         pthread_t thread;

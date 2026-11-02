@@ -115,7 +115,7 @@ fill in; an empty value stops the service):
 |---|---|---|
 | `TRACER_TOKEN` | none: needed | the Discord bot's token |
 | `TRACER_URL` | none: needed | the site's address, which the replies link: `https://`, or `http://localhost:8080` to try it on one machine |
-| `TRACER_CHANNELS` | every channel it sees | `id,id`: the channels it answers in, with their threads and a forum's posts |
+| `TRACER_CHANNELS` | none: no report is taken | `id,id`: the channels it answers in, with their threads and a forum's posts; the start's log line says them |
 | `TRACER_ADMINS` | none | `id,id`: people who delete any report beside the server's administrators |
 | `TRACER_DB` | `/var/db/tracer/tracer.db` | the database (`tracer_db` in rc.conf) |
 | `TRACER_SITE` | `/var/db/tracer-site` | the site's folder (`tracer_site` in rc.conf) |
