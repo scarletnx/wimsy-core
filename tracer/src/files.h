@@ -8,15 +8,20 @@
 #include "tracer.h"
 
 typedef enum { TR_OTHER, TR_LOG, TR_IMAGE } TrKind;
-/* by the file's name (.log, .txt, .gz, .zip; .png, .jpg, .jpeg, .webp, .gif) or Discord's content type */
+/* by the file's name (.log, .txt, .gz, .zip; .png, .jpg, .jpeg, .webp, .gif, .ppm) or Discord's content type */
 TrKind tr_kind(const char* name, const char* type);
 
-/* the image's kind from its first bytes: "png", "jpg", "gif" or "webp"; NULL for none of them */
+/* the image's kind from its first bytes: "png", "jpg", "gif", "webp" or "ppm" (a binary PPM, P6, which ScarletNX's
+   runtimes write their frames as); NULL for none of them */
 const char* tr_image_ext(const char* data, size_t n);
 /* the image's metadata taken out in place: PNG's text, time and eXIf chunks, JPEG's APP1 and later segments (except
    ICC's APP2 and Adobe's APP14) and comments, WebP's EXIF and XMP chunks. Its new length, or 0 for an image whose
    structure is broken (the caller keeps none of it). A GIF stays as it is */
 size_t tr_strip_image(char* data, size_t n);
+
+/* a binary PPM (P6, 255 at most a channel, comments allowed in its header) as a PNG, which browsers show: 0, or -1 for
+   a PPM that isn't whole or is bigger than 16384 pixels a side */
+int tr_ppm_png(const char* data, size_t n, Buf* out);
 
 /* a log as text: a .gz's or a .zip's (its first .log or .txt, else its first file) unpacked, any other name's bytes
    as they are, max bytes at most. 0, or -1 with why (owned) */

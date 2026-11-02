@@ -12,6 +12,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <zlib.h>
 
 #include "files.h"
 #include "mcp.h"
@@ -220,6 +221,7 @@ static void test_kind_and_text(void) {
     CHECK(tr_kind("shot.JPEG", "") == TR_IMAGE);
     CHECK(tr_kind("message", "text/plain; charset=utf-8") == TR_LOG);
     CHECK(tr_kind("shot", "image/png") == TR_IMAGE);
+    CHECK(tr_kind("frame-0-01.PPM", "") == TR_IMAGE);
     CHECK(tr_kind("game.exe", "application/octet-stream") == TR_OTHER);
     t = tr_utf8("a\xf7"
                 "b\xc3\xa9"
@@ -291,6 +293,28 @@ static void test_images(void) {
     CHECK(m == 34 && webp[4] == 26 && !webp[20]);
     CHECK(!found(webp, m, "EXIF") && found(webp, m, "px!"));
     SAME(tr_image_ext("GIF89a...", 9), "gif");
+    SAME(tr_image_ext("P6\n2 1\n255\n", 11), "ppm");
+    {
+        /* a PPM with a comment, as a PNG: its header, and its pixels after each row's filter byte */
+        static const char ppm[] = "P6\n# a frame\n2 1\n255\nRGBrgb";
+        unsigned char rows[16];
+        uLongf rows_n = sizeof rows;
+        Buf out = {0};
+        const unsigned char* p;
+        CHECK(!tr_ppm_png(ppm, sizeof ppm - 1, &out));
+        p = (const unsigned char*)out.text;
+        CHECK(out.len > 45 && !memcmp(p, "\x89PNG\r\n\x1a\n", 8) && !memcmp(p + 12, "IHDR", 4));
+        CHECK(p[19] == 2 && p[23] == 1 && p[24] == 8 && p[25] == 2); /* 2x1, 8 bits, RGB */
+        CHECK(crc32(0, p + 12, 17) == ((uLong)p[29] << 24 | (uLong)p[30] << 16 | (uLong)p[31] << 8 | p[32]));
+        CHECK(!memcmp(p + 37, "IDAT", 4));
+        CHECK(uncompress(rows, &rows_n, p + 41, (uLong)(p[33] << 24 | p[34] << 16 | p[35] << 8 | p[36])) == Z_OK);
+        CHECK(rows_n == 7 && !memcmp(rows, "\0RGBrgb", 7));
+        CHECK(!memcmp(p + out.len - 8, "IEND", 4));
+        CHECK(tr_ppm_png("P6\n2 1\n255\nRGB", 15, &out));      /* not whole */
+        CHECK(tr_ppm_png("P6\n1 1\n65535\n123456", 20, &out)); /* 16 bits a channel */
+        CHECK(tr_ppm_png("GIF89a...", 9, &out));
+        buf_free(&out);
+    }
     CHECK(tr_strip_image("GIF89a...", 9) == 9);
     CHECK(!tr_image_ext("<svg>", 5));
 }
@@ -721,11 +745,26 @@ static void test_reports(void) {
         HAS(p, "\"notes_added\":[{");
         HAS(p, "also in the menu");
         free(p);
-        /* a reply to the update's answer reaches the report too */
+        /* a reply to the update's answer reaches the report too; a PPM frame is kept as a PNG */
+        {
+            static const char frame[] = "P6\n2 2\n255\nRGBrgbRGBrgb";
+            serve("https://cdn.discordapp.com/1/frame.ppm", frame, sizeof frame - 1);
+        }
         m = message(4006, 101, "<@99> add #16");
         attach(&m, "shot.png", "https://cdn.discordapp.com/1/shot.png", (double)npng);
-        free(answer_text(respond(&m)));
+        attach(&m, "frame-0-01.ppm", "https://cdn.discordapp.com/1/frame.ppm", 22);
+        t = answer_text(respond(&m));
+        HAS(t, "0 logs, 2 screenshots");
+        free(t);
         tr_message_free(&m);
+        p = page("r/16/index.html");
+        HAS(p, "<img src=\"6.png\" alt=\"frame-0-01.ppm\"");
+        free(p);
+        path = at("r/16/6.png");
+        p = read_file(path, NULL);
+        CHECK(p && !memcmp(p, "\x89PNG", 4));
+        free(p);
+        free(path);
         m = message(4007, 101, "<@99> delete");
         t = answer_text(respond(&m));
         HAS(t, "Which report?");

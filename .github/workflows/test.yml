@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: make -C rei test
-      - run: sudo apt-get update -qq && sudo apt-get install -y -qq libcurl4-openssl-dev libsqlite3-dev libarchive-dev
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq libcurl4-openssl-dev libsqlite3-dev libarchive-dev zlib1g-dev
       - run: make -C accordwimsy test
       - run: make -C tracer test
       - run: sh scripts/test-check-docs.sh

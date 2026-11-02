@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <zlib.h>
 
 static int ends(const char* name, const char* ext) {
     size_t n = strlen(name), e = strlen(ext);
@@ -14,7 +15,7 @@ static int ends(const char* name, const char* ext) {
 
 TrKind tr_kind(const char* name, const char* type) {
     static const char* const logs[] = {".log", ".txt", ".gz", ".zip"};
-    static const char* const images[] = {".png", ".jpg", ".jpeg", ".webp", ".gif"};
+    static const char* const images[] = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".ppm"};
     size_t i;
     for (i = 0; i < sizeof logs / sizeof *logs; ++i)
         if (ends(name, logs[i])) return TR_LOG;
@@ -38,6 +39,8 @@ const char* tr_image_ext(const char* data, size_t n) {
     if (n >= 3 && d[0] == 0xff && d[1] == 0xd8 && d[2] == 0xff) return "jpg";
     if (n >= 6 && (!memcmp(d, "GIF87a", 6) || !memcmp(d, "GIF89a", 6))) return "gif";
     if (n >= 12 && !memcmp(d, "RIFF", 4) && !memcmp(d + 8, "WEBP", 4)) return "webp";
+    if (n >= 3 && d[0] == 'P' && d[1] == '6' && (d[2] == ' ' || d[2] == '\t' || d[2] == '\n' || d[2] == '\r'))
+        return "ppm";
     return NULL;
 }
 
@@ -126,6 +129,84 @@ size_t tr_strip_image(char* data, size_t n) {
     if (!strcmp(ext, "jpg")) return strip_jpeg(d, n);
     if (!strcmp(ext, "webp")) return strip_webp(d, n);
     return n;
+}
+
+/* a PPM header's next number, after its whitespace and comments; -1 for none */
+static long ppm_number(const unsigned char* d, size_t n, size_t* at) {
+    long v = 0;
+    size_t digits = 0;
+    for (;;) {
+        while (*at < n && (d[*at] == ' ' || d[*at] == '\t' || d[*at] == '\n' || d[*at] == '\r')) ++*at;
+        if (*at < n && d[*at] == '#')
+            while (*at < n && d[*at] != '\n') ++*at;
+        else
+            break;
+    }
+    while (*at < n && d[*at] >= '0' && d[*at] <= '9' && digits < 6) v = v * 10 + (d[(*at)++] - '0'), ++digits;
+    return digits && !(*at < n && d[*at] >= '0' && d[*at] <= '9') ? v : -1;
+}
+static void be32_at(unsigned char* p, unsigned long v) {
+    p[0] = (unsigned char)(v >> 24), p[1] = (unsigned char)(v >> 16), p[2] = (unsigned char)(v >> 8),
+    p[3] = (unsigned char)v;
+}
+/* a PNG chunk of type with n bytes of data, its CRC zlib's */
+static void png_chunk(Buf* out, const char* type, const unsigned char* data, size_t n) {
+    unsigned char head[8], crc[4];
+    uLong c = crc32(0L, Z_NULL, 0);
+    be32_at(head, (unsigned long)n);
+    memcpy(head + 4, type, 4);
+    c = crc32(c, head + 4, 4);
+    if (n) c = crc32(c, data, (uInt)n);
+    be32_at(crc, c);
+    buf_addn(out, (const char*)head, 8);
+    if (n) buf_addn(out, (const char*)data, n);
+    buf_addn(out, (const char*)crc, 4);
+}
+
+int tr_ppm_png(const char* data, size_t n, Buf* out) {
+    const unsigned char* d = (const unsigned char*)data;
+    size_t at = 2, row, y, raw_n, packed_n;
+    long w, h, max;
+    unsigned char ihdr[13], *raw, *packed;
+    uLongf got;
+    buf_free(out);
+    if (!tr_image_ext(data, n) || strcmp(tr_image_ext(data, n), "ppm")) return -1;
+    w = ppm_number(d, n, &at);
+    h = ppm_number(d, n, &at);
+    max = ppm_number(d, n, &at);
+    if (w < 1 || h < 1 || w > 16384 || h > 16384 || max != 255 || at >= n) return -1;
+    ++at; /* the one whitespace after the header */
+    row = (size_t)w * 3;
+    if (n - at < row * (size_t)h) return -1;
+    raw_n = (row + 1) * (size_t)h; /* each row after its filter byte, 0: none */
+    raw = malloc(raw_n);
+    packed_n = compressBound((uLong)raw_n);
+    packed = malloc(packed_n);
+    if (!raw || !packed) {
+        free(raw);
+        free(packed);
+        return -1;
+    }
+    for (y = 0; y < (size_t)h; ++y) {
+        raw[y * (row + 1)] = 0;
+        memcpy(raw + y * (row + 1) + 1, d + at + y * row, row);
+    }
+    got = (uLongf)packed_n;
+    if (compress2(packed, &got, raw, (uLong)raw_n, 6) != Z_OK) {
+        free(raw);
+        free(packed);
+        return -1;
+    }
+    be32_at(ihdr, (unsigned long)w);
+    be32_at(ihdr + 4, (unsigned long)h);
+    ihdr[8] = 8, ihdr[9] = 2, ihdr[10] = 0, ihdr[11] = 0, ihdr[12] = 0; /* 8 bits a channel, RGB, no interlace */
+    buf_addn(out, "\x89PNG\r\n\x1a\n", 8);
+    png_chunk(out, "IHDR", ihdr, sizeof ihdr);
+    png_chunk(out, "IDAT", packed, (size_t)got);
+    png_chunk(out, "IEND", NULL, 0);
+    free(raw);
+    free(packed);
+    return 0;
 }
 
 /* an archive of data read from memory, as a .zip or as a .gz of one file */

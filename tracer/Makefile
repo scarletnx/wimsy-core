@@ -17,6 +17,7 @@ CURL_LIBS ?= `pkg-config --libs libcurl`
 SQLITE_CFLAGS ?= `pkg-config --cflags sqlite3`
 SQLITE_LIBS ?= `pkg-config --libs sqlite3`
 ARCHIVE_LIBS ?= -larchive
+ZLIB_LIBS ?= -lz
 MHD_CFLAGS ?= `pkg-config --cflags libmicrohttpd`
 MHD_LIBS ?= `pkg-config --libs libmicrohttpd`
 CXXRT ?= -lstdc++
@@ -26,7 +27,7 @@ WARN = -std=c99 -Wall -Wextra -Wpedantic -Wshadow -Wstrict-prototypes -Werror
 LOGSCAN_FILES = third_party/logscan/common/utilities/logscan.c third_party/logscan/common/utilities/logscan.h
 DEFS = -D_POSIX_C_SOURCE=200809L -DREI_NAME=\"tracer\" -DTR_LOGSCAN=\"`cat $(LOGSCAN_FILES) | cksum | cut -d' ' -f1`\"
 OURS = $(WARN) $(DEFS) -Isrc -I$(REI)/src -I$(REI)/third_party/cjson -Ithird_party/logscan
-LIBS = $(SQLITE_LIBS) $(ARCHIVE_LIBS) $(CXXRT) -lpthread -lm
+LIBS = $(SQLITE_LIBS) $(ARCHIVE_LIBS) $(ZLIB_LIBS) $(CXXRT) -lpthread -lm
 
 LOGIC = src/message.o src/files.o src/store.o src/site.o src/report.o src/titles.o src/mcp.o src/rei_util.o \
 	third_party/cjson.o third_party/logscan.o third_party/demangle.o

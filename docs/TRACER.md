@@ -13,8 +13,9 @@ A message that mentions it with a ScarletNX log attached becomes a report:
   summarized: the game, its title ID and version, the build, the system and GPU, how the run ended and where, the
   service commands and what else the runtime missed, the last lines. A file that is no ScarletNX log is named in the
   reply and not kept.
-- Its screenshots (PNG, JPEG, WebP or GIF, read from their bytes; 8 at most, 25 MiB each) lose their metadata: EXIF
-  and its place and camera, XMP, PNG's text and time, JPEG's comments.
+- Its screenshots (PNG, JPEG, WebP, GIF or PPM, read from their bytes; 8 at most, 25 MiB each) lose their metadata:
+  EXIF and its place and camera, XMP, PNG's text and time, JPEG's comments. A PPM, the frames ScarletNX's runtimes
+  save (P6, 8 bits a channel), is kept as a PNG, which a browser shows.
 - The game is the first log's, of the console its runtime's header says: the Switch, the 3DS, the Vita or the GBA.
   Its key is its title ID (the GBA's: `gba-` and its game code), else `n-`, the console's name but the Switch's, and
   its name. A log that has the title ID alone takes the name other reports' logs gave the game, else the name

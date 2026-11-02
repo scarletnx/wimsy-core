@@ -343,10 +343,21 @@ static void take_log(Taken* k, const TrAttachment* a, Buf* got) {
 
 static void take_image(Taken* k, const TrAttachment* a, Buf* got) {
     const char* ext = tr_image_ext(got->text, got->len);
-    size_t n = ext ? tr_strip_image(got->text, got->len) : 0;
+    size_t n;
+    if (ext && !strcmp(ext, "ppm")) { /* a frame ScarletNX saved, as a PNG a browser shows */
+        Buf png = {0};
+        if (tr_ppm_png(got->text, got->len, &png)) {
+            skip(k, a->name, "a PPM that isn't whole, or of more than 255 a channel");
+            return;
+        }
+        buf_free(got);
+        *got = png;
+        ext = "png";
+    }
+    n = ext ? tr_strip_image(got->text, got->len) : 0;
     StFile* f;
     if (!n) {
-        skip(k, a->name, "not a PNG, JPEG, WebP or GIF image");
+        skip(k, a->name, "not a PNG, JPEG, WebP, GIF or PPM image");
         return;
     }
     f = &k->files[k->n];

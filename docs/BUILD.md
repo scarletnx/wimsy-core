@@ -3,12 +3,12 @@
 # Build
 
 The programs are C99, built with BSD make or GNU make, a C compiler and pkg-config's flags for libcurl (and for
-SQLite, libarchive and libmicrohttpd, Tracer's):
+SQLite, libarchive, zlib and libmicrohttpd, Tracer's):
 
 | System | What to install |
 |---|---|
 | FreeBSD | `pkg install git gmake pkgconf curl ca_root_nss sqlite3 libmicrohttpd` |
-| Debian, Ubuntu | `apt install build-essential pkg-config libcurl4-openssl-dev libsqlite3-dev libarchive-dev libmicrohttpd-dev git` |
+| Debian, Ubuntu | `apt install build-essential pkg-config libcurl4-openssl-dev libsqlite3-dev libarchive-dev zlib1g-dev libmicrohttpd-dev git` |
 
 ## AccordWimsy
 

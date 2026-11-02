@@ -14,6 +14,7 @@ wimsy-core is [GPL-3.0-or-later](../LICENSE).
 | [titledb](https://github.com/blawar/titledb) | the Switch games' names by title ID, `tracer/titles.tsv` (`scripts/make-titles.py`) | MIT |
 | [libretro-database](https://github.com/libretro/libretro-database) (No-Intro's list) | the GBA games' names by game code, `tracer/titles.tsv` | CC-BY-SA-4.0, which GPL-3.0 takes |
 | [libmicrohttpd](https://www.gnu.org/software/libmicrohttpd/) | the HTTP of `tracer-mcp`, the system's | LGPL-2.1-or-later |
+| [zlib](https://zlib.net) | Tracer's PNG of a PPM screenshot, the system's (FreeBSD's base) | zlib |
 | [libarchive](https://libarchive.org) | Tracer's `.gz` and `.zip` logs, FreeBSD's base | BSD-2-Clause |
 | ScarletNX's log summary (`logscan.c`, `demangle.c`, `ascii.h`) | `tracer/third_party/logscan`, its commit in `COMMIT` | GPL-3.0-or-later |
 | [Gatus](https://github.com/TwiN/gatus) | runs the status page, `dist/status` its config | Apache-2.0 |
