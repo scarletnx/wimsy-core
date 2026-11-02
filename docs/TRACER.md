@@ -24,7 +24,8 @@ the database) into the site. A report keeps:
   motion photo video, a maker's trailer). A PPM, the frames ScarletNX's runtimes save (P6, 8 bits a channel), is kept
   as a PNG, which a browser shows.
 - Its videos (MP4 or WebM, read from their bytes; 2 at most, 100 MiB each) are played on the report's page. An MP4's
-  place and camera (its ©xyz, loci, ©mak and ©mod boxes) are blanked where they are, as free boxes of zeros, so that
+  place, time and camera (its udta and meta boxes whole, where a phone keeps them under its own keys, XMP's uuid box,
+  and ©xyz, loci, ©mak and ©mod wherever else they are) are blanked where they are, as free boxes of zeros, so that
   nothing in it moves; a WebM is kept as it is. The web server must allow them (`media-src 'self'` in
   `tracer-nginx.conf`).
 - The game is the first log's, of the console its runtime's header says: the Switch, the 3DS, the Vita or the GBA.

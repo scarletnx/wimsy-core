@@ -262,6 +262,17 @@ static size_t chunk(char* to, const char* type, const char* data, size_t n) {
     memset(to + 8 + n, 0, 4);
     return 12 + n;
 }
+/* an MP4 box's header at to: its size (n, its header's 8 bytes with it) and type */
+static void box_head(char* to, const char* type, size_t n) {
+    to[0] = (char)(n >> 24), to[1] = (char)(n >> 16), to[2] = (char)(n >> 8), to[3] = (char)n;
+    memcpy(to + 4, type, 4);
+}
+/* an MP4 box of n bytes of data at to: its length */
+static size_t mp4_box(char* to, const char* type, const char* data, size_t n) {
+    box_head(to, type, 8 + n);
+    memcpy(to + 8, data, n);
+    return 8 + n;
+}
 /* an MP4 of a phone: its ftyp, a moov with udta's place (©xyz) and meta's make (©mak), then its media */
 static size_t mp4(char* to, size_t room) {
     static const unsigned char box[] = {
@@ -355,7 +366,40 @@ static void test_images(void) {
         SAME(tr_video_ext(clip, len), "mp4");
         CHECK(tr_strip_video(clip, len) == len);
         CHECK(!found(clip, len, "\xa9xyz") && !found(clip, len, "+40.71") && !found(clip, len, "SomePhon"));
-        CHECK(found(clip, len, "frames!!") && found(clip, len, "udta") && found(clip, len, "ilst"));
+        CHECK(found(clip, len, "frames!!") && !found(clip, len, "udta") && !found(clip, len, "ilst"));
+        { /* a phone's place as its maker keeps it: meta's keys and ilst, and XMP's uuid box; its media as it was */
+            static const char xmp_id[] = "\xbe\x7a\xcf\xcb\x97\xa9\x42\xe8\x9c\x71\x99\x94\x91\xe3\xaf\xac";
+            char phone[512];
+            size_t at = 0, moov, meta, trak;
+            at += mp4_box(phone + at, "ftyp", "qt  \0\0\0\0", 8);
+            moov = at;
+            at += 8;
+            meta = at;
+            at += 8;
+            at += mp4_box(phone + at, "hdlr", "\0\0\0\0\0\0\0\0mdta", 12);
+            at += mp4_box(phone + at, "keys",
+                          "\0\0\0\0\0\0\0\1\0\0\0\x2d"
+                          "mdtacom.apple.quicktime.location.ISO6709",
+                          8 + 45);
+            at += mp4_box(phone + at, "ilst",
+                          "\0\0\0\x1a\0\0\0\1\0\0\0\x12"
+                          "data+52.1000+004.3000/",
+                          26);
+            box_head(phone + meta, "meta", at - meta);
+            trak = at;
+            at += 8;
+            at += mp4_box(phone + at, "udta", "\0\0\0\x0e\xa9xyz+52.1/", 14);
+            box_head(phone + trak, "trak", at - trak);
+            memcpy(phone + at + 8, xmp_id, 16);
+            memcpy(phone + at + 24, "<exif:GPSLatitude>52,6</exif:GPSLatitude>", 41);
+            box_head(phone + at, "uuid", 8 + 16 + 41);
+            at += 8 + 16 + 41;
+            box_head(phone + moov, "moov", at - moov);
+            at += mp4_box(phone + at, "mdat", "frames!!", 8);
+            CHECK(tr_strip_video(phone, at) == at);
+            CHECK(!found(phone, at, "ISO6709") && !found(phone, at, "+52.1") && !found(phone, at, "GPSLatitude"));
+            CHECK(found(phone, at, "frames!!") && found(phone, at, "moov") && found(phone, at, "trak"));
+        }
         len = mp4(clip, sizeof clip);
         clip[19] = 100; /* moov's size past the file */
         CHECK(!tr_strip_video(clip, len));

@@ -23,9 +23,9 @@ size_t tr_strip_image(char* data, size_t n);
 /* the video's kind from its first bytes: "mp4" (an ftyp box first) or "webm" (EBML, its doctype webm); NULL for
    neither */
 const char* tr_video_ext(const char* data, size_t n);
-/* an MP4's place and camera blanked in place (the boxes ©xyz, loci, ©mak and ©mod, each made a free box of zeros, so
-   that nothing moves and the offsets into it stay right): n, or 0 for an MP4 whose boxes are broken. A WebM stays as it
-   is */
+/* an MP4's place, time and camera blanked in place (udta and meta whole, XMP's uuid box, and ©xyz, loci, ©mak and ©mod
+   where else they are, each made a free box of zeros, so that nothing moves and the offsets into it stay right): n, or
+   0 for an MP4 whose boxes are broken. A WebM stays as it is */
 size_t tr_strip_video(char* data, size_t n);
 
 /* a binary PPM (P6, 255 at most a channel, comments allowed in its header) as a PNG, which browsers show: 0, or -1 for

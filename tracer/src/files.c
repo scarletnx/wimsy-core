@@ -169,13 +169,18 @@ const char* tr_video_ext(const char* data, size_t n) {
     return NULL;
 }
 
-/* the boxes of an MP4 from at to end: the ones that say where or with what it was filmed made free boxes of zeros, the
-   ones that hold others walked into. 0, or -1 for a box that runs past its parent */
+/* the boxes of an MP4 from at to end: the ones that say where, when or with what it was filmed made free boxes of
+   zeros, the ones that hold the media's boxes walked into. udta and meta go whole, as their keys are the maker's own
+   (a phone's place can be meta's com.apple.quicktime.location.ISO6709, an index in ilst, never a ©xyz), and so does
+   XMP's uuid box. 0, or -1 for a box that runs past its parent */
 static int mp4_boxes(unsigned char* d, size_t at, size_t end, int depth) {
-    static const char* const containers[] = {"moov", "trak", "mdia", "minf", "udta", "meta", "ilst", "edts"};
-    static const char* const hidden[] = {"\xa9xyz", "loci", "\xa9mak", "\xa9mod"};
+    static const char* const containers[] = {"moov", "trak", "mdia", "minf", "edts"};
+    static const char* const hidden[] = {"\xa9xyz", "loci", "\xa9mak", "\xa9mod", "udta", "meta"};
+    static const unsigned char xmp[16] = {0xbe, 0x7a, 0xcf, 0xcb, 0x97, 0xa9, 0x42, 0xe8,
+                                          0x9c, 0x71, 0x99, 0x94, 0x91, 0xe3, 0xaf, 0xac};
     while (at < end) {
         size_t size, head = 8, k;
+        int blank;
         if (end - at < 8) return -1;
         size = be32(d + at);
         if (size == 1) { /* a 64-bit size after the type */
@@ -188,16 +193,14 @@ static int mp4_boxes(unsigned char* d, size_t at, size_t end, int depth) {
         } else if (size == 0) /* to the end */
             size = end - at;
         if (size < head || size > end - at) return -1;
-        for (k = 0; k < sizeof hidden / sizeof *hidden; ++k)
-            if (!memcmp(d + at + 4, hidden[k], 4)) {
-                memcpy(d + at + 4, "free", 4);
-                memset(d + at + head, 0, size - head);
-            }
+        blank = !memcmp(d + at + 4, "uuid", 4) && size - head >= 16 && !memcmp(d + at + head, xmp, 16);
+        for (k = 0; k < sizeof hidden / sizeof *hidden; ++k) blank |= !memcmp(d + at + 4, hidden[k], 4);
+        if (blank) {
+            memcpy(d + at + 4, "free", 4);
+            memset(d + at + head, 0, size - head);
+        }
         for (k = 0; depth < 8 && k < sizeof containers / sizeof *containers; ++k)
-            if (!memcmp(d + at + 4, containers[k], 4)) {
-                size_t inner = at + head + (!memcmp(containers[k], "meta", 4) ? 4 : 0); /* meta's version and flags */
-                if (inner <= at + size && mp4_boxes(d, inner, at + size, depth + 1)) return -1;
-            }
+            if (!memcmp(d + at + 4, containers[k], 4) && mp4_boxes(d, at + head, at + size, depth + 1)) return -1;
         at += size;
     }
     return 0;
