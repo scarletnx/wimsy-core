@@ -29,8 +29,8 @@ DEFS = -D_POSIX_C_SOURCE=200809L -DREI_NAME=\"tracer\" -DTR_LOGSCAN=\"`cat $(LOG
 OURS = $(WARN) $(DEFS) -Isrc -I$(REI)/src -I$(REI)/third_party/cjson -Ithird_party/logscan
 LIBS = $(SQLITE_LIBS) $(ARCHIVE_LIBS) $(ZLIB_LIBS) $(CXXRT) -lpthread -lm
 
-LOGIC = src/message.o src/files.o src/store.o src/site.o src/report.o src/titles.o src/channels.o src/mcp.o \
-	src/rei_util.o third_party/cjson.o third_party/logscan.o third_party/demangle.o
+LOGIC = src/message.o src/files.o src/store.o src/site.o src/report.o src/titles.o src/channels.o src/worker.o \
+	src/mcp.o src/rei_util.o third_party/cjson.o third_party/logscan.o third_party/demangle.o
 
 all: tracer tracer-mcp
 
@@ -55,6 +55,8 @@ src/store.o: src/store.c src/store.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) $(SQLITE_CFLAGS) -c -o $@ src/store.c
 src/site.o: src/site.c src/site.h src/store.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/site.c
+src/worker.o: src/worker.c src/worker.h src/report.h src/tracer.h
+	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/worker.c
 src/channels.o: src/channels.c src/channels.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/channels.c
 src/titles.o: src/titles.c src/titles.h src/tracer.h
@@ -68,7 +70,8 @@ src/mcp_main.o: src/mcp_main.c src/mcp.h src/tracer.h
 src/fetch.o: src/fetch.c src/fetch.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) $(CURL_CFLAGS) -c -o $@ src/fetch.c
 # Concord's headers are not ours: their warnings are theirs
-src/main.o: src/main.c $(LOGSCAN_FILES) src/channels.h src/fetch.h src/report.h src/site.h src/store.h src/message.h src/tracer.h
+src/main.o: src/main.c $(LOGSCAN_FILES) src/channels.h src/worker.h src/fetch.h src/report.h src/site.h src/store.h \
+		src/message.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) $(CURL_CFLAGS) -isystem $(CONCORD)/include/concord -c -o $@ src/main.c
 src/rei_util.o: $(REI)/src/util.c $(REI)/src/rei.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ $(REI)/src/util.c

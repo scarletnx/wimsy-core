@@ -6,15 +6,19 @@
 (ReiWimsy's copy) and ScarletNX's own log summary (`tracer/third_party/logscan`, the runtime's `--scan-log`). It keeps
 the game reports that people send it on Discord and draws them as a static site, grouped by game.
 
-A message that mentions it with a ScarletNX log attached becomes a report:
+A message that mentions it with a ScarletNX log attached becomes a report. Its files are read by a worker: the bot runs
+itself again (`tracer --report`) for each message, without its settings or its token in the environment, within 1 GiB
+of memory, 120 s of processor, 600 s in all and 128 MiB a file, so that a file that crashes or stalls its reader costs
+that report alone. The worker's answer is checked before any of its files moves from the work folder (`work/` beside
+the database) into the site. A report keeps:
 
-- Its logs (`.log`, `.txt`, or one packed in a `.gz` or a `.zip`; 3 at most, 64 MiB each) are downloaded from
-  Discord, each home folder in them written as `~` (`/home/<user>`, `C:\Users\<user>`, Android's app folders), the
-  crash report's code and memory dumps and registers left out (the game's own bytes, which the summary leaves out too),
-  each IPv4 address but the loopback's written as `[ip]` and each e-mail address as `[email]` (a network game's log
-  names the player's address and the other players'), and summarized: the game, its title ID and version, the build, the system and GPU, how the run ended and where, the
-  service commands and what else the runtime missed, the last lines. A file that is no ScarletNX log is named in the
-  reply and not kept.
+- Its logs (`.log`, `.txt`, or one packed in a `.gz` or a `.zip`; 3 at most, 64 MiB each) are downloaded from Discord,
+  each home folder in them written as `~` (`/home/<user>`, `C:\Users\<user>`, Android's app folders), the crash report's
+  code and memory dumps and registers left out (the game's own bytes, which the summary leaves out too), each IPv4
+  address but the loopback's written as `[ip]` and each e-mail address as `[email]` (a network game's log names the
+  player's address and the other players'), and summarized: the game, its title ID and version, the build, the system
+  and GPU, how the run ended and where, the service commands and what else the runtime missed, the last lines. A file
+  that is no ScarletNX log is named in the reply and not kept.
 - Its screenshots (PNG, JPEG, WebP, GIF or PPM, read from their bytes; 8 at most, 25 MiB each) lose their metadata:
   EXIF and its place and camera, XMP, PNG's text and time, JPEG's comments, and what follows a JPEG's end (a phone's
   motion photo video, a maker's trailer). A PPM, the frames ScarletNX's runtimes save (P6, 8 bits a channel), is kept
@@ -30,9 +34,9 @@ A message that mentions it with a ScarletNX log attached becomes a report:
   [titledb](https://github.com/blawar/titledb) (an update's or an add-on's ID finds its game), and the GBA's games by
   game code, from No-Intro's list in [libretro-database](https://github.com/libretro/libretro-database), which names a
   GBA game before its cartridge's 12-letter title. The list names games, so it is never in this repository:
-  `scripts/make-titles.py --out FILE` makes it where the bot runs. One that has the name alone goes with the reports that have its
-  title ID. The 3DS's and the Vita's headers have the game's own name. The message's text
-  names the game only when the log says neither, and is kept as the report's note.
+  `scripts/make-titles.py --out FILE` makes it where the bot runs. One that has the name alone goes with the reports
+  that have its title ID. The 3DS's and the Vita's headers have the game's own name. The message's text names the game
+  only when the log says neither, and is kept as the report's note.
 - The reply links the report's page, with how the run ended, its signature and build, and what was not kept.
 - Beside how the run ended, what the runtime missed, counted from the first log's summary: "1116 shaders, 1 texture
   format, 1 service command" (shaders by the shaders, the rest by the different ones). A run with no failure that
@@ -47,11 +51,11 @@ asked for a report of their own, which goes with the same game. A report its log
 log of the same title ID gives. Words added later are shown under the report's note, each with its date.
 
 `@Tracer help` says how; `@Tracer delete 12`, or a reply with `@Tracer delete`, deletes a report, for the person who
-sent it, the owner and administrators (the Administrator permission) of the server it was sent in, and `TRACER_ADMINS`. A message deleted
-on Discord takes back what it sent: the whole report, or what it added to one. Ten reports and updates an hour from one
-person at most, counted as they are asked for: one whose files were no log counts, and so does one deleted since (its
-files were downloaded); a message with no file and no note does not. A report's number is never another's after it is
-deleted, as replies link to it.
+sent it, the owner and administrators (the Administrator permission) of the server it was sent in, and `TRACER_ADMINS`.
+A message deleted on Discord takes back what it sent: the whole report, or what it added to one. Ten reports and updates
+an hour from one person at most, counted as they are asked for: one whose files were no log counts, and so does one
+deleted since (its files were downloaded); a message with no file and no note does not. A report's number is never
+another's after it is deleted, as replies link to it.
 
 When the log summary or the list of names changes (`scripts/sync-logscan.sh`, `scripts/make-titles.py`), the next
 start summarizes each kept log again, draws each report's facts again from its first log, files a report whose first
@@ -99,8 +103,8 @@ An agent adds it by its address, Claude Code with `claude mcp add --transport ht
 addresses match only the game version it names, and only a copy of that version names them: `get_report` gives each log
 that failed a `symbolize` object (its title ID, game version and game addresses) for ScarletNX's own MCP server
 (`scarletnx --mcp`) on a machine that has the game, its `find_game` then `symbolize` or `disassemble`. Tracer keeps no
-game code, not even the bytes a crash report dumps: nothing of a game goes to a server that is not its owner's. A browser's request whose Origin is another
-site's gets 403; a request over 1 MiB, 413.
+game code, not even the bytes a crash report dumps: nothing of a game goes to a server that is not its owner's. A
+browser's request whose Origin is another site's gets 403; a request over 1 MiB, 413.
 
 Its settings, in the environment (`tracer_mcp_url`, `tracer_mcp_site` and `tracer_mcp_listen` in rc.conf):
 `TRACER_URL` (needed), `TRACER_SITE` (the site's folder, `/var/db/tracer-site`), `TRACER_MCP_LISTEN` (an IPv4 address

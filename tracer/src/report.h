@@ -9,9 +9,24 @@
 #include "store.h"
 #include "titles.h"
 
+/* the files a message brought, taken: each in the folder dir until it is written into the site */
 typedef struct {
+    StFile files[TR_LOGS + TR_IMAGES + TR_VIDEOS];
+    char* taken[TR_LOGS + TR_IMAGES + TR_VIDEOS]; /* owned: where each file waits, in dir; NULL once in the site */
+    char* dir; /* owned: a folder of its own in Tracer's work, NULL before it is made */
+    int n, logs, images, videos;
+    int base, logs_had, images_had, videos_had; /* a report's last file number, its logs, screenshots and videos, before
+                                                   these */
+    cJSON* first;                               /* the first log's summary */
+    Buf skipped;                                /* a line for each attachment not taken */
+} Taken;
+
+typedef struct Tracer Tracer;
+struct Tracer {
     Store* store;
     const char* root; /* the site's folder */
+    const char* work; /* a folder of the bot's own, never served, where the files wait between their download and the
+                         site (on the site's file system, so that they move by a rename) */
     const char* url;  /* the site's address, without its last / */
     TrGet get;
     void* ctx;
@@ -21,7 +36,18 @@ typedef struct {
     int (*administers)(void* ctx, u64 guild, u64 user, const u64* roles, int nroles);
     void* admin_ctx;
     const Titles* titles; /* the games' names, for a game its logs don't name; NULL for none */
-} Tracer;
+    /* m's files taken into k (its dir made, its base and counts set), where they are read: in a worker of their own
+       (main.c's, without the bot's token), or here by tr_take when take is NULL. 0, or -1 with why (owned) */
+    int (*take)(void* ctx, Tracer* t, const TrMessage* m, Taken* k, char** why);
+    void* take_ctx;
+};
+
+/* m's attachments downloaded through t's get and read: the logs unpacked, their home folders as ~, their dumps and
+   addresses left out and summarized, the screenshots' metadata taken out; each kept one written into k->dir, each
+   other named in k->skipped */
+void tr_take(Tracer* t, Taken* k, const TrMessage* m);
+/* k's files that were not moved into the site removed, with k->dir, and the rest freed */
+void tr_taken_free(Taken* k);
 
 /* the game a log's summary names: *key (its title ID, else n- and the name's letters), *title (its name, else its
    title ID, else the message's note), *title_id (NULL without one), all owned, and whether the title is the log's name

@@ -27,8 +27,10 @@ What CI runs on each pull request and each push to main. No network and no Disco
   guild's administrators and by no one else, a database of the first schema upgraded, a deleted message, a report's
   number never reused, the hourly limit, the JSON with no Discord id, the games' names from the list (an update's and an
   add-on's ID, a report named at once, one named at the next start, a log's name first, a GBA game by its code), each
-  console's report, what the runtime missed counted beside the outcome; and the MCP server over that site: its handshake
-  and protocol versions, notifications, broken and unknown requests, and each tool's filters, limits and errors.
+  console's report, what the runtime missed counted beside the outcome; the channels it answers in; the worker (the test
+  program run as one: a report through it, its environment without the token, one that crashes, one that never answers,
+  one gone before it reads, one that names a host file); and the MCP server over that site: its handshake and protocol
+  versions, notifications, broken and unknown requests, and each tool's filters, limits and errors.
 - The docs (`scripts/check-docs.sh`): no date in `README.md` and `docs/*.md` outside code, as a doc says what is and
   the commit message says when; `scripts/test-check-docs.sh` holds the check to dates in text, in code and none.
 

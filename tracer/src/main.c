@@ -9,10 +9,15 @@ A report is deleted by the person who sent it, by the guild's owner and administ
 
 Concord's gateway brings the events, read here from their JSON, never decoded by Concord. A message that mentions the
 bot in a channel it answers in, and each message deleted, wait for the thread that handles them, one at a time: a
-report downloads its files, and the database is that thread's alone. The bot asks for no privileged intent: Discord
+report's files are downloaded and read by a worker (worker.h, this program run again as "tracer --report", without the
+token), and the database is that thread's alone. The bot asks for no privileged intent: Discord
 sends the text and the attachments of a message that mentions it */
 #define _POSIX_C_SOURCE 200809L
 #include <ctype.h>
+#include <errno.h>
+#include <libgen.h>
+#include <signal.h>
+#include <sys/stat.h>
 #include <curl/curl.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -28,6 +33,7 @@ sends the text and the attachments of a message that mentions it */
 #include "rest.h"
 #include "site.h"
 #include "titles.h"
+#include "worker.h"
 
 #define LISTED  64   /* the channels and the admins named, at most */
 #define WAITING 1024 /* the events that wait for the thread, at most */
@@ -276,10 +282,29 @@ static enum discord_event_scheduler scheduler(struct discord* client, const char
     return DISCORD_EVENT_IGNORE;
 }
 
-int main(void) {
+/* a report's files taken by this program run again as "--report" (ctx its argv) */
+static int worker(void* ctx, Tracer* t, const TrMessage* m, Taken* k, char** why) {
+    (void)t;
+    return wk_take(ctx, WK_SECONDS, m, k, why);
+}
+
+int main(int argc, char** argv) {
+    static char* again[3] = {NULL, "--report", NULL};
     struct discord* client;
     struct discord_config config;
     CCORDcode code;
+    if (argc == 2 && !strcmp(argv[1], "--report")) { /* a worker: no settings, no token, its own limits */
+        int failed;
+        wk_limit();
+        curl_global_init(CURL_GLOBAL_DEFAULT);
+        failed = wk_serve(stdin, stdout, tr_fetch, NULL);
+        curl_global_cleanup();
+        return failed;
+    }
+    if (argc != 1) stop("%s takes no argument: its settings are in its environment (the env file)", argv[0]);
+    if (argv[0][0] != '/') stop("%s is not run by its full path, which its workers need", argv[0]);
+    again[0] = argv[0];
+    signal(SIGPIPE, SIG_IGN); /* a worker gone before it read its question is an error said, not the bot's end */
     read_env();
     curl_global_init(CURL_GLOBAL_DEFAULT);
     snprintf(discord_auth.authorization, sizeof discord_auth.authorization, "Bot %s", env.token);
@@ -289,6 +314,15 @@ int main(void) {
     tracer.root = env.site;
     tracer.url = env.url;
     tracer.get = tr_fetch;
+    { /* the files wait beside the database, never in the site */
+        char* db = rei_strdup(env.db);
+        tracer.work = rei_format("%s/work", dirname(db));
+        free(db);
+        if (mkdir(tracer.work, 0700) && errno != EEXIST)
+            stop("%s", rei_format("the work folder %s could not be made: %s", tracer.work, strerror(errno)));
+    }
+    tracer.take = worker;
+    tracer.take_ctx = again;
     tracer.admins = env.admins;
     tracer.nadmins = env.nadmins;
     tracer.administers = administers;

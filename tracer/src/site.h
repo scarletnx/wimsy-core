@@ -24,6 +24,9 @@ char* site_report_json(const StReport* r, const StFile* files, int nfiles, const
 
 /* text written to root/rel through rel.new, its folders made: 0, or -1 said in the log */
 int site_write(const char* root, const char* rel, const char* text, size_t n);
+/* the file at from moved to root/rel, its folders made: a rename, or a copy across file systems. 0, or -1 said in the
+   log */
+int site_move(const char* root, const char* rel, const char* from);
 /* style.css, site.js and tracer.svg copied from the folder from into root: 0, or -1 said in the log */
 int site_assets(const char* from, const char* root);
 /* a report's page, its game's page (gone when the game has no report left) and the lists drawn again: 0, or -1 */

@@ -2,8 +2,10 @@
    Copyright 2026 the ScarletNX contributors */
 #include "report.h"
 #include <ctype.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "common/utilities/demangle.h"
 #include "common/utilities/logscan.h"
@@ -273,31 +275,40 @@ static cJSON* deleted(Tracer* t, const TrMessage* m, long id) {
     return e;
 }
 
-typedef struct {
-    StFile files[TR_LOGS + TR_IMAGES + TR_VIDEOS];
-    char* data[TR_LOGS + TR_IMAGES + TR_VIDEOS]; /* each file's bytes, owned */
-    int n, logs, images, videos;
-    int base, logs_had, images_had, videos_had; /* a report's last file number, its logs, screenshots and videos, before
-                                                   these */
-    cJSON* first;                   /* the first log's summary */
-    Buf skipped;                    /* a line for each attachment not taken */
-} Taken;
-
 static void skip(Taken* k, const char* name, const char* why) {
     char* n = plain(name, 100);
     buf_printf(&k->skipped, "%s: %s\n", n, why);
     free(n);
 }
-static void taken_free(Taken* k) {
+void tr_taken_free(Taken* k) {
     int i;
     for (i = 0; i < k->n; ++i) {
         free(k->files[i].name);
         free(k->files[i].path);
         free(k->files[i].summary);
-        free(k->data[i]);
+        if (k->taken[i]) unlink(k->taken[i]);
+        free(k->taken[i]);
     }
+    if (k->dir) rmdir(k->dir);
+    free(k->dir);
     cJSON_Delete(k->first);
     buf_free(&k->skipped);
+    memset(k, 0, sizeof *k);
+}
+/* n bytes of data written into k->dir as the next file's: 0, or -1 said in the log */
+static int stash(Taken* k, const char* data, size_t n) {
+    char* path = rei_format("%s/%d", k->dir, k->n);
+    FILE* f = fopen(path, "wb");
+    int ok = f && fwrite(data, 1, n, f) == n;
+    if (f) ok = !fclose(f) && ok;
+    if (!ok) {
+        rei_log("%s could not be written: %s", path, strerror(errno));
+        unlink(path);
+        free(path);
+        return -1;
+    }
+    k->taken[k->n] = path;
+    return 0;
 }
 
 static void take_log(Taken* k, const TrAttachment* a, Buf* got) {
@@ -332,6 +343,14 @@ static void take_log(Taken* k, const TrAttachment* a, Buf* got) {
         free(shown);
         return;
     }
+    if (stash(k, shown, n)) {
+        skip(k, a->name, "it could not be written down");
+        cJSON_Delete(parsed);
+        free(summary);
+        free(shown);
+        return;
+    }
+    free(shown);
     if (!k->first)
         k->first = parsed;
     else
@@ -343,7 +362,7 @@ static void take_log(Taken* k, const TrAttachment* a, Buf* got) {
     f->path = rei_format("%d.log", f->n);
     f->bytes = (double)n;
     f->summary = summary;
-    k->data[k->n++] = shown;
+    ++k->n;
     ++k->logs;
 }
 
@@ -366,13 +385,17 @@ static void take_image(Taken* k, const TrAttachment* a, Buf* got) {
         skip(k, a->name, "not a PNG, JPEG, WebP, GIF or PPM image");
         return;
     }
+    if (stash(k, got->text, n)) {
+        skip(k, a->name, "it could not be written down");
+        return;
+    }
     f = &k->files[k->n];
     f->n = k->base + k->n + 1;
     strcpy(f->kind, "image");
     f->name = rei_strdup(a->name);
     f->path = rei_format("%d.%s", f->n, ext);
     f->bytes = (double)n;
-    k->data[k->n++] = buf_take(got);
+    ++k->n;
     ++k->images;
 }
 
@@ -385,13 +408,17 @@ static void take_video(Taken* k, const TrAttachment* a, Buf* got) {
         skip(k, a->name, "not an MP4 or WebM video");
         return;
     }
+    if (stash(k, got->text, n)) {
+        skip(k, a->name, "it could not be written down");
+        return;
+    }
     f = &k->files[k->n];
     f->n = k->base + k->n + 1;
     strcpy(f->kind, "video");
     f->name = rei_strdup(a->name);
     f->path = rei_format("%d.%s", f->n, ext);
     f->bytes = (double)n;
-    k->data[k->n++] = buf_take(got);
+    ++k->n;
     ++k->videos;
 }
 
@@ -402,7 +429,7 @@ static char* kept(const Taken* k, const char* more) {
                       k->videos ? (k->videos == 1 ? ", 1 video" : ", 2 videos") : "", more);
 }
 
-static void take(Tracer* t, Taken* k, const TrMessage* m) {
+void tr_take(Tracer* t, Taken* k, const TrMessage* m) {
     int i;
     for (i = 0; i < m->nfiles; ++i) {
         const TrAttachment* a = &m->files[i];
@@ -450,6 +477,33 @@ static void take(Tracer* t, Taken* k, const TrMessage* m) {
             take_image(k, a, &got);
         buf_free(&got);
     }
+}
+
+/* m's files taken into k, its folder made in t->work: 0, or -1 said in the log (k freed by the caller) */
+static int fetched(Tracer* t, const TrMessage* m, Taken* k) {
+    char* why = NULL;
+    k->dir = rei_format("%s/take.XXXXXX", t->work);
+    if (!mkdtemp(k->dir)) {
+        rei_log("a folder for message %llu's files could not be made in %s: %s", (unsigned long long)m->id, t->work,
+                strerror(errno));
+        free(k->dir);
+        k->dir = NULL;
+        return -1;
+    }
+    if (!t->take) {
+        tr_take(t, k, m);
+        return 0;
+    }
+    if (t->take(t->take_ctx, t, m, k, &why)) {
+        rei_log("message %llu's files were not read: %s", (unsigned long long)m->id, why ? why : "no reason given");
+        free(why);
+        return -1;
+    }
+    return 0;
+}
+static cJSON* unread(Taken* k) {
+    tr_taken_free(k);
+    return said("Your files could not be read, so nothing was kept: try again later, please.");
 }
 
 static cJSON* made(Tracer* t, const StReport* r, const Taken* k) {
@@ -533,28 +587,47 @@ static cJSON* limited(Tracer* t, const TrMessage* m) {
     return e;
 }
 
+/* the files of k moved into report id's folder: 0, or -1 with those moved deleted */
+static int written(Tracer* t, long id, Taken* k) {
+    int i, failed = 0;
+    for (i = 0; i < k->n && !failed; ++i) {
+        char* rel = rei_format("r/%ld/%s", id, k->files[i].path);
+        failed = site_move(t->root, rel, k->taken[i]) != 0;
+        if (!failed) {
+            free(k->taken[i]);
+            k->taken[i] = NULL;
+        }
+        free(rel);
+    }
+    for (i = 0; failed && i < k->n; ++i) {
+        char* path = rei_format("%s/r/%ld/%s", t->root, id, k->files[i].path);
+        if (!k->taken[i]) remove(path);
+        free(path);
+    }
+    return failed ? -1 : 0;
+}
+
 static cJSON* reported(Tracer* t, const TrMessage* m, char* note, long* report) {
     Taken k;
     StReport r;
     cJSON* e;
     char* text;
-    int i, failed = 0;
     if (st_by_message(t->store, m->id)) return NULL; /* the gateway's event again, after a resume */
     if (m->nfiles && (e = limited(t, m))) return e;
     memset(&k, 0, sizeof k);
-    take(t, &k, m);
+    if (fetched(t, m, &k)) return unread(&k);
     if (!k.logs) {
         text = k.skipped.len ? rei_format("No ScarletNX log here, so no report:\n%s", k.skipped.text)
                              : rei_strdup("Attach the game's ScarletNX log (.log, .txt, .gz or .zip), and screenshots "
                                           "if you have them. `@Tracer help` says more.");
         e = said(text);
         free(text);
-        taken_free(&k);
+        tr_taken_free(&k);
         return e;
     }
     memset(&r, 0, sizeof r);
     if (tr_game(k.first, note, &r.key, &r.title, &r.title_id, &r.named)) {
-        taken_free(&k);
+        tr_taken_free(&k);
         return said("The log does not say which game it is: mention me again with the log and the game's name.");
     }
     if (!r.title_id && r.named) { /* a log without its title ID, of a game other reports know by its ID */
@@ -590,19 +663,14 @@ static cJSON* reported(Tracer* t, const TrMessage* m, char* note, long* report) 
     r.missed = tr_missed(k.first);
     if (st_add(t->store, &r, k.files, k.n)) {
         st_report_free(&r);
-        taken_free(&k);
+        tr_taken_free(&k);
         return said("The report could not be kept: try again later, please.");
     }
-    for (i = 0; i < k.n && !failed; ++i) {
-        char* rel = rei_format("r/%ld/%s", r.id, k.files[i].path);
-        failed = site_write(t->root, rel, k.data[i], (size_t)k.files[i].bytes) != 0;
-        free(rel);
-    }
-    if (failed) {
+    if (written(t, r.id, &k)) {
         site_forget(t->root, r.id, k.files, k.n);
         st_remove(t->store, r.id);
         st_report_free(&r);
-        taken_free(&k);
+        tr_taken_free(&k);
         return said("The report could not be kept: try again later, please.");
     }
     site_update(t->store, t->root, r.id, r.key);
@@ -610,24 +678,8 @@ static cJSON* reported(Tracer* t, const TrMessage* m, char* note, long* report) 
     e = made(t, &r, &k);
     *report = r.id;
     st_report_free(&r);
-    taken_free(&k);
+    tr_taken_free(&k);
     return e;
-}
-
-/* the files of k written into report id's folder: 0, or -1 with those written deleted */
-static int written(Tracer* t, long id, const Taken* k) {
-    int i, failed = 0;
-    for (i = 0; i < k->n && !failed; ++i) {
-        char* rel = rei_format("r/%ld/%s", id, k->files[i].path);
-        failed = site_write(t->root, rel, k->data[i], (size_t)k->files[i].bytes) != 0;
-        free(rel);
-    }
-    for (i = 0; failed && i < k->n; ++i) {
-        char* path = rei_format("%s/r/%ld/%s", t->root, id, k->files[i].path);
-        remove(path);
-        free(path);
-    }
-    return failed ? -1 : 0;
 }
 
 /* r named again when it had no name and a log of k has one, of the same title ID: 1 when it was, *old (owned) the
@@ -693,12 +745,15 @@ static cJSON* updated(Tracer* t, const TrMessage* m, long id, const char* note, 
     k.logs_had = logs;
     k.images_had = images;
     k.videos_had = videos;
-    take(t, &k, m);
+    if (fetched(t, m, &k)) {
+        st_report_free(&r);
+        return unread(&k);
+    }
     if (!k.n && !*note) {
         text = rei_format("Nothing was added to report #%ld:\n%s", id, k.skipped.text ? k.skipped.text : "");
         e = said(text);
         free(text);
-        taken_free(&k);
+        tr_taken_free(&k);
         st_report_free(&r);
         return e;
     }
@@ -708,7 +763,7 @@ static cJSON* updated(Tracer* t, const TrMessage* m, long id, const char* note, 
         st_take_back(t->store, m->id, &back, &nback);
         st_files_free(back, nback);
         site_forget_files(t->root, id, k.files, k.n);
-        taken_free(&k);
+        tr_taken_free(&k);
         st_report_free(&r);
         return said("The update could not be kept: try again later, please.");
     }
@@ -735,7 +790,7 @@ static cJSON* updated(Tracer* t, const TrMessage* m, long id, const char* note, 
     free(added);
     free(text);
     free(old);
-    taken_free(&k);
+    tr_taken_free(&k);
     st_report_free(&r);
     return e;
 }

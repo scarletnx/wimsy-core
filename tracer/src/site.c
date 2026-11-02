@@ -621,6 +621,31 @@ int site_write(const char* root, const char* rel, const char* text, size_t n) {
     return ok ? 0 : -1;
 }
 
+int site_move(const char* root, const char* rel, const char* from) {
+    char* path = rei_format("%s/%s", root, rel);
+    int done = -1;
+    if (!folders(root, rel)) {
+        if (!rename(from, path))
+            done = 0;
+        else if (errno == EXDEV) { /* another file system: a copy, then the file taken away */
+            FILE* f = fopen(from, "rb");
+            Buf text = {0};
+            char piece[65536];
+            size_t got;
+            if (f) {
+                while ((got = fread(piece, 1, sizeof piece, f))) buf_addn(&text, piece, got);
+                fclose(f);
+                done = site_write(root, rel, text.text ? text.text : "", text.len);
+                if (!done) unlink(from);
+            }
+            buf_free(&text);
+        }
+        if (done) rei_log("%s could not be moved to %s: %s", from, path, strerror(errno));
+    }
+    free(path);
+    return done;
+}
+
 int site_assets(const char* from, const char* root) {
     static const char* const names[] = {"style.css", "site.js", "tracer.svg"};
     size_t i;

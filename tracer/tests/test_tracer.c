@@ -10,6 +10,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <dirent.h>
+#include <signal.h>
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
@@ -25,6 +27,7 @@
 #include "site.h"
 #include "store.h"
 #include "titles.h"
+#include "worker.h"
 
 static int failures, checks;
 #define CHECK(cond)                                                                                                    \
@@ -1494,8 +1497,183 @@ static void test_channels(void) {
     CHECK(!tr_answers_in(listed, 2, &cache, 702, fake_parent, NULL) && parents_asked == 2);
 }
 
-int main(void) {
+/* ---- the worker ---- */
+/* a download in a worker that the tests run: url's bytes from the file the test wrote for it in WORKER_TEST_SERVED (no
+   TRACER_ name, which a worker never gets) */
+static char* served_path(const char* url) {
+    unsigned long h = 2166136261UL;
+    const char* dir = getenv("WORKER_TEST_SERVED");
+    for (; *url; ++url) h = ((h ^ (unsigned char)*url) * 16777619UL) & 0xffffffffUL;
+    return rei_format("%s/%08lx", dir ? dir : ".", h);
+}
+static int served_get(void* ctx, const char* url, size_t max, Buf* out, char** why) {
+    char* path = served_path(url);
+    size_t n;
+    char* data = read_file(path, &n);
+    (void)ctx;
+    buf_free(out);
+    *why = NULL;
+    free(path);
+    if (!data || n > max) {
+        free(data);
+        *why = rei_format("%s: HTTP 404", url);
+        return -1;
+    }
+    buf_addn(out, data, n);
+    free(data);
+    return 0;
+}
+static void serve_file(const char* url, const char* data, size_t n) {
+    char* path = served_path(url);
+    FILE* f = fopen(path, "wb");
+    CHECK(f && fwrite(data, 1, n, f) == n);
+    if (f) fclose(f);
+    free(path);
+}
+/* the test program run as a worker that answers what it is told: the files, a crash, a wait, its environment, a lie */
+static int as_worker(const char* how) {
+    if (!strcmp(how, "--report")) {
+        wk_limit();
+        return wk_serve(stdin, stdout, served_get, NULL);
+    }
+    if (!strcmp(how, "--crash")) kill(getpid(), SIGKILL);
+    if (!strcmp(how, "--hang")) sleep(30);
+    if (!strcmp(how, "--gone")) return 0; /* gone before it reads its question */
+    if (!strcmp(how, "--env"))
+        printf("{\"logs\":0,\"images\":0,\"files\":[],\"skipped\":\"TRACER_TOKEN %s, HOME %s\"}",
+               getenv("TRACER_TOKEN") ? "seen" : "none", getenv("HOME") ? "seen" : "none");
+    if (!strcmp(how, "--lie")) /* a worker taken over: a file of the host as a report's */
+        printf("{\"logs\":0,\"images\":1,\"files\":[{\"n\":1,\"kind\":\"image\",\"name\":\"x.png\","
+               "\"path\":\"1.png\",\"taken\":\"/etc/passwd\"}]}");
+    return 0;
+}
+static char* worker_argv[3];
+static int test_worker_take(void* ctx, Tracer* t, const TrMessage* m, Taken* k, char** why) {
+    (void)ctx;
+    (void)t;
+    return wk_take(worker_argv, 20, m, k, why);
+}
+/* files waiting in the work folder: how many */
+static int waiting_files(void) {
+    char* path = rei_format("%s/work", site);
+    int n = 0;
+    DIR* d = opendir(path);
+    struct dirent* e;
+    while (d && (e = readdir(d)))
+        if (e->d_name[0] != '.') {
+            ++n;
+            fprintf(stderr, "  left in the work folder: %s\n", e->d_name);
+        }
+    if (d) closedir(d);
+    free(path);
+    return n;
+}
+static void test_worker(const char* self_path) {
+    static char png[128];
+    size_t npng = 8;
+    TrMessage m;
+    char *t, *p, *why, **env;
+    Taken k;
+    long id;
+    char* const fake_environ[] = {"HOME=/home/x", "TRACER_TOKEN=secret", "TRACER_URL=https://a", "PATH=/bin", NULL};
+    /* its environment: no setting or token of the bot's */
+    env = wk_env(fake_environ);
+    CHECK(env[0] && !strcmp(env[0], "HOME=/home/x") && env[1] && !strcmp(env[1], "PATH=/bin") && !env[2]);
+    free(env);
+    worker_argv[0] = (char*)self_path;
+    worker_argv[2] = NULL;
+    setenv("TRACER_TOKEN", "secret", 1);
+    memset(&k, 0, sizeof k);
+    k.dir = rei_format("%s/work/take.XXXXXX", site);
+    CHECK(mkdtemp(k.dir) != NULL);
+    m = message(7000, 130, "<@99>");
+    worker_argv[1] = "--env";
+    CHECK(!wk_take(worker_argv, 20, &m, &k, &why));
+    SAME(k.skipped.text, "TRACER_TOKEN none, HOME seen");
+    tr_taken_free(&k);
+    tr_message_free(&m);
+    unsetenv("TRACER_TOKEN");
+    /* a report through the worker: the same as one taken here, nothing left waiting */
+    memcpy(png, "\x89PNG\r\n\x1a\n", 8);
+    npng += chunk(png + npng, "IHDR", "0123456789abc", 13);
+    npng += chunk(png + npng, "tEXt", "GPS here", 8);
+    npng += chunk(png + npng, "IEND", "", 0);
+    serve_file("https://cdn.discordapp.com/8/game.log", LOG, strlen(LOG));
+    serve_file("https://cdn.discordapp.com/8/shot.png", png, npng);
+    tracer.take = test_worker_take;
+    worker_argv[1] = "--report";
+    m = message(7001, 131, "<@99> through the worker");
+    attach(&m, "game.log", "https://cdn.discordapp.com/8/game.log", 10);
+    attach(&m, "shot.png", "https://cdn.discordapp.com/8/shot.png", 10);
+    attach(&m, "gone.log", "https://cdn.discordapp.com/8/gone.log", 10);
+    t = answer_text(respond(&m));
+    HAS(t, "1 log, 1 screenshot");
+    HAS(t, "gone.log: the download failed");
+    free(t);
+    tr_message_free(&m);
+    id = st_by_message(tracer.store, 7001);
+    CHECK(id > 0);
+    {
+        char *log = rei_format("r/%ld/1.log", id), *shot = rei_format("r/%ld/2.png", id), *path = at(shot);
+        size_t n = 0;
+        p = page(log);
+        HAS(p, "loading ~/save.bin");
+        LACKS(p, "pc=164ab3c4");
+        free(p);
+        p = read_file(path, &n);
+        CHECK(p && n == npng - 20 && !found(p, n, "GPS"));
+        free(p);
+        free(path);
+        free(shot);
+        free(log);
+    }
+    CHECK(waiting_files() == 0);
+    /* a worker that crashes, one that never answers, and one that names a host file: nothing kept, nothing left */
+    worker_argv[1] = "--crash";
+    m = message(7002, 132, "<@99>");
+    attach(&m, "game.log", "https://cdn.discordapp.com/8/game.log", 10);
+    t = answer_text(respond(&m));
+    HAS(t, "Your files could not be read, so nothing was kept");
+    free(t);
+    CHECK(!st_by_message(tracer.store, 7002));
+    memset(&k, 0, sizeof k);
+    k.dir = rei_format("%s/work/take.XXXXXX", site);
+    CHECK(mkdtemp(k.dir) != NULL);
+    CHECK(wk_take(worker_argv, 20, &m, &k, &why) == -1);
+    SAME(why, "the worker stopped on signal 9 (Killed)");
+    free(why);
+    worker_argv[1] = "--hang";
+    CHECK(wk_take(worker_argv, 1, &m, &k, &why) == -1);
+    SAME(why, "the worker took over 1 s, and was stopped");
+    free(why);
+    { /* a worker gone before it reads a question longer than a pipe holds: an error said, not the bot's end */
+        TrMessage big = message(7003, 133, "<@99>");
+        char name[8000];
+        int f;
+        memset(name, 'a', sizeof name - 5);
+        memcpy(name + sizeof name - 5, ".log", 5);
+        for (f = 0; f < TR_FILES; ++f) attach(&big, name, "https://cdn.discordapp.com/8/game.log", 10);
+        worker_argv[1] = "--gone";
+        CHECK(wk_take(worker_argv, 20, &big, &k, &why) == -1);
+        SAME(why, "its answer is no JSON object");
+        free(why);
+        tr_message_free(&big);
+    }
+    worker_argv[1] = "--lie";
+    CHECK(wk_take(worker_argv, 20, &m, &k, &why) == -1);
+    SAME(why, "its file 0 is not one it may answer (image 1.png, at /etc/passwd)");
+    free(why);
+    CHECK(k.n == 0);
+    tr_taken_free(&k);
+    tr_message_free(&m);
+    worker_argv[1] = "--report";
+    tracer.take = NULL;
+    CHECK(waiting_files() == 0);
+}
+
+int main(int argc, char** argv) {
     char *db, *command;
+    if (argc == 2) return as_worker(argv[1]);
     rei_now = clock_now;
     strcpy(site, "/tmp/tracer-test-XXXXXX");
     if (!mkdtemp(site)) {
@@ -1505,6 +1683,14 @@ int main(void) {
     db = rei_format("%s/tracer.db", site);
     tracer.store = st_open(db);
     tracer.root = site;
+    tracer.work = rei_format("%s/work", site);
+    CHECK(!mkdir(tracer.work, 0700));
+    {
+        char* files = rei_format("%s/served", site);
+        CHECK(!mkdir(files, 0700));
+        setenv("WORKER_TEST_SERVED", files, 1);
+        free(files);
+    }
     tracer.url = "https://reports.example";
     tracer.get = fake_get;
     tracer.administers = fake_administers;
@@ -1528,6 +1714,7 @@ int main(void) {
         test_limits();
         test_other_guild();
         test_mcp_grep();
+        test_worker(argv[0]);
     }
     st_close(tracer.store);
     if (getenv("TRACER_TEST_KEEP")) fprintf(stderr, "kept %s\n", site);
