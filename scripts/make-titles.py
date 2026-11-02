@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright 2026 the ScarletNX contributors
-"""Writes tracer/titles.tsv, each game's ID and name: the Switch's by title ID from blawar/titledb (MIT,
-https://github.com/blawar/titledb), the GBA's by game code ("AGB-BPEE") from libretro-database's No-Intro list
-(CC-BY-SA-4.0, https://github.com/libretro/libretro-database). Tracer names a report's game with it when the log
-names none, and a GBA game by it before the cartridge's 12-letter title.
+"""Writes the games' names list, each game's ID and name: the Switch's by title ID from blawar/titledb (MIT,
+https://github.com/blawar/titledb), the GBA's by game code ("AGB-" and its four letters) from libretro-database's
+No-Intro list (CC-BY-SA-4.0, https://github.com/libretro/libretro-database). Tracer names a report's game with it
+when the log names none, and a GBA game by it before the cartridge's 12-letter title.
 
-    python3 scripts/make-titles.py [--from DIR] [--out FILE]
+    python3 scripts/make-titles.py --out FILE [--from DIR]
 
 The files are downloaded from their repositories' main branches, or read from DIR when it is given (titledb's region
 files as titledb names them, and libretro's as "Nintendo - Game Boy Advance.dat"). Of the Switch only base
 applications are kept (a title ID whose low 13 bits are 0: no update, no add-on), each once, named by the first region
 that has it in REGIONS' order, English first. A GBA game is named as No-Intro names it, its tags cut. A name keeps its
 letters; trademark signs and line breaks go. The file is sorted by ID and names both sources' commits in its first
-line."""
+line. The list names games, so it stays out of this repository: it is made where the bot runs (FILE, the
+bot's setting for it), never committed."""
 
 import argparse
 import json
@@ -30,8 +31,6 @@ GBA = 'metadat/no-intro/Nintendo - Game Boy Advance.dat'
 NAME = re.compile(r'^\s*name "([^"]+)"', re.M)
 CODE = re.compile(r'serial "([0-9A-Z]{4})"')
 REGIONS = ['US.en', 'GB.en', 'AU.en', 'JP.ja', 'HK.zh', 'KR.ko', 'DE.de', 'FR.fr', 'ES.es', 'IT.it', 'NL.nl']
-HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, '..', 'tracer', 'titles.tsv')
 ID = re.compile(r'^[0-9A-Fa-f]{16}$')
 
 
@@ -90,7 +89,7 @@ def clean(name):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     ap.add_argument('--from', dest='source', help='a folder of titledb region files, in place of the download')
-    ap.add_argument('--out', default=OUT)
+    ap.add_argument('--out', required=True, help='the list to write, outside the checkout')
     args = ap.parse_args()
     names = {}
     for r in REGIONS:

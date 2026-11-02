@@ -517,14 +517,14 @@ static void game(const char* summary, const char* note, int ok, const char* key,
 static void test_game(void) {
     game("{\"title\":\"Some Game\",\"title_id\":\"0100aaaabbbb0000\"}", "", 1, "0100AAAABBBB0000", "Some Game",
          "0100AAAABBBB0000", 1);
-    game("{\"title\":\"SUPER GAME (0100000000010000/0100000000010000)\",\"title_id\":null}", "", 1, "0100000000010000",
-         "SUPER GAME", "0100000000010000", 1);
-    game("{\"title\":\"010074F013262000\"}", "it stutters", 1, "010074F013262000", "010074F013262000",
-         "010074F013262000", 0);
-    game("{\"title\":\"E\xef\xbf\xbdJ\x01G\",\"title_id\":\"01007EF00011E000\"}", "", 1, "01007EF00011E000",
-         "01007EF00011E000", "01007EF00011E000", 0);
-    game("{\"title\":\"010074F013262000\"}", "", 1, "010074F013262000", "010074F013262000", "010074F013262000", 0);
-    game("{\"title\":\"Life: Living the Dream\"}", "", 1, "n-life-living-the-dream", "Life: Living the Dream", NULL, 1);
+    game("{\"title\":\"SUPER GAME (0100ABAB00010000/0100ABAB00010000)\",\"title_id\":null}", "", 1, "0100ABAB00010000",
+         "SUPER GAME", "0100ABAB00010000", 1);
+    game("{\"title\":\"0100F00D12340000\"}", "it stutters", 1, "0100F00D12340000", "0100F00D12340000",
+         "0100F00D12340000", 0);
+    game("{\"title\":\"E\xef\xbf\xbdJ\x01G\",\"title_id\":\"0100BEEF0000A000\"}", "", 1, "0100BEEF0000A000",
+         "0100BEEF0000A000", "0100BEEF0000A000", 0);
+    game("{\"title\":\"0100F00D12340000\"}", "", 1, "0100F00D12340000", "0100F00D12340000", "0100F00D12340000", 0);
+    game("{\"title\":\"Tale: Of a Made Up Game\"}", "", 1, "n-tale-of-a-made-up-game", "Tale: Of a Made Up Game", NULL, 1);
     game("{\"build\":\"ScarletNX main 1\"}", "My Game!", 1, "n-my-game", "My Game!", NULL, 0);
     game("{\"build\":\"ScarletNX main 1\"}", "\xe3\x82\xb2\xe3\x83\xbc\xe3\x83\xa0", 1, "n-0adc07b2",
          "\xe3\x82\xb2\xe3\x83\xbc\xe3\x83\xa0", NULL, 0);
@@ -1047,7 +1047,7 @@ static void test_mcp(void) {
     t = call(&m, "search_reports", "{\"console\":\"3DS\"}");
     HAS(t, "\\\"matched\\\":0");
     free(t);
-    t = call(&m, "list_games", "{\"query\":\"zelda\"}");
+    t = call(&m, "list_games", "{\"query\":\"made up\"}");
     HAS(t, "\\\"count\\\":0");
     free(t);
     t = call(&m, "search_reports", "{\"game\":\"0100aaaabbbb0000\",\"outcome\":\"SVCBREAK\",\"limit\":2}");
@@ -1225,7 +1225,7 @@ static void test_missed(void) {
 
 static void test_titles(void) {
     static const char list_text[] = "# title ID, name\n0100EEEE00000000\tListed Game\nnot a line\n"
-                                    "0100aaaabbbb0000\tSome Game From The List\nAGB-BPEE\tPokemon - Emerald Version\n";
+                                    "0100aaaabbbb0000\tSome Game From The List\nAGB-ZQXE\tMade Up Quest - Green Version\n";
     static char bare[sizeof LOG + 16];
     Titles list;
     char *path = at("titles.tsv"), *t, *name;
@@ -1235,7 +1235,7 @@ static void test_titles(void) {
     CHECK(!site_write(site, "titles.tsv", list_text, sizeof list_text - 1));
     CHECK(!tr_titles_load(&list, path));
     CHECK(list.n == 3 && strlen(list.version) == 16);
-    SAME(tr_titles_name(&list, "GBA", "bpee"), "Pokemon - Emerald Version");
+    SAME(tr_titles_name(&list, "GBA", "zqxe"), "Made Up Quest - Green Version");
     SAME(tr_titles_name(&list, "Switch", "0100EEEE00000000"), "Listed Game");
     CHECK(!tr_titles_name(&list, "3DS", "0100EEEE00000000")); /* the list has the Switch's and the GBA's */
     CHECK(!tr_titles_name(&list, "GBA", "BPEJ"));
@@ -1279,19 +1279,19 @@ static void test_titles(void) {
     }
     /* the other consoles: a 3DS game by its title ID, a Vita game by its name, a GBA game by its code and the list */
     {
-        static const char three[] = "Game: Some 3DS Game (0004000000179400) - ScarletNX main d22bbab (clang 23.1.4, "
+        static const char three[] = "Game: Some 3DS Game (0004000000ABC400) - ScarletNX main d22bbab (clang 23.1.4, "
                                     "Linux x86_64)\nNo Vulkan device: no frames will be drawn, shown or saved\n";
         static const char vita[] = "Game: Some Vita Game - ScarletNX main 1234abc (clang 23.1.3, Linux x86_64)\n";
-        static const char gba[] = "ScarletNX - POKEMON EMER (GBA)\nbuild: ScarletNX main 1234abc (clang 23.1.3, Linux "
-                                  "x86_64)\ncartridge: BPEE\n";
+        static const char gba[] = "ScarletNX - MADEUP QUEST (GBA)\nbuild: ScarletNX main 1234abc (clang 23.1.3, Linux "
+                                  "x86_64)\ncartridge: ZQXE\n";
         static const struct {
             const char *text, *url, *key, *title, *console, *reply;
-        } cases[] = {{three, "https://cdn.discordapp.com/7/3ds.log", "0004000000179400", "Some 3DS Game", "3DS",
+        } cases[] = {{three, "https://cdn.discordapp.com/7/3ds.log", "0004000000ABC400", "Some 3DS Game", "3DS",
                       ": Some 3DS Game (3DS)\""},
                      {vita, "https://cdn.discordapp.com/7/vita.log", "n-vita-some-vita-game", "Some Vita Game", "Vita",
                       ": Some Vita Game (Vita)\""},
-                     {gba, "https://cdn.discordapp.com/7/gba.log", "gba-BPEE", "Pokemon - Emerald Version", "GBA",
-                      ": Pokemon - Emerald Version (GBA)\""}};
+                     {gba, "https://cdn.discordapp.com/7/gba.log", "gba-ZQXE", "Made Up Quest - Green Version", "GBA",
+                      ": Made Up Quest - Green Version (GBA)\""}};
         size_t c;
         for (c = 0; c < sizeof cases / sizeof *cases; ++c) {
             long id;
@@ -1312,7 +1312,7 @@ static void test_titles(void) {
         {
             char* p = page("index.html");
             HAS(p, "data-console=\"GBA\"");
-            HAS(p, "GBA · BPEE");
+            HAS(p, "GBA · ZQXE");
             free(p);
         }
         for (c = 0; c < sizeof cases / sizeof *cases; ++c) CHECK(tr_forget(&tracer, 6100 + (u64)c));

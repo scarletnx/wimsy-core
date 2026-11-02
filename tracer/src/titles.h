@@ -1,14 +1,14 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
    Copyright 2026 the ScarletNX contributors */
 /* The games' names by ID (titles.tsv, by scripts/make-titles.py): the Switch's by title ID from blawar/titledb, the
-   GBA's by game code ("AGB-BPEE") from No-Intro. What names a report's game when its logs name none; a log's own name
+   GBA's by game code ("AGB-" and its four letters) from No-Intro. What names a report's game when its logs name none; a log's own name
    comes first, as it is what the player's dump says, but for a GBA cartridge's 12-letter title */
 #ifndef TR_TITLES_H
 #define TR_TITLES_H
 #include "tracer.h"
 
 typedef struct {
-    char *id, *name; /* owned: "0100F2C0115B6000", "AGB-BPEE" */
+    char *id, *name; /* owned: a title ID ("0100AAAA00000000"), or "AGB-" and a game code */
 } TrTitle;
 
 typedef struct {

@@ -25,11 +25,12 @@ A message that mentions it with a ScarletNX log attached becomes a report:
   `tracer-nginx.conf`).
 - The game is the first log's, of the console its runtime's header says: the Switch, the 3DS, the Vita or the GBA.
   Its key is its title ID (the GBA's: `gba-` and its game code), else `n-`, the console's name but the Switch's, and
-  its name. A log that has the title ID alone takes the name other reports' logs gave the game, else the name
-  `tracer/titles.tsv` lists for it: the Switch's base applications by title ID, from
+  its name. A log that has the title ID alone takes the name other reports' logs gave the game, else the name the
+  list of games' names (`TRACER_TITLES`) gives it: the Switch's base applications by title ID, from
   [titledb](https://github.com/blawar/titledb) (an update's or an add-on's ID finds its game), and the GBA's games by
   game code, from No-Intro's list in [libretro-database](https://github.com/libretro/libretro-database), which names a
-  GBA game before its cartridge's 12-letter title. One that has the name alone goes with the reports that have its
+  GBA game before its cartridge's 12-letter title. The list names games, so it is never in this repository:
+  `scripts/make-titles.py --out FILE` makes it where the bot runs. One that has the name alone goes with the reports that have its
   title ID. The 3DS's and the Vita's headers have the game's own name. The message's text
   names the game only when the log says neither, and is kept as the report's note.
 - The reply links the report's page, with how the run ended, its signature and build, and what was not kept.
@@ -54,8 +55,7 @@ deleted, as replies link to it.
 
 When the log summary or the list of names changes (`scripts/sync-logscan.sh`, `scripts/make-titles.py`), the next
 start summarizes each kept log again, draws each report's facts again from its first log, files a report whose first
-log now names another game under that game, and names one its logs don't name from the list. The list is made again
-each month (`.github/workflows/titles.yml`), as a pull request when a name changed.
+log now names another game under that game, and names one its logs don't name from the list.
 
 The site does not say who sent a report. The database keeps the sender's user id (for the deletion, the updates and
 the hourly limit) and the ids of the messages that lead to a report, nothing else of them; it keeps nothing of
@@ -120,7 +120,7 @@ fill in; an empty value stops the service):
 | `TRACER_DB` | `/var/db/tracer/tracer.db` | the database (`tracer_db` in rc.conf) |
 | `TRACER_SITE` | `/var/db/tracer-site` | the site's folder (`tracer_site` in rc.conf) |
 | `TRACER_ASSETS` | `/usr/local/share/tracer` | where `style.css`, `site.js` and `tracer.svg` are |
-| `TRACER_TITLES` | `/usr/local/share/tracer/titles.tsv` | the games' names by title ID; without it a game its logs don't name keeps its title ID |
+| `TRACER_TITLES` | none: no list | the games' names by title ID, made by `scripts/make-titles.py --out FILE`; without it a game its logs don't name keeps its title ID |
 
 A `TRACER_` key it does not know stops it, naming the key; so does an id that is not one, and an address that is not
 `https://` or `http://`.

@@ -94,7 +94,7 @@ static void read_env(void) {
     env.db = setting("TRACER_DB", "/var/db/tracer/tracer.db");
     env.site = setting("TRACER_SITE", "/var/db/tracer-site");
     env.assets = setting("TRACER_ASSETS", "/usr/local/share/tracer");
-    env.titles = setting("TRACER_TITLES", "/usr/local/share/tracer/titles.tsv");
+    env.titles = setting("TRACER_TITLES", NULL);
     env.nchannels = ids("TRACER_CHANNELS", env.channels);
     env.nadmins = ids("TRACER_ADMINS", env.admins);
     n = strlen(env.url);
@@ -300,7 +300,9 @@ int main(void) {
     tracer.nadmins = env.nadmins;
     tracer.administers = administers;
     if (site_assets(env.assets, env.site)) stop("the site's files could not be copied from %s", env.assets);
-    if (!tr_titles_load(&titles, env.titles)) {
+    if (!env.titles)
+        rei_log("TRACER_TITLES is not set: no list of games' names, a game its logs don't name keeps its title ID");
+    else if (!tr_titles_load(&titles, env.titles)) {
         tracer.titles = &titles;
         rei_log("%d games' names from %s", titles.n, env.titles);
     }
