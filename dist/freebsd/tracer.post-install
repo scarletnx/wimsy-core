@@ -1,0 +1,9 @@
+# the user the service runs as, and an env file to fill in, made once; PKG_ROOTDIR when pkg installs into another root
+r=${PKG_ROOTDIR:-}
+pw -R "${r:-/}" groupshow tracer > /dev/null 2>&1 || pw -R "${r:-/}" groupadd tracer
+pw -R "${r:-/}" usershow tracer > /dev/null 2>&1 ||
+	pw -R "${r:-/}" useradd tracer -g tracer -c "Tracer Discord bot" -d /nonexistent -s /usr/sbin/nologin
+if [ ! -e "$r${PKG_PREFIX}/etc/tracer.env" ]; then
+	install -m 600 "$r${PKG_PREFIX}/etc/tracer.env.sample" "$r${PKG_PREFIX}/etc/tracer.env"
+	echo "tracer: fill in ${PKG_PREFIX}/etc/tracer.env, then: sysrc tracer_enable=YES; service tracer start"
+fi

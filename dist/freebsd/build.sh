@@ -2,14 +2,16 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright 2026 the ScarletNX contributors
 #
-# Builds the FreeBSD packages of ReiWimsy and AccordWimsy from this checkout, on the FreeBSD release they are for:
+# Builds the FreeBSD packages of ReiWimsy, AccordWimsy and Tracer from this checkout, on the FreeBSD release they are
+# for:
 #
 #   sh dist/freebsd/build.sh [OUT]      OUT: ./packages when not given
 #
-# Writes OUT/reiwimsy-<VERSION>.pkg and OUT/accordwimsy-<VERSION>.pkg, VERSION from the file at the top of the
-# checkout. Needs git, gmake, pkgconf, curl and ca_root_nss installed (pkg install git gmake pkgconf curl ca_root_nss)
-# and the network, for Concord. Each program's tests run before it is packaged, and Concord's own before it is used.
-# ReiWimsy links Concord statically: Concord CONCORD_VERSION at CONCORD_COMMIT, its reflect-c submodule at
+# Writes OUT/reiwimsy-<VERSION>.pkg, OUT/accordwimsy-<VERSION>.pkg and OUT/tracer-<VERSION>.pkg, VERSION from the file
+# at the top of the checkout. Needs git, gmake, pkgconf, curl, ca_root_nss, sqlite3 and libmicrohttpd installed (pkg
+# install git gmake pkgconf curl ca_root_nss sqlite3 libmicrohttpd) and the network, for Concord. Each program's tests
+# run before it is packaged, and Concord's own before it is used.
+# ReiWimsy and Tracer link Concord statically: Concord CONCORD_VERSION at CONCORD_COMMIT, its reflect-c submodule at
 # REFLECTC_COMMIT, the fixes CONCORD_PATCHES names applied over it in that order. A package depends on the packages
 # this machine has installed of curl and ca_root_nss (and git, for AccordWimsy), at the versions it has.
 set -eu
@@ -106,9 +108,11 @@ done
 (cd "$work/concord" && gmake -s install PREFIX="$work/concord-prefix" SHAREDIR="$work/concord-prefix/share")
 
 # The programs, built and tested from a copy, so the checkout keeps no objects
-cp -R "$top/rei" "$top/accordwimsy" "$work/"
+cp -R "$top/rei" "$top/accordwimsy" "$top/tracer" "$work/"
 (cd "$work/rei" && make -s clean && make -s test && make -s CONCORD="$work/concord-prefix")
 (cd "$work/accordwimsy" && make -s clean && make -s test)
+# its log summary demangles through the C++ runtime, libc++'s in base
+(cd "$work/tracer" && make -s clean && make -s test CXXRT=-lc++ && make -s CONCORD="$work/concord-prefix" CXXRT=-lc++)
 
 s=$work/stage/reiwimsy/usr/local
 install -d "$s/libexec" "$s/etc/rc.d"
@@ -130,3 +134,16 @@ gitpkg=$(pkg query %n git-lite git 2> /dev/null | head -n 1)
 [ -n "$gitpkg" ] || { echo "neither git-lite nor git is installed: pkg install git-lite" >&2; exit 1; }
 adeps=$(deps curl "$gitpkg" ca_root_nss)
 package accordwimsy "A GitHub organization kept the same on a Forgejo" devel/accordwimsy "$adeps"
+
+s=$work/stage/tracer/usr/local
+install -d "$s/libexec" "$s/etc/rc.d" "$s/share/tracer" "$s/share/examples/tracer"
+install -m 755 "$work/tracer/tracer" "$work/tracer/tracer-mcp" "$s/libexec/"
+install -m 555 "$here/tracer.rc" "$s/etc/rc.d/tracer"
+install -m 555 "$here/tracer-mcp.rc" "$s/etc/rc.d/tracer-mcp"
+install -m 644 "$here/tracer.env.sample" "$s/etc/tracer.env.sample"
+install -m 644 "$work/tracer/site/style.css" "$work/tracer/site/site.js" "$work/tracer/site/tracer.svg" \
+	"$s/share/tracer/"
+install -m 644 "$here/tracer-nginx.conf" "$s/share/examples/tracer/nginx.conf"
+# libarchive is base's
+tdeps=$(deps curl ca_root_nss sqlite3 libmicrohttpd)
+package tracer "ScarletNX's game reports from Discord, drawn as a static site" net-im/tracer "$tdeps"

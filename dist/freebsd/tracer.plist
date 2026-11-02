@@ -1,0 +1,14 @@
+@owner root
+@group wheel
+@mode 755
+libexec/tracer
+libexec/tracer-mcp
+@mode 555
+etc/rc.d/tracer
+etc/rc.d/tracer-mcp
+@mode 644
+etc/tracer.env.sample
+share/tracer/style.css
+share/tracer/site.js
+share/tracer/tracer.svg
+share/examples/tracer/nginx.conf

@@ -1,0 +1,4 @@
+*.o
+/tracer
+/tests/test_tracer
+/tracer-mcp

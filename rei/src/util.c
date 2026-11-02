@@ -14,7 +14,7 @@ static void grow(Buf* b, size_t more) {
     if (want < 2 * b->cap) want = 2 * b->cap;
     bigger = realloc(b->text, want);
     if (!bigger) {
-        fputs("reiwimsy: out of memory\n", stderr);
+        fputs(REI_NAME ": out of memory\n", stderr);
         abort();
     }
     b->text = bigger;
@@ -56,7 +56,7 @@ char* rei_strdup(const char* s) {
     size_t n = strlen(s) + 1;
     char* copy = malloc(n);
     if (!copy) {
-        fputs("reiwimsy: out of memory\n", stderr);
+        fputs(REI_NAME ": out of memory\n", stderr);
         abort();
     }
     return memcpy(copy, s, n);
@@ -104,7 +104,7 @@ void jset(cJSON* o, const char* key, const char* s) {
 
 void rei_log(const char* fmt, ...) {
     va_list ap;
-    fputs("reiwimsy: ", stderr);
+    fputs(REI_NAME ": ", stderr);
     va_start(ap, fmt);
     vfprintf(stderr, fmt, ap);
     va_end(ap);

@@ -54,6 +54,44 @@ In the Developer Portal:
 
 A channel id for `REIWIMSY_CHANNELS` and the card channels: Developer Mode, right click, Copy Channel ID.
 
+## Tracer
+
+1. Its Discord application (below) and its token.
+2. The env file the package made, `/usr/local/etc/tracer.env` (root's, 600): `TRACER_TOKEN`, `TRACER_URL` (the site's
+   address), and the other keys [Tracer](./TRACER.md) lists.
+3. On, and started:
+
+       sysrc -j tracer tracer_enable=YES
+       service -j tracer tracer start
+
+4. The site: in the web jail ([Setup](./SETUP.md#tracers-jails)), nginx with
+   `/usr/local/share/examples/tracer/nginx.conf` in its `http` block, and the tunnel's public name routed to
+   `http://127.0.0.1:8080`.
+5. The MCP server, in the web jail too (the same package):
+
+       sysrc -j tracerweb tracer_mcp_enable=YES tracer_mcp_url=https://<the site's name>
+       service -j tracerweb tracer_mcp start
+
+Its log is syslog's, tag `tracer`, in the jail's `/var/log/messages`; its database is `/var/db/tracer/tracer.db`
+(`tracer_db` in rc.conf moves it), its site `/var/db/tracer-site` (`tracer_site`). Back up the database and the site's
+`r/` together: the files are there, the database names them.
+
+### Its Discord application
+
+In the Developer Portal:
+
+1. Bot: the name Tracer, its avatar (`tracer/site/tracer.svg` on a navy square, room around it for the round crop);
+   reset the token, put it in the env file. **No** privileged intent: Discord sends a message's text and attachments
+   to a bot it mentions. Public Bot off.
+2. About me: what it keeps, that the site shows no names, and `@Tracer help`.
+3. Invite (OAuth2, scope `bot`), with only what it needs: View Channels, Send Messages, Send Messages in Threads, Embed
+   Links, Read Message History (a reply needs it):
+
+   `https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot&permissions=274877991936`
+
+An id for `TRACER_CHANNELS` or `TRACER_ADMINS`: Developer Mode, right click, Copy Channel ID or Copy User ID. A forum
+channel's id takes its posts too.
+
 ## AccordWimsy
 
 1. On the Forgejo: a user for it (`accordwimsy`, `ACCORDWIMSY_FORGEJO_USER` when another) and its token with
