@@ -1274,6 +1274,63 @@ static void test_titles(void) {
     free(path);
 }
 
+/* the hourly limit counts what was asked: reports deleted since, files that were no log, and updates */
+static void test_limits(void) {
+    TrMessage m;
+    char* t;
+    int i;
+    now_is += 3601;
+    for (i = 0; i < TR_HOURLY; ++i) {
+        m = message(2200 + (u64)i, 78, "<@99>");
+        attach(&m, "game.log", "https://cdn.discordapp.com/1/game.log", 10);
+        t = answer_text(respond(&m));
+        HAS(t, "Report #");
+        free(t);
+        tr_message_free(&m);
+        CHECK(tr_forget(&tracer, 2200 + (u64)i));
+    }
+    m = message(2300, 78, "<@99>");
+    attach(&m, "game.log", "https://cdn.discordapp.com/1/game.log", 10);
+    t = answer_text(respond(&m));
+    HAS(t, "You sent 10 reports and updates in the last hour");
+    free(t);
+    tr_message_free(&m);
+    downloads = 0;
+    for (i = 0; i <= TR_HOURLY; ++i) {
+        m = message(2400 + (u64)i, 79, "<@99>");
+        attach(&m, "notes.txt", "https://cdn.discordapp.com/1/notes.txt", 10);
+        t = answer_text(respond(&m));
+        HAS(t, i < TR_HOURLY ? "No ScarletNX log here" : "in the last hour");
+        free(t);
+        tr_message_free(&m);
+    }
+    CHECK(downloads == TR_HOURLY);
+    m = message(2500, 80, "<@99>"); /* no file: nothing to download, nothing counted */
+    t = answer_text(respond(&m));
+    HAS(t, "Attach the game's ScarletNX log");
+    free(t);
+    tr_message_free(&m);
+    {
+        long made;
+        m = message(2501, 80, "<@99>");
+        attach(&m, "game.log", "https://cdn.discordapp.com/1/game.log", 10);
+        free(answer_text(respond(&m)));
+        tr_message_free(&m);
+        made = st_report_of(tracer.store, 2501);
+        CHECK(made > 0);
+        for (i = 1; i <= TR_HOURLY; ++i) {
+            char* add = rei_format("<@99> add %ld a note", made);
+            m = message(2501 + (u64)i, 80, add);
+            t = answer_text(respond(&m));
+            HAS(t, i < TR_HOURLY ? "a note" : "in the last hour");
+            free(t);
+            tr_message_free(&m);
+            free(add);
+        }
+        CHECK(tr_forget(&tracer, 2501));
+    }
+}
+
 int main(void) {
     char *db, *command;
     rei_now = clock_now;
@@ -1304,6 +1361,7 @@ int main(void) {
         test_rescan();
         test_titles();
         test_missed();
+        test_limits();
     }
     st_close(tracer.store);
     if (getenv("TRACER_TEST_KEEP")) fprintf(stderr, "kept %s\n", site);

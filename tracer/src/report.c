@@ -512,6 +512,24 @@ static char* better_name(Tracer* t, const char* key, const char* title_id, const
     return known;
 }
 
+/* the answer when m's author asked for TR_HOURLY reports and updates in the last hour, or NULL with this one counted:
+   each ask whose files are downloaded counts, kept, refused or deleted since */
+static cJSON* limited(Tracer* t, const TrMessage* m) {
+    char* text;
+    cJSON* e;
+    switch (st_ask(t->store, m->author, rei_now(), rei_now() - 3600, TR_HOURLY)) {
+        case 0: return NULL;
+        case 1:
+            text =
+                rei_format("You sent %d reports and updates in the last hour: send this one later, please.", TR_HOURLY);
+            break;
+        default: text = rei_strdup("The report could not be kept: try again later, please."); break;
+    }
+    e = said(text);
+    free(text);
+    return e;
+}
+
 static cJSON* reported(Tracer* t, const TrMessage* m, char* note, long* report) {
     Taken k;
     StReport r;
@@ -519,8 +537,7 @@ static cJSON* reported(Tracer* t, const TrMessage* m, char* note, long* report) 
     char* text;
     int i, failed = 0;
     if (st_by_message(t->store, m->id)) return NULL; /* the gateway's event again, after a resume */
-    if (st_count_since(t->store, m->author, rei_now() - 3600) >= TR_HOURLY)
-        return said("You sent 10 reports in the last hour: send this one later, please.");
+    if (m->nfiles && (e = limited(t, m))) return e;
     memset(&k, 0, sizeof k);
     take(t, &k, m);
     if (!k.logs) {
@@ -663,6 +680,10 @@ static cJSON* updated(Tracer* t, const TrMessage* m, long id, const char* note, 
     if (!m->nfiles && !*note) {
         st_report_free(&r);
         return said("Nothing to add: attach logs or screenshots, or write a note.");
+    }
+    if ((e = limited(t, m))) {
+        st_report_free(&r);
+        return e;
     }
     memset(&k, 0, sizeof k);
     k.base = st_counts(t->store, id, &logs, &images, &videos);

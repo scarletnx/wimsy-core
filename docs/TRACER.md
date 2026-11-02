@@ -45,8 +45,10 @@ log of the same title ID gives. Words added later are shown under the report's n
 
 `@Tracer help` says how; `@Tracer delete 12`, or a reply with `@Tracer delete`, deletes a report, for the person who
 sent it, the server's owner and administrators (the Administrator permission), and `TRACER_ADMINS`. A message deleted
-on Discord takes back what it sent: the whole report, or what it added to one. Ten reports an hour from one person at
-most. A report's number is never another's after it is deleted, as replies link to it.
+on Discord takes back what it sent: the whole report, or what it added to one. Ten reports and updates an hour from one
+person at most, counted as they are asked for: one whose files were no log counts, and so does one deleted since (its
+files were downloaded); a message with no file and no note does not. A report's number is never another's after it is
+deleted, as replies link to it.
 
 When the log summary or the list of names changes (`scripts/sync-logscan.sh`, `scripts/make-titles.py`), the next
 start summarizes each kept log again, draws each report's facts again from its first log, files a report whose first

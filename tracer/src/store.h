@@ -49,8 +49,10 @@ void st_close(Store* s);
 
 /* r's id given to r (r->id ignored) with its files: 0, or -1 said in the log */
 int st_add(Store* s, StReport* r, const StFile* files, int nfiles);
-/* the reports poster sent since */
-int st_count_since(Store* s, u64 poster, double since);
+/* poster's ask at when, a report or an update whose files are downloaded: 1 when poster asked max times since since
+   (this one not counted), 0 when it is counted (and the asks before since forgotten), -1 for an error. A report deleted
+   or refused still counts, as its downloads were made */
+int st_ask(Store* s, u64 poster, double when, double since, int max);
 /* the key of the newest report of a game with this title and a title ID, owned; NULL when there is none */
 char* st_key_of_title(Store* s, const char* title);
 /* the newest name a log gave the game of key, owned; NULL when no log named it */

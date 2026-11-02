@@ -41,7 +41,10 @@ static const char* const UPGRADES[] = {
     /* 3, what the runtime missed, counted, beside the outcome */
     "ALTER TABLE reports ADD COLUMN missed TEXT;",
     /* 4, the console the game is of */
-    "ALTER TABLE reports ADD COLUMN console TEXT;"};
+    "ALTER TABLE reports ADD COLUMN console TEXT;",
+    /* 5, each person's asks of the last hour, for the hourly limit */
+    "CREATE TABLE asks(poster INTEGER NOT NULL, created REAL NOT NULL);"
+    "CREATE INDEX asks_poster ON asks(poster, created);"};
 
 /* a report's columns, in the order row_report reads them */
 #define REPORT_COLUMNS                                                                                                 \
@@ -189,15 +192,37 @@ int st_add(Store* s, StReport* r, const StFile* files, int nfiles) {
     return ok ? 0 : -1;
 }
 
-int st_count_since(Store* s, u64 poster, double since) {
-    sqlite3_stmt* q = prepared(s, "SELECT count(*) FROM reports WHERE poster = ? AND created >= ?");
-    int n = 0;
-    if (!q) return 0;
-    sqlite3_bind_int64(q, 1, (sqlite3_int64)poster);
-    sqlite3_bind_double(q, 2, since);
-    if (sqlite3_step(q) == SQLITE_ROW) n = sqlite3_column_int(q, 0);
-    sqlite3_finalize(q);
-    return n;
+int st_ask(Store* s, u64 poster, double when, double since, int max) {
+    sqlite3_stmt* q;
+    int n = -1, ok;
+    if (sqlite3_exec(s->db, "BEGIN", NULL, NULL, NULL) != SQLITE_OK) {
+        said(s, "an ask counted");
+        return -1;
+    }
+    q = prepared(s, "DELETE FROM asks WHERE created < ?");
+    ok = q != NULL;
+    if (ok) {
+        sqlite3_bind_double(q, 1, since);
+        ok = sqlite3_step(q) == SQLITE_DONE;
+        sqlite3_finalize(q);
+    }
+    q = ok ? prepared(s, "SELECT count(*) FROM asks WHERE poster = ? AND created >= ?") : NULL;
+    if (q) {
+        sqlite3_bind_int64(q, 1, (sqlite3_int64)poster);
+        sqlite3_bind_double(q, 2, since);
+        if (sqlite3_step(q) == SQLITE_ROW) n = sqlite3_column_int(q, 0);
+        sqlite3_finalize(q);
+    }
+    ok = n >= 0;
+    if (ok && n < max && (ok = (q = prepared(s, "INSERT INTO asks(poster, created) VALUES(?, ?)")) != NULL)) {
+        sqlite3_bind_int64(q, 1, (sqlite3_int64)poster);
+        sqlite3_bind_double(q, 2, when);
+        ok = sqlite3_step(q) == SQLITE_DONE;
+        sqlite3_finalize(q);
+    }
+    if (!ok) said(s, "an ask counted");
+    if (sqlite3_exec(s->db, ok ? "COMMIT" : "ROLLBACK", NULL, NULL, NULL) != SQLITE_OK) ok = 0;
+    return !ok ? -1 : n >= max ? 1 : 0;
 }
 
 int st_link(Store* s, u64 message, long report) {
