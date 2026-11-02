@@ -9,8 +9,9 @@ the game reports that people send it on Discord and draws them as a static site,
 A message that mentions it with a ScarletNX log attached becomes a report:
 
 - Its logs (`.log`, `.txt`, or one packed in a `.gz` or a `.zip`; 3 at most, 64 MiB each) are downloaded from
-  Discord, each home folder in them written as `~` (`/home/<user>`, `C:\Users\<user>`, Android's app folders), and
-  summarized: the game, its title ID and version, the build, the system and GPU, how the run ended and where, the
+  Discord, each home folder in them written as `~` (`/home/<user>`, `C:\Users\<user>`, Android's app folders), the
+  crash report's code and memory dumps and registers left out (the game's own bytes, which the summary leaves out too),
+  and summarized: the game, its title ID and version, the build, the system and GPU, how the run ended and where, the
   service commands and what else the runtime missed, the last lines. A file that is no ScarletNX log is named in the
   reply and not kept.
 - Its screenshots (PNG, JPEG, WebP, GIF or PPM, read from their bytes; 8 at most, 25 MiB each) lose their metadata:
@@ -94,7 +95,7 @@ An agent adds it by its address, Claude Code with `claude mcp add --transport ht
 addresses match only the game version it names, and only a copy of that version names them: `get_report` gives each log
 that failed a `symbolize` object (its title ID, game version and game addresses) for ScarletNX's own MCP server
 (`scarletnx --mcp`) on a machine that has the game, its `find_game` then `symbolize` or `disassemble`. Tracer keeps no
-game code: nothing of a game goes to a server that is not its owner's. A browser's request whose Origin is another
+game code, not even the bytes a crash report dumps: nothing of a game goes to a server that is not its owner's. A browser's request whose Origin is another
 site's gets 403; a request over 1 MiB, 413.
 
 Its settings, in the environment (`tracer_mcp_url`, `tracer_mcp_site` and `tracer_mcp_listen` in rc.conf):

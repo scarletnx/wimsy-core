@@ -299,7 +299,7 @@ static void taken_free(Taken* k) {
 
 static void take_log(Taken* k, const TrAttachment* a, Buf* got) {
     Buf text = {0};
-    char *why = NULL, *tilded, *summary;
+    char *why = NULL, *tilded, *shown, *summary;
     size_t n;
     cJSON* parsed;
     StFile* f;
@@ -318,13 +318,15 @@ static void take_log(Taken* k, const TrAttachment* a, Buf* got) {
         skip(k, a->name, "out of memory");
         return;
     }
-    summary = summary_of(tilded, n);
+    shown = tr_public_log(tilded, n, &n);
+    free(tilded);
+    summary = summary_of(shown, n);
     parsed = summary ? cJSON_Parse(summary) : NULL;
     if (!is_log(parsed)) {
         skip(k, a->name, "not a ScarletNX log");
         cJSON_Delete(parsed);
         free(summary);
-        free(tilded);
+        free(shown);
         return;
     }
     if (!k->first)
@@ -338,7 +340,7 @@ static void take_log(Taken* k, const TrAttachment* a, Buf* got) {
     f->path = rei_format("%d.log", f->n);
     f->bytes = (double)n;
     f->summary = summary;
-    k->data[k->n++] = tilded;
+    k->data[k->n++] = shown;
     ++k->logs;
 }
 
@@ -786,8 +788,8 @@ int tr_rescan(Tracer* t, const char* version) {
         int nfiles, k, first = 1;
         if (st_get(t->store, all[i].id, r, &files, &nfiles) != 1) continue;
         for (k = 0; k < nfiles; ++k) {
-            char *path, *text, *summary;
-            size_t len = 0;
+            char *path, *text, *shown, *summary;
+            size_t len = 0, shown_len;
             FILE* f;
             Buf b = {0};
             char piece[65536];
@@ -800,8 +802,16 @@ int tr_rescan(Tracer* t, const char* version) {
             fclose(f);
             len = b.len;
             text = buf_take(&b);
-            summary = summary_of(text, len);
+            shown = tr_public_log(text, len, &shown_len);
+            if (shown_len != len) { /* a log kept before the site left its dumps out */
+                char* rel = rei_format("r/%ld/%s", r->id, files[k].path);
+                if (!site_write(t->root, rel, shown, shown_len))
+                    st_set_bytes(t->store, r->id, files[k].n, (double)shown_len);
+                free(rel);
+            }
             free(text);
+            summary = summary_of(shown, shown_len);
+            free(shown);
             if (!summary) continue;
             st_set_summary(t->store, r->id, files[k].n, summary);
             if (first) { /* the report's facts are its first log's, and so is its game when the log names another */

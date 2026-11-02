@@ -14,6 +14,8 @@
 #include <unistd.h>
 #include <zlib.h>
 
+#include "common/utilities/demangle.h"
+#include "common/utilities/logscan.h"
 #include "files.h"
 #include "mcp.h"
 #include "message.h"
@@ -372,6 +374,80 @@ static void test_unpack(void) {
     buf_free(&out);
 }
 
+/* the log's summary as the bot makes it, owned */
+static char* summarized(const char* text, size_t n) {
+    SnxLogScan* s = calloc(1, sizeof *s);
+    char* json = NULL;
+    if (s && !snx_logscan(s, text, n)) json = snx_logscan_json(s, snx_demangle);
+    snx_logscan_free(s);
+    free(s);
+    return json;
+}
+
+/* the crash report's code and memory dumps and registers stay off the site, as they stay out of the summary */
+static void test_public_log(void) {
+    static const char crash[] = "[   0.00] ScarletNX - Some Game\n"
+                                "[   2.25]\n"
+                                "*** The game crashed: signal 11 at 1300100df8 ***\n"
+                                "[   2.25]   pc=164ab3c4 lr=163d4828 sp=1300100c30\n"
+                                "[   2.25]   x0= 0  x1= 1300100c30  x2= 5  x3= 0\n"
+                                "[   2.25]   r3 = 12\n"
+                                "[   2.25]   code 164ab380: d10083ff  a9017bfd [b9400000] d65f03c0\n"
+                                "[   2,25]   mem x1 1300100c30: 00000000 0000002a\n"
+                                "  code at lr 163d4800: 94000010 f9400260\n"
+                                "[   2.25]   info+00: 0000000000000001\n"
+                                "[   2.25]    #0 163d18d8 <_ZN2nn4diag6detail10VAbortImplEv+d8>\n"
+                                "[   2.25]   pc <main+10>  lr <main+4>\n"
+                                "[   2.25] code that the game wrote\n"
+                                "[   2.25] xenon=1 is a setting\n"
+                                "the last line, no newline";
+    size_t n, i;
+    char *shown = tr_public_log(crash, sizeof crash - 1, &n), *before, *after, *source, *where;
+    CHECK(n == strlen(shown));
+    LACKS(shown, "pc=164ab3c4");
+    LACKS(shown, "x1= 1300100c30");
+    LACKS(shown, "r3 = 12");
+    LACKS(shown, "d10083ff");
+    LACKS(shown, "0000002a");
+    LACKS(shown, "94000010");
+    LACKS(shown, "info+00");
+    HAS(shown, "*** The game crashed: signal 11 at 1300100df8 ***\n");
+    HAS(shown, "#0 163d18d8 <_ZN2nn4diag6detail10VAbortImplEv+d8>\n");
+    HAS(shown, "[   2.25]   pc <main+10>  lr <main+4>\n"); /* the symbols' line is no dump */
+    HAS(shown, "[   2.25] code that the game wrote\n");    /* not indented: the game's own words */
+    HAS(shown, "[   2.25] xenon=1 is a setting\n");
+    HAS(shown, "the last line, no newline");
+    /* the summary reads the log shown as it read the whole one */
+    before = summarized(crash, sizeof crash - 1);
+    after = summarized(shown, n);
+    SAME(after, before);
+    free(before);
+    free(after);
+    free(shown);
+    shown = tr_public_log("", 0, &n);
+    CHECK(shown && !*shown && !n);
+    free(shown);
+    /* each prefix the log summary's dump() leaves out is left out here: a prefix added there fails this until it is */
+    source = read_file("third_party/logscan/common/utilities/logscan.c", NULL);
+    where = source ? strstr(source, "static int dump(Span line)") : NULL;
+    where = where ? strstr(where, "prefixes[] = {") : NULL;
+    CHECK(where != NULL);
+    for (i = 0; where && *where != '}'; ++where)
+        if (*where == '"') {
+            size_t len = strcspn(where + 1, "\"");
+            char* line = rei_format("[   2.25]   %.*s 1234: 00\n", (int)len, where + 1);
+            char* left = tr_public_log(line, strlen(line), &n);
+            CHECK(n == 0);
+            if (n) fprintf(stderr, "  a dump line is shown: %s", line);
+            free(left);
+            free(line);
+            where += len + 1;
+            ++i;
+        }
+    CHECK(i == 9);
+    free(source);
+}
+
 static void game(const char* summary, const char* note, int ok, const char* key, const char* title, const char* tid,
                  int named) {
     cJSON* s = cJSON_Parse(summary);
@@ -502,6 +578,8 @@ static void test_reports(void) {
     p = read_file(path, NULL);
     HAS(p, "loading ~/save.bin");
     LACKS(p, "someone");
+    LACKS(p, "pc=164ab3c4"); /* the registers' line stays off the site */
+    HAS(p, "#1 1683a358 <_ZN2nn3hid18GetNpadJoyHoldTypeEv+38>");
     free(p);
     free(path);
     path = at("r/1/2.png");
@@ -957,7 +1035,7 @@ static void test_mcp(void) {
     HAS(t, "\"isError\":true");
     free(t);
     t = call(&m, "read_log", "{\"id\":2,\"grep\":\"SVCBREAK\"}");
-    HAS(t, "12 lines; 1 from line 1 on hold");
+    HAS(t, "11 lines; 1 from line 1 on hold"); /* LOG's 12 without its registers' line */
     HAS(t, "9: *** The game called svcBreak");
     free(t);
     t = call(&m, "read_log", "{\"id\":2,\"start\":3,\"lines\":2}");
@@ -1053,6 +1131,27 @@ static void test_rescan(void) {
         free(path);
     }
     CHECK(tr_rescan(&tracer, "b") == 12);
+    { /* a log kept before the site left its dumps out: written again without them, its size with it */
+        char *path = at("r/2/1.log"), *text = read_file(path, NULL), *dumped;
+        StFile* files;
+        int nfiles;
+        size_t n = 0;
+        CHECK(text != NULL);
+        dumped = rei_format("%s[   2.25]   code 164ab380: d10083ff  a9017bfd\n", text ? text : "");
+        CHECK(!site_write(site, "r/2/1.log", dumped, strlen(dumped)));
+        CHECK(tr_rescan(&tracer, "e") == 12);
+        free(text);
+        text = read_file(path, &n);
+        LACKS(text, "d10083ff");
+        HAS(text, "GetNpadJoyHoldType");
+        CHECK(st_get(tracer.store, 2, &r, &files, &nfiles) == 1);
+        CHECK(nfiles >= 1 && files[0].bytes == (double)n);
+        st_report_free(&r);
+        st_files_free(files, nfiles);
+        free(dumped);
+        free(text);
+        free(path);
+    }
 }
 
 /* the games' names from the list: an update's and an add-on's id find their game, a report its logs don't name is named
@@ -1196,6 +1295,7 @@ int main(void) {
     test_kind_and_text();
     test_images();
     test_unpack();
+    test_public_log();
     test_game();
     if (tracer.store) {
         test_reports();

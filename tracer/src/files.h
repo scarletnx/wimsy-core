@@ -38,4 +38,8 @@ int tr_unpack(const char* name, const char* data, size_t n, size_t max, Buf* out
 
 /* the n bytes of text with each byte that is not part of valid UTF-8 as U+FFFD, and each NUL left out; owned */
 char* tr_utf8(const char* text, size_t n);
+
+/* a log as the site shows it: without the crash report's lines that hold the game's bytes or its registers (its code
+   and memory dumps), which the log summary keeps out of its own (logscan.c's dump()). Owned, its length in *size */
+char* tr_public_log(const char* text, size_t n, size_t* size);
 #endif

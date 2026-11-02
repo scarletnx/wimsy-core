@@ -393,6 +393,19 @@ int st_set_summary(Store* s, long report, int n, const char* summary) {
     return ok ? 0 : -1;
 }
 
+int st_set_bytes(Store* s, long report, int n, double bytes) {
+    sqlite3_stmt* q = prepared(s, "UPDATE files SET bytes = ? WHERE report = ? AND n = ?");
+    int ok;
+    if (!q) return -1;
+    sqlite3_bind_double(q, 1, bytes);
+    sqlite3_bind_int64(q, 2, report);
+    sqlite3_bind_int(q, 3, n);
+    ok = sqlite3_step(q) == SQLITE_DONE;
+    if (!ok) said(s, "a file's size written again");
+    sqlite3_finalize(q);
+    return ok ? 0 : -1;
+}
+
 int st_set_facts(Store* s, const StReport* r) {
     sqlite3_stmt* q = prepared(s, "UPDATE reports SET version = ?, build = ?, commit_id = ?, branch = ?, system = ?,"
                                   " gpu = ?, driver = ?, outcome = ?, signature = ?, missed = ?, console = ?"

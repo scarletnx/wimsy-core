@@ -74,6 +74,8 @@ char* st_meta(Store* s, const char* key);
 int st_set_meta(Store* s, const char* key, const char* value);
 /* file n of report's summary made again, and the report's facts (what its first log says) again: 0, or -1 */
 int st_set_summary(Store* s, long report, int n, const char* summary);
+/* file n of report's size written again, after its file was: 0, or -1 */
+int st_set_bytes(Store* s, long report, int n, double bytes);
 int st_set_facts(Store* s, const StReport* r);
 /* report id's game named again, as a later log names it: 0, or -1 */
 int st_set_game(Store* s, long id, const char* key, const char* title, const char* title_id, int named);

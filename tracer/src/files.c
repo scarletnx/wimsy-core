@@ -376,3 +376,49 @@ char* tr_utf8(const char* text, size_t n) {
     }
     return buf_take(&b);
 }
+
+/* "[   2.25] " before a line, the time the runtime prints (its point a comma under some locales): its length, 0 without
+   one. As logscan.c's stamp(), it takes one space after the bracket, so a dump's indent is what follows */
+static size_t stamp(const char* s, size_t n) {
+    size_t i = 1, d;
+    if (!n || s[0] != '[') return 0;
+    while (i < n && s[i] == ' ') ++i;
+    for (d = i; i < n && s[i] >= '0' && s[i] <= '9'; ++i) continue;
+    if (i == d || i - d > 9 || i >= n || (s[i] != '.' && s[i] != ',')) return 0;
+    for (d = ++i; i < n && s[i] >= '0' && s[i] <= '9'; ++i) continue;
+    if (i == d || i >= n || s[i] != ']') return 0;
+    ++i;
+    return i < n && s[i] == ' ' ? i + 1 : i;
+}
+
+/* a line of the crash report that holds the game's bytes or its registers, by logscan.c's dump(): indented, and
+   starting with one of its prefixes, or a register's "x12=" or "r3 =" */
+static int dump_line(const char* s, size_t n) {
+    static const char* const prefixes[] = {
+        "code ", "mem ", "vtable:", "-> ", "pc=", "cpsr=", "info+", "data:", "(the rest"};
+    size_t i = stamp(s, n), indent, k, d;
+    for (indent = i; i < n && (s[i] == ' ' || s[i] == '\t'); ++i) continue;
+    if (i == indent) return 0;
+    s += i;
+    n -= i;
+    for (k = 0; k < sizeof prefixes / sizeof *prefixes; ++k)
+        if (n >= strlen(prefixes[k]) && !memcmp(s, prefixes[k], strlen(prefixes[k]))) return 1;
+    if (!n || (s[0] != 'x' && s[0] != 'r')) return 0;
+    for (d = 1; d < n && s[d] >= '0' && s[d] <= '9'; ++d) continue;
+    if (d == 1) return 0;
+    while (d < n && (s[d] == ' ' || s[d] == '\t')) ++d;
+    return d < n && s[d] == '=';
+}
+
+char* tr_public_log(const char* text, size_t n, size_t* size) {
+    Buf b = {0};
+    size_t at = 0;
+    while (at < n) {
+        const char* nl = memchr(text + at, '\n', n - at);
+        size_t len = nl ? (size_t)(nl - (text + at)) + 1 : n - at;
+        if (!dump_line(text + at, len)) buf_addn(&b, text + at, len);
+        at += len;
+    }
+    *size = b.len;
+    return buf_take(&b);
+}
