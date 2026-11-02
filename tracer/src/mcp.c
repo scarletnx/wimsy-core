@@ -108,6 +108,44 @@ static int holds(const char* text, const char* part) {
     }
     return 0;
 }
+/* a text found in lines in any case (ASCII letters), in time linear in each line: Knuth, Morris and Pratt's search, as
+   read_log's lines are a log's of up to 64 MiB, and holds() costs a line's length times the text's */
+typedef struct {
+    char* low;    /* the text, lowered; owned */
+    size_t* fail; /* the longest border of each prefix of low; owned */
+    size_t n;
+} Finder;
+static void finder_init(Finder* f, const char* text) {
+    size_t i, k = 0;
+    f->n = strlen(text);
+    f->low = rei_strdup(text);
+    f->fail = malloc((f->n ? f->n : 1) * sizeof *f->fail);
+    if (!f->fail) {
+        fputs(REI_NAME ": out of memory\n", stderr);
+        abort();
+    }
+    for (i = 0; i < f->n; ++i) f->low[i] = (char)tolower((unsigned char)f->low[i]);
+    if (f->n) f->fail[0] = 0;
+    for (i = 1; i < f->n; ++i) {
+        while (k && f->low[i] != f->low[k]) k = f->fail[k - 1];
+        if (f->low[i] == f->low[k]) ++k;
+        f->fail[i] = k;
+    }
+}
+static int finder_in(const Finder* f, const char* line) {
+    size_t k = 0;
+    if (!f->n) return 1;
+    for (; *line; ++line) {
+        char c = (char)tolower((unsigned char)*line);
+        while (k && c != f->low[k]) k = f->fail[k - 1];
+        if (c == f->low[k] && ++k == f->n) return 1;
+    }
+    return 0;
+}
+static void finder_free(Finder* f) {
+    free(f->low);
+    free(f->fail);
+}
 static int same(const char* a, const char* b) {
     if (!a || !b) return 0;
     for (; *a && tolower((unsigned char)*a) == tolower((unsigned char)*b); ++a, ++b) continue;
@@ -298,6 +336,7 @@ static char* read_log(const Mcp* m, const cJSON* args, int* error) {
     size_t cap = 0;
     FILE* in;
     Buf out = {0}, body = {0};
+    Finder find;
     if (!r) {
         *error = 1;
         return why;
@@ -320,6 +359,7 @@ static char* read_log(const Mcp* m, const cJSON* args, int* error) {
         *error = 1;
         return rei_strdup("the log's file is missing");
     }
+    finder_init(&find, grep ? grep : "");
     for (;;) {
         ssize_t got = getline(&line, &cap, in);
         int keep;
@@ -327,7 +367,7 @@ static char* read_log(const Mcp* m, const cJSON* args, int* error) {
         ++number;
         while (got && (line[got - 1] == '\n' || line[got - 1] == '\r')) line[--got] = 0;
         if (number < start) continue;
-        keep = grep && *grep ? holds(line, grep) : 1;
+        keep = finder_in(&find, line);
         matches += keep && grep && *grep;
         if (!keep || shown == want || body.len >= MCP_TEXT_MAX) continue;
         buf_printf(&body, "%ld: %s\n", number, line);
@@ -336,6 +376,7 @@ static char* read_log(const Mcp* m, const cJSON* args, int* error) {
     }
     free(line);
     fclose(in);
+    finder_free(&find);
     buf_printf(&out, "%s, report #%.0f, %s: %ld lines", jstr(r, "title") ? jstr(r, "title") : "?", jnum(r, "id"),
                jstr(log, "name") ? jstr(log, "name") : rel, number);
     if (grep && *grep)

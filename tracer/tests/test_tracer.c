@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 #include <zlib.h>
 
@@ -1370,6 +1371,53 @@ static void test_other_guild(void) {
     free(text);
 }
 
+/* read_log's grep: in any case, overlapping starts, and in time linear in the line: a 2 MiB line and a 16 KiB grep that
+   matches all but its last byte at each place took over a minute, its length times the line's */
+static void test_mcp_grep(void) {
+    static const char lines[] = "first aaab line\nthe abaabab line\nAbAb\nnothing here\n";
+    size_t line = (size_t)2 << 20, glen = 16 << 10;
+    char *log = malloc(line + 2), *grep = malloc(glen + 1), *t, *args;
+    Mcp m;
+    clock_t start;
+    m.root = site;
+    m.url = "https://reports.example";
+    CHECK(!site_write(site, "api/r/990.json",
+                      "{\"id\":990,\"title\":\"x\",\"files\":[{\"kind\":\"log\",\"name\":\"a.log\","
+                      "\"path\":\"r/990/1.log\"},{\"kind\":\"log\",\"name\":\"b.log\",\"path\":\"r/990/2.log\"}]}",
+                      strlen("{\"id\":990,\"title\":\"x\",\"files\":[{\"kind\":\"log\",\"name\":\"a.log\","
+                             "\"path\":\"r/990/1.log\"},{\"kind\":\"log\",\"name\":\"b.log\",\"path\":"
+                             "\"r/990/2.log\"}]}")));
+    CHECK(!site_write(site, "r/990/1.log", lines, strlen(lines)));
+    t = call(&m, "read_log", "{\"id\":990,\"grep\":\"aab\"}");
+    HAS(t, "2 from line 1 on hold");
+    HAS(t, "1: first aaab line");
+    HAS(t, "2: the abaabab line");
+    free(t);
+    t = call(&m, "read_log", "{\"id\":990,\"grep\":\"ABAB\"}");
+    HAS(t, "2 from line 1 on hold");
+    HAS(t, "2: the abaabab line");
+    HAS(t, "3: AbAb");
+    free(t);
+    t = call(&m, "read_log", "{\"id\":990,\"grep\":\"abac\"}");
+    HAS(t, "0 from line 1 on hold");
+    free(t);
+    memset(log, 'a', line);
+    log[line] = '\n';
+    memset(grep, 'a', glen - 1);
+    grep[glen - 1] = 'b';
+    grep[glen] = 0;
+    CHECK(!site_write(site, "r/990/2.log", log, line + 1));
+    args = rei_format("{\"id\":990,\"log\":2,\"grep\":\"%s\"}", grep);
+    start = clock();
+    t = call(&m, "read_log", args);
+    CHECK((double)(clock() - start) / CLOCKS_PER_SEC < 2);
+    HAS(t, "1 lines; 0 from line 1 on hold");
+    free(t);
+    free(args);
+    free(log);
+    free(grep);
+}
+
 int main(void) {
     char *db, *command;
     rei_now = clock_now;
@@ -1402,6 +1450,7 @@ int main(void) {
         test_missed();
         test_limits();
         test_other_guild();
+        test_mcp_grep();
     }
     st_close(tracer.store);
     if (getenv("TRACER_TEST_KEEP")) fprintf(stderr, "kept %s\n", site);
