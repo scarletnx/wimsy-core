@@ -75,6 +75,35 @@ void tr_message_free(TrMessage* m) {
     memset(m, 0, sizeof *m);
 }
 
+int tr_reaction(const char* json, size_t len, u64 self, TrReaction* r) {
+    cJSON* d = cJSON_ParseWithLength(json, len);
+    const cJSON* each;
+    const char* emoji =
+        jpath(d, "emoji.name") && cJSON_IsString(jpath(d, "emoji.name")) ? jpath(d, "emoji.name")->valuestring : NULL;
+    memset(r, 0, sizeof *r);
+    r->user = id_of(d, "user_id");
+    r->channel = id_of(d, "channel_id");
+    r->message = id_of(d, "message_id");
+    r->guild = id_of(d, "guild_id");
+    if (!r->user || r->user == self || !r->channel || !r->message || !emoji || jbool(jpath(d, "member.user"), "bot")) {
+        memset(r, 0, sizeof *r);
+        cJSON_Delete(d);
+        return 0;
+    }
+    cJSON_ArrayForEach(each, jpath(d, "member.roles")) {
+        u64 role = cJSON_IsString(each) ? strtoull(each->valuestring, NULL, 10) : 0;
+        if (role && r->nroles < TR_ROLES) r->roles[r->nroles++] = role;
+    }
+    r->emoji = rei_strdup(emoji);
+    cJSON_Delete(d);
+    return 1;
+}
+
+void tr_reaction_free(TrReaction* r) {
+    free(r->emoji);
+    memset(r, 0, sizeof *r);
+}
+
 u64 tr_deleted(const char* json, size_t len) {
     cJSON* d = cJSON_ParseWithLength(json, len);
     u64 id = id_of(d, "id");

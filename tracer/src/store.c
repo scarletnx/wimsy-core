@@ -44,12 +44,15 @@ static const char* const UPGRADES[] = {
     "ALTER TABLE reports ADD COLUMN console TEXT;",
     /* 5, each person's asks of the last hour, for the hourly limit */
     "CREATE TABLE asks(poster INTEGER NOT NULL, created REAL NOT NULL);"
-    "CREATE INDEX asks_poster ON asks(poster, created);"};
+    "CREATE INDEX asks_poster ON asks(poster, created);",
+    /* 6, the GitHub issue an administrator's approval opened */
+    "ALTER TABLE reports ADD COLUMN issue INTEGER NOT NULL DEFAULT 0;"
+    "ALTER TABLE reports ADD COLUMN issue_url TEXT;"};
 
 /* a report's columns, in the order row_report reads them */
 #define REPORT_COLUMNS                                                                                                 \
     "id, created, guild, channel, message, poster, game, title, named, title_id, note, version, build, commit_id, "    \
-    "branch, system, gpu, driver, outcome, signature, missed, console"
+    "branch, system, gpu, driver, outcome, signature, missed, console, issue, issue_url"
 
 static void said(Store* s, const char* what) { rei_log("the database, %s: %s", what, sqlite3_errmsg(s->db)); }
 
@@ -418,6 +421,30 @@ int st_set_summary(Store* s, long report, int n, const char* summary) {
     return ok ? 0 : -1;
 }
 
+int st_claim_issue(Store* s, long report) {
+    sqlite3_stmt* q = prepared(s, "UPDATE reports SET issue = -1 WHERE id = ? AND issue = 0");
+    int done;
+    if (!q) return -1;
+    sqlite3_bind_int64(q, 1, report);
+    done = sqlite3_step(q) == SQLITE_DONE;
+    if (!done) said(s, "an issue claimed");
+    sqlite3_finalize(q);
+    return done ? sqlite3_changes(s->db) == 1 : -1;
+}
+
+int st_set_issue(Store* s, long report, long number, const char* url) {
+    sqlite3_stmt* q = prepared(s, "UPDATE reports SET issue = ?, issue_url = ? WHERE id = ?");
+    int ok;
+    if (!q) return -1;
+    sqlite3_bind_int64(q, 1, number);
+    text_at(q, 2, url);
+    sqlite3_bind_int64(q, 3, report);
+    ok = sqlite3_step(q) == SQLITE_DONE;
+    if (!ok) said(s, "an issue kept");
+    sqlite3_finalize(q);
+    return ok ? 0 : -1;
+}
+
 int st_set_bytes(Store* s, long report, int n, double bytes) {
     sqlite3_stmt* q = prepared(s, "UPDATE files SET bytes = ? WHERE report = ? AND n = ?");
     int ok;
@@ -524,6 +551,8 @@ static void row_report(sqlite3_stmt* q, StReport* r) {
     r->signature = text_of(q, 19);
     r->missed = text_of(q, 20);
     r->console = text_of(q, 21);
+    r->issue = (long)sqlite3_column_int64(q, 22);
+    r->issue_url = text_of(q, 23);
 }
 
 int st_get(Store* s, long id, StReport* r, StFile** files, int* nfiles) {
@@ -644,6 +673,7 @@ void st_report_free(StReport* r) {
     free(r->signature);
     free(r->missed);
     free(r->console);
+    free(r->issue_url);
     memset(r, 0, sizeof *r);
 }
 void st_files_free(StFile* f, int n) {

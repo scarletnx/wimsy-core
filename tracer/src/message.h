@@ -28,6 +28,16 @@ typedef struct {
    for one that is no JSON object with an author, an id and a channel id */
 int tr_message(const char* json, size_t len, u64 self, TrMessage* m);
 void tr_message_free(TrMessage* m);
+typedef struct {
+    u64 user, channel, message, guild; /* who reacted, to which message, in which server (0 in a direct message) */
+    u64 roles[TR_ROLES];               /* the user's roles in the guild, as the reaction's member says */
+    int nroles;
+    char* emoji; /* owned: its character, or a server emoji's name */
+} TrReaction;
+/* MESSAGE_REACTION_ADD's reaction, *r filled and 1 when a person added it; 0, nothing owned, for a bot's (self's too)
+   and for one that names no user, message or emoji */
+int tr_reaction(const char* json, size_t len, u64 self, TrReaction* r);
+void tr_reaction_free(TrReaction* r);
 /* MESSAGE_DELETE's message id, or 0 */
 u64 tr_deleted(const char* json, size_t len);
 /* READY's user id, and its name (owned, or NULL) when name is given */

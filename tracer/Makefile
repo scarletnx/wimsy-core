@@ -30,7 +30,7 @@ OURS = $(WARN) $(DEFS) -Isrc -I$(REI)/src -I$(REI)/third_party/cjson -Ithird_par
 LIBS = $(SQLITE_LIBS) $(ARCHIVE_LIBS) $(ZLIB_LIBS) $(CXXRT) -lpthread -lm
 
 LOGIC = src/message.o src/files.o src/store.o src/site.o src/report.o src/titles.o src/channels.o src/worker.o \
-	src/mcp.o src/rei_util.o third_party/cjson.o third_party/logscan.o third_party/demangle.o
+	src/issues.o src/mcp.o src/rei_util.o third_party/cjson.o third_party/logscan.o third_party/demangle.o
 
 all: tracer tracer-mcp
 
@@ -57,11 +57,14 @@ src/site.o: src/site.c src/site.h src/store.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/site.c
 src/worker.o: src/worker.c src/worker.h src/report.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/worker.c
+src/issues.o: src/issues.c src/issues.h src/store.h src/tracer.h
+	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/issues.c
 src/channels.o: src/channels.c src/channels.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/channels.c
 src/titles.o: src/titles.c src/titles.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/titles.c
-src/report.o: src/report.c src/report.h src/titles.h src/files.h src/site.h src/store.h src/message.h src/tracer.h
+src/report.o: src/report.c src/report.h src/issues.h src/titles.h src/files.h src/site.h src/store.h src/message.h \
+		src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/report.c
 src/mcp.o: src/mcp.c src/mcp.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/mcp.c
@@ -70,7 +73,7 @@ src/mcp_main.o: src/mcp_main.c src/mcp.h src/tracer.h
 src/fetch.o: src/fetch.c src/fetch.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) $(CURL_CFLAGS) -c -o $@ src/fetch.c
 # Concord's headers are not ours: their warnings are theirs
-src/main.o: src/main.c $(LOGSCAN_FILES) src/channels.h src/worker.h src/fetch.h src/report.h src/site.h src/store.h \
+src/main.o: src/main.c $(LOGSCAN_FILES) src/channels.h src/issues.h src/worker.h src/fetch.h src/report.h src/site.h src/store.h \
 		src/message.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) $(CURL_CFLAGS) -isystem $(CONCORD)/include/concord -c -o $@ src/main.c
 src/rei_util.o: $(REI)/src/util.c $(REI)/src/rei.h

@@ -447,6 +447,11 @@ char* site_report_html(const StReport* r, const StFile* files, int nfiles, const
     field(&b, "System", r->system);
     field(&b, "GPU", r->gpu);
     field(&b, "Driver", r->driver);
+    if (r->issue > 0 && r->issue_url && !strncmp(r->issue_url, "https://github.com/", 19)) {
+        buf_add(&b, "<dt>Issue</dt><dd><a href=\"");
+        esc(&b, r->issue_url);
+        buf_printf(&b, "\">#%ld</a></dd>\n", r->issue);
+    }
     buf_add(&b, "</dl>\n");
     for (i = 0; i < nfiles; ++i) images += !strcmp(files[i].kind, "image");
     if (images) {
@@ -516,6 +521,10 @@ static cJSON* report_object(const StReport* r) {
     jset(o, "signature", r->signature);
     jset(o, "missed", r->missed);
     jset(o, "console", r->console);
+    if (r->issue > 0 && r->issue_url) {
+        cJSON_AddNumberToObject(o, "issue", (double)r->issue);
+        jset(o, "issue_url", r->issue_url);
+    }
     return o;
 }
 static char* printed(cJSON* o) {

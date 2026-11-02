@@ -209,12 +209,14 @@ static int is_log(const cJSON* s) { return jstr(s, "title") || jstr(s, "title_id
 static char* dup_of(const cJSON* o, const char* key) { return jstr(o, key) ? rei_strdup(jstr(o, key)) : NULL; }
 /* whether m's author deletes or adds to any report of guild: TRACER_ADMINS, or guild's own owner and administrators
    (the bot may be in other servers, whose administrators are not this one's) */
-static int admin(const Tracer* t, const TrMessage* m, u64 guild) {
+static int admin_of(const Tracer* t, u64 user, u64 here, const u64* roles, int nroles, u64 guild) {
     int i;
     for (i = 0; i < t->nadmins; ++i)
-        if (t->admins[i] == m->author) return 1;
-    return t->administers && m->guild && m->guild == guild &&
-           t->administers(t->admin_ctx, m->guild, m->author, m->roles, m->nroles);
+        if (t->admins[i] == user) return 1;
+    return t->administers && here && here == guild && t->administers(t->admin_ctx, here, user, roles, nroles);
+}
+static int admin(const Tracer* t, const TrMessage* m, u64 guild) {
+    return admin_of(t, m->author, m->guild, m->roles, m->nroles, guild);
 }
 static const char* tone_name(const char* outcome) {
     if (!outcome || !strcmp(outcome, "no failure logged")) return "ok";
@@ -923,6 +925,55 @@ int tr_rescan(Tracer* t, const char* version) {
     st_set_meta(t->store, "logscan", version);
     rei_log("%d reports summarized again, with the log summary %s", done, version);
     return done;
+}
+
+cJSON* tr_approved(Tracer* t, const TrReaction* r) {
+    StReport rep;
+    StFile* files;
+    int nfiles, claimed;
+    long id, number;
+    char *title, *body, *url = NULL, *why = NULL, *text;
+    cJSON* e;
+    if (!t->issues || !t->issues->repo || !r->emoji || strcmp(r->emoji, t->issues->emoji)) return NULL;
+    if (!(id = st_report_of(t->store, r->message)) || st_get(t->store, id, &rep, &files, &nfiles) != 1) return NULL;
+    if (!admin_of(t, r->user, r->guild, r->roles, r->nroles, rep.guild)) {
+        rei_log("report #%ld: %s from %llu, who may not approve it", id, r->emoji, (unsigned long long)r->user);
+        st_report_free(&rep);
+        st_files_free(files, nfiles);
+        return NULL;
+    }
+    if ((claimed = st_claim_issue(t->store, id)) != 1) {
+        if (!claimed)
+            rei_log("report #%ld approved again: %s", id,
+                    rep.issue > 0 ? "it is an issue already" : "its issue is being opened");
+        st_report_free(&rep);
+        st_files_free(files, nfiles);
+        return claimed ? said("The approval could not be kept: try again later, please.") : NULL;
+    }
+    title = tr_issue_title(&rep);
+    body = tr_issue_body(&rep, files, nfiles, t->url);
+    if (tr_issue_open(t->issues, title, body, &number, &url, &why)) {
+        st_set_issue(t->store, id, 0, NULL); /* none again: a later approval tries again */
+        rei_log("report #%ld was approved and not filed: %s", id, why);
+        text = rei_format("Report #%ld could not be filed as an issue: %s", id, why);
+        e = said(text);
+    } else {
+        if (st_set_issue(t->store, id, number, url))
+            rei_log("report #%ld is issue #%ld (%s), and the database did not keep it", id, number, url);
+        site_update(t->store, t->root, id, rep.key);
+        rei_log("report #%ld is issue #%ld", id, number);
+        text = rei_format("Report #%ld is issue #%ld now.", id, number);
+        e = said(text);
+        jset(e, "url", url);
+    }
+    free(text);
+    free(url);
+    free(why);
+    free(title);
+    free(body);
+    st_report_free(&rep);
+    st_files_free(files, nfiles);
+    return e;
 }
 
 void tr_replied(Tracer* t, long report, u64 reply) {

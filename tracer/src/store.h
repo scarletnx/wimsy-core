@@ -18,8 +18,10 @@ typedef struct {
     /* owned; NULL where the log says nothing. key and title are never NULL */
     char *key, *title, *title_id, *note, *version, *build, *commit, *branch, *system, *gpu, *driver, *outcome,
         *signature;
-    char* missed;  /* owned: what the runtime missed, counted ("1116 shaders, 1 texture format"), NULL for nothing */
-    char* console; /* owned: "Switch", "3DS", "Vita", "GBA" as the log summary names it, NULL when it doesn't say */
+    char* missed;    /* owned: what the runtime missed, counted ("1116 shaders, 1 texture format"), NULL for nothing */
+    char* console;   /* owned: "Switch", "3DS", "Vita", "GBA" as the log summary names it, NULL when it doesn't say */
+    long issue;      /* its GitHub issue's number; 0 for none, -1 while one is being opened */
+    char* issue_url; /* owned: that issue's page, NULL for none */
 } StReport;
 
 typedef struct {
@@ -78,6 +80,11 @@ int st_set_meta(Store* s, const char* key, const char* value);
 int st_set_summary(Store* s, long report, int n, const char* summary);
 /* file n of report's size written again, after its file was: 0, or -1 */
 int st_set_bytes(Store* s, long report, int n, double bytes);
+/* report's issue taken for one being opened (issue -1): 1 when it was, 0 when the report has one or one is being opened
+   already, -1 for an error */
+int st_claim_issue(Store* s, long report);
+/* report's issue: its number and page, or (number 0, url NULL) none again after a failure. 0, or -1 */
+int st_set_issue(Store* s, long report, long number, const char* url);
 int st_set_facts(Store* s, const StReport* r);
 /* report id's game named again, as a later log names it: 0, or -1 */
 int st_set_game(Store* s, long id, const char* key, const char* title, const char* title_id, int named);

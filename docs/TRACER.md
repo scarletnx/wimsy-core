@@ -62,6 +62,17 @@ When the log summary or the list of names changes (`scripts/sync-logscan.sh`, `s
 start summarizes each kept log again, draws each report's facts again from its first log, files a report whose first
 log now names another game under that game, and names one its logs don't name from the list.
 
+A report becomes a GitHub issue once a server's administrator approves it: with `TRACER_ISSUES_REPO`, the owner or an
+administrator of the server it was sent in (or one of `TRACER_ADMINS`) reacts to one of its messages (the one that sent
+it, an update, Tracer's answer) with the approval's emoji, `TRACER_ISSUES_EMOJI`, the check mark by default. Tracer
+opens the issue in that repository with what the site shows of the report: its facts and its first log's summary (home
+folders as `~`, addresses as `[ip]` and `[email]`, no dumps), each of a log's or a player's words in a code block,
+where GitHub links no `@name` and no `#number`, and the report's page. The issue's number goes into the database, onto
+the report's page and its JSON, and into a short reply on Discord. A report is filed once: a second approval opens no
+other issue, and one GitHub refused (its status and message in the reply) is tried again by the next approval. Anyone
+else's reaction, and another emoji, are left as they are. GitHub is asked from the bot's own process, with a 30 s
+timeout; the worker that reads the files never holds this token either.
+
 The site does not say who sent a report. The database keeps the sender's user id (for the deletion, the updates and
 the hourly limit) and the ids of the messages that lead to a report, nothing else of them; it keeps nothing of
 messages that do not mention it. It asks for no privileged intent: Discord sends the text and the attachments of a
@@ -126,6 +137,10 @@ fill in; an empty value stops the service):
 | `TRACER_SITE` | `/var/db/tracer-site` | the site's folder (`tracer_site` in rc.conf) |
 | `TRACER_ASSETS` | `/usr/local/share/tracer` | where `style.css`, `site.js` and `tracer.svg` are |
 | `TRACER_TITLES` | none: no list | the games' names by title ID, made by `scripts/make-titles.py --out FILE`; without it a game its logs don't name keeps its title ID |
+| `TRACER_ISSUES_REPO` | none: no issue is filed | `OWNER/NAME`: the repository an approved report becomes an issue of; the start's log line says it, or that it is not set |
+| `TRACER_ISSUES_TOKEN` | none: needed with the repository | a fine-grained token of that repository alone, with Issues read and write and nothing else; never in the log |
+| `TRACER_ISSUES_EMOJI` | the check mark (U+2705) | the approval's emoji: its character, or a server emoji's name |
+| `TRACER_ISSUES_LABELS` | none | `label,label`: the labels each issue gets |
 
 A `TRACER_` key it does not know stops it, naming the key; so does an id that is not one, and an address that is not
 `https://` or `http://`.

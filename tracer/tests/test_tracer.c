@@ -21,6 +21,7 @@
 #include "common/utilities/logscan.h"
 #include "channels.h"
 #include "files.h"
+#include "issues.h"
 #include "mcp.h"
 #include "message.h"
 #include "report.h"
@@ -1715,6 +1716,180 @@ static void test_worker(const char* self_path) {
     CHECK(waiting_files() == 0);
 }
 
+/* ---- the issues ---- */
+static int gh_posts, gh_status = 201;
+static char* gh_body;
+static char gh_url[256];
+static void fake_github(void* ctx, const char* method, const char* url, const char* body, const char* etag,
+                        RgAnswer* out) {
+    (void)ctx;
+    (void)etag;
+    memset(out, 0, sizeof *out);
+    ++gh_posts;
+    snprintf(gh_url, sizeof gh_url, "%s %s", method, url);
+    free(gh_body);
+    gh_body = rei_strdup(body ? body : "");
+    out->status = gh_status;
+    out->body = rei_strdup(gh_status == 201 ? "{\"number\":345,\"html_url\":\"https://github.com/o/r/issues/345\"}"
+                                            : "{\"message\":\"Resource not accessible by personal access token\"}");
+}
+static const char* issue_settings[8][2];
+static const char* issue_env(const char* name) {
+    int i;
+    for (i = 0; i < 8 && issue_settings[i][0]; ++i)
+        if (!strcmp(issue_settings[i][0], name)) return issue_settings[i][1];
+    return NULL;
+}
+/* setting i, and none after it */
+static void issue_set(int i, const char* name, const char* value) {
+    issue_settings[i][0] = name;
+    issue_settings[i][1] = value;
+    issue_settings[i + 1][0] = NULL;
+}
+/* the gateway's reaction json, self being 99 */
+static int read_reaction(const char* json, TrReaction* r) { return tr_reaction(json, strlen(json), 99, r); }
+static TrReaction reaction(u64 user, u64 guild, u64 message, const char* emoji) {
+    TrReaction r;
+    memset(&r, 0, sizeof r);
+    r.user = user;
+    r.channel = 22;
+    r.guild = guild;
+    r.message = message;
+    r.emoji = rei_strdup(emoji);
+    return r;
+}
+static void test_issues(void) {
+    TrIssues is;
+    TrReaction r;
+    TrMessage m;
+    StReport rep;
+    const char* token;
+    char *why, *t, *p;
+    long id;
+    /* the settings: off without a repository, said; the token, the emoji and the labels */
+    issue_settings[0][0] = NULL;
+    CHECK(!tr_issues_settings(&is, issue_env, &token, &why) && !is.repo && !token);
+    t = tr_issues_said(&is);
+    SAME(t, "issues: none, as TRACER_ISSUES_REPO is not set");
+    free(t);
+    issue_set(0, "TRACER_ISSUES_TOKEN", "github_pat_x");
+    CHECK(tr_issues_settings(&is, issue_env, &token, &why) == -1);
+    SAME(why, "TRACER_ISSUES_TOKEN is set, and TRACER_ISSUES_REPO, the issues' repository, is not");
+    free(why);
+    issue_set(0, "TRACER_ISSUES_REPO", "o/r");
+    CHECK(tr_issues_settings(&is, issue_env, &token, &why) == -1);
+    SAME(why, "TRACER_ISSUES_REPO=o/r needs TRACER_ISSUES_TOKEN, a fine-grained token that writes its issues");
+    free(why);
+    issue_set(0, "TRACER_ISSUES_REPO", "o/r/x");
+    issue_set(1, "TRACER_ISSUES_TOKEN", "github_pat_x");
+    CHECK(tr_issues_settings(&is, issue_env, &token, &why) == -1);
+    SAME(why, "TRACER_ISSUES_REPO=o/r/x is not OWNER/NAME");
+    free(why);
+    issue_set(0, "TRACER_ISSUES_REPO", "o/r");
+    issue_set(1, "TRACER_ISSUES_TOKEN", "github_pat_x");
+    issue_set(2, "TRACER_ISSUES_LABELS", "game report, needs triage");
+    CHECK(!tr_issues_settings(&is, issue_env, &token, &why));
+    SAME(token, "github_pat_x");
+    SAME(is.emoji, "\xe2\x9c\x85");
+    CHECK(is.nlabels == 2);
+    SAME(is.labels[1], "needs triage");
+    t = tr_issues_said(&is);
+    SAME(t, "issues: into o/r, once a server's administrator reacts to a report with \xe2\x9c\x85; labels: game "
+            "report,needs triage");
+    LACKS(t, "github_pat");
+    free(t);
+    is.fetch = fake_github;
+    tracer.issues = &is;
+    /* a report: then reactions to it */
+    m = message(8000, 140, "<@99> @everyone #12 ```ticks```");
+    attach(&m, "game.log", "https://cdn.discordapp.com/1/game.log", 10);
+    free(answer_text(respond(&m)));
+    tr_message_free(&m);
+    id = st_report_of(tracer.store, 8000);
+    CHECK(id > 0);
+    gh_posts = 0;
+    r = reaction(141, 33, 8000, "\xe2\x9c\x85"); /* not an administrator */
+    CHECK(!tr_approved(&tracer, &r));
+    tr_reaction_free(&r);
+    r = reaction(88, 33, 8000, "\xf0\x9f\x91\x8d"); /* an administrator, another emoji */
+    r.roles[r.nroles++] = 5;
+    CHECK(!tr_approved(&tracer, &r));
+    tr_reaction_free(&r);
+    r = reaction(88, 34, 8000, "\xe2\x9c\x85"); /* another server's administrator */
+    r.roles[r.nroles++] = 6;
+    CHECK(!tr_approved(&tracer, &r));
+    tr_reaction_free(&r);
+    CHECK(gh_posts == 0);
+    /* GitHub refuses: said, and a later approval tries again */
+    gh_status = 403;
+    r = reaction(88, 33, 8000, "\xe2\x9c\x85");
+    r.roles[r.nroles++] = 5;
+    t = answer_text(tr_approved(&tracer, &r));
+    HAS(t, "could not be filed as an issue: GitHub answered 403 to POST repos/o/r/issues: Resource not accessible");
+    free(t);
+    CHECK(gh_posts == 1 && st_get(tracer.store, id, &rep, NULL, NULL) == 1 && rep.issue == 0);
+    st_report_free(&rep);
+    gh_status = 201;
+    t = answer_text(tr_approved(&tracer, &r));
+    HAS(t, "is issue #345 now");
+    HAS(t, "https://github.com/o/r/issues/345");
+    free(t);
+    CHECK(gh_posts == 2);
+    SAME(gh_url, "POST https://api.github.com/repos/o/r/issues");
+    HAS(gh_body, "\"labels\":[\"game report\",\"needs triage\"]");
+    HAS(gh_body, "approved on Discord by a server's administrator");
+    { /* no "#" outside the code block, where GitHub would link an issue */
+        const char* fence = strstr(gh_body, "````text");
+        CHECK(fence && !memchr(gh_body, '#', (size_t)(fence - gh_body)));
+    }
+    HAS(gh_body, "https://reports.example/r/");
+    HAS(gh_body, "````text"); /* a fence longer than the note's backticks: what it says is code, no @ or # link */
+    HAS(gh_body, "@everyone #12 ```ticks```");
+    HAS(gh_body, "svcBreak");
+    LACKS(gh_body, "140"); /* no Discord id */
+    CHECK(st_get(tracer.store, id, &rep, NULL, NULL) == 1 && rep.issue == 345);
+    SAME(rep.issue_url, "https://github.com/o/r/issues/345");
+    st_report_free(&rep);
+    {
+        char* rel = rei_format("r/%ld/index.html", id);
+        p = page(rel);
+        HAS(p, "<dt>Issue</dt><dd><a href=\"https://github.com/o/r/issues/345\">#345</a></dd>");
+        free(p);
+        free(rel);
+        rel = rei_format("api/r/%ld.json", id);
+        p = page(rel);
+        HAS(p, "\"issue\":345");
+        free(p);
+        free(rel);
+    }
+    /* approved again, by another administrator or on the bot's answer: no second issue */
+    CHECK(!tr_approved(&tracer, &r));
+    tr_reaction_free(&r);
+    r = reaction(88, 33, last_reply, "\xe2\x9c\x85");
+    r.roles[r.nroles++] = 5;
+    CHECK(!tr_approved(&tracer, &r) && gh_posts == 2);
+    tr_reaction_free(&r);
+    /* the gateway's reaction read: a person's, never a bot's or self's */
+    CHECK(
+        read_reaction("{\"user_id\":\"88\",\"channel_id\":\"22\",\"message_id\":\"8000\",\"guild_id\":\"33\","
+                      "\"member\":{\"roles\":[\"5\"],\"user\":{\"id\":\"88\"}},\"emoji\":{\"id\":null,\"name\":\"x\"}}",
+                      &r));
+    CHECK(r.user == 88 && r.guild == 33 && r.message == 8000 && r.nroles == 1 && r.roles[0] == 5);
+    SAME(r.emoji, "x");
+    tr_reaction_free(&r);
+    CHECK(!read_reaction("{\"user_id\":\"99\",\"channel_id\":\"22\",\"message_id\":\"1\",\"emoji\":{\"name\":\"x\"}}",
+                         &r));
+    CHECK(!read_reaction(
+        "{\"user_id\":\"7\",\"channel_id\":\"22\",\"message_id\":\"1\",\"member\":{\"user\":{\"bot\":true}},"
+        "\"emoji\":{\"name\":\"x\"}}",
+        &r));
+    CHECK(tr_forget(&tracer, 8000));
+    tracer.issues = NULL;
+    tr_issues_free(&is);
+    free(gh_body);
+    gh_body = NULL;
+}
+
 int main(int argc, char** argv) {
     char *db, *command;
     if (argc == 2) return as_worker(argv[1]);
@@ -1759,6 +1934,7 @@ int main(int argc, char** argv) {
         test_other_guild();
         test_mcp_grep();
         test_worker(argv[0]);
+        test_issues();
     }
     st_close(tracer.store);
     if (getenv("TRACER_TEST_KEEP")) fprintf(stderr, "kept %s\n", site);

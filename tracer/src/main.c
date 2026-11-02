@@ -28,6 +28,7 @@ sends the text and the attachments of a message that mentions it */
 
 #include "channels.h"
 #include "fetch.h"
+#include "issues.h"
 #include "http.h"
 #include "report.h"
 #include "rest.h"
@@ -43,14 +44,17 @@ static struct {
     u64 channels[LISTED], admins[LISTED];
     int nchannels, nadmins;
 } env;
-static RhAuth discord_auth;
+static RhAuth discord_auth, github_auth;
 static Dc dc;
+static TrIssues issues; /* issues.repo NULL: no report is filed as an issue */
 static Tracer tracer;
 static Titles titles;
 static u64 self;
 
-static const char* const KNOWN[] = {"TRACER_TOKEN", "TRACER_URL",  "TRACER_CHANNELS", "TRACER_ADMINS",
-                                    "TRACER_DB",    "TRACER_SITE", "TRACER_ASSETS",   "TRACER_TITLES"};
+static const char* const KNOWN[] = {"TRACER_TOKEN",        "TRACER_URL",          "TRACER_CHANNELS",
+                                    "TRACER_ADMINS",       "TRACER_DB",           "TRACER_SITE",
+                                    "TRACER_ASSETS",       "TRACER_TITLES",       "TRACER_ISSUES_REPO",
+                                    "TRACER_ISSUES_TOKEN", "TRACER_ISSUES_EMOJI", "TRACER_ISSUES_LABELS"};
 
 static void stop(const char* fmt, const char* value) {
     fputs("tracer: ", stderr);
@@ -81,6 +85,7 @@ static int ids(const char* name, u64* to) {
     }
     return n;
 }
+static const char* environment(const char* name) { return getenv(name); }
 static void read_env(void) {
     extern char** environ;
     char** e;
@@ -90,7 +95,10 @@ static void read_env(void) {
         if (strncmp(*e, "TRACER_", 7)) continue;
         for (k = 0; k < sizeof KNOWN / sizeof *KNOWN; ++k)
             known |= !strncmp(*e, KNOWN[k], strlen(KNOWN[k])) && (*e)[strlen(KNOWN[k])] == '=';
-        if (!known) stop("%s: no such setting (TRACER_TOKEN, _URL, _CHANNELS, _ADMINS, _DB, _SITE, _ASSETS)", *e);
+        if (!known)
+            stop("%s: no such setting (TRACER_TOKEN, _URL, _CHANNELS, _ADMINS, _DB, _SITE, _ASSETS, _TITLES, "
+                 "_ISSUES_REPO, _ISSUES_TOKEN, _ISSUES_EMOJI, _ISSUES_LABELS)",
+                 *e);
     }
     env.token = setting("TRACER_TOKEN", NULL);
     env.url = setting("TRACER_URL", NULL);
@@ -106,14 +114,23 @@ static void read_env(void) {
     n = strlen(env.url);
     while (n && env.url[n - 1] == '/') --n;
     env.url = rei_format("%.*s", (int)n, env.url);
+    { /* the issues: their token goes into the GitHub requests' header alone, never into the log */
+        const char* token;
+        char* why;
+        if (tr_issues_settings(&issues, environment, &token, &why)) stop("%s", why);
+        if (token) snprintf(github_auth.authorization, sizeof github_auth.authorization, "Bearer %s", token);
+        github_auth.accept = "application/vnd.github+json";
+        issues.fetch = rh_fetch;
+        issues.ctx = &github_auth;
+    }
 }
 
 /* ---- the events waiting for the thread ---- */
 
-enum { EV_CREATE, EV_DELETE };
+enum { EV_CREATE, EV_DELETE, EV_REACTION };
 static struct {
     int kind[WAITING];
-    char* json[WAITING]; /* owned: a MESSAGE_CREATE's data, or NULL with id for a deletion */
+    char* json[WAITING]; /* owned: a MESSAGE_CREATE's or MESSAGE_REACTION_ADD's data, or NULL with id for a deletion */
     u64 id[WAITING];
     int first, n;
     pthread_mutex_t lock;
@@ -229,6 +246,14 @@ static void* handle(void* unused) {
                 }
                 tr_message_free(&m);
             }
+        } else if (kind == EV_REACTION) {
+            TrReaction r;
+            if (tr_reaction(json, strlen(json), self, &r)) {
+                cJSON* e = tr_approved(&tracer, &r);
+                if (e) dc_post(&dc, r.channel, e, r.message);
+                cJSON_Delete(e);
+                tr_reaction_free(&r);
+            }
         } else
             tr_forget(&tracer, id);
         free(json);
@@ -267,6 +292,13 @@ static enum discord_event_scheduler scheduler(struct discord* client, const char
         if (tr_message(data, size, self, &m)) {
             if (m.mentioned && m.guild) push(EV_CREATE, data, size, 0);
             tr_message_free(&m);
+        }
+    }
+    if (event == DISCORD_EV_MESSAGE_REACTION_ADD && issues.repo) { /* the approval's emoji alone waits */
+        TrReaction r;
+        if (tr_reaction(data, size, self, &r)) {
+            if (r.guild && !strcmp(r.emoji, issues.emoji)) push(EV_REACTION, data, size, 0);
+            tr_reaction_free(&r);
         }
     }
     if (event == DISCORD_EV_MESSAGE_DELETE) {
@@ -326,6 +358,12 @@ int main(int argc, char** argv) {
     tracer.admins = env.admins;
     tracer.nadmins = env.nadmins;
     tracer.administers = administers;
+    tracer.issues = &issues;
+    {
+        char* said = tr_issues_said(&issues);
+        rei_log("%s", said);
+        free(said);
+    }
     if (site_assets(env.assets, env.site)) stop("the site's files could not be copied from %s", env.assets);
     if (!env.titles)
         rei_log("TRACER_TITLES is not set: no list of games' names, a game its logs don't name keeps its title ID");
@@ -344,7 +382,8 @@ int main(int argc, char** argv) {
     config.log.level = LOGMOD_LEVEL_WARN; /* Concord's traces name every event: only what goes wrong is logged */
     client = discord_from_config(&config);
     if (!client) stop("Concord could not start a client with TRACER_TOKEN%s", "");
-    discord_add_intents(client, DISCORD_GATEWAY_GUILDS | DISCORD_GATEWAY_GUILD_MESSAGES);
+    discord_add_intents(client, DISCORD_GATEWAY_GUILDS | DISCORD_GATEWAY_GUILD_MESSAGES |
+                                    (issues.repo ? DISCORD_GATEWAY_GUILD_MESSAGE_REACTIONS : 0));
     discord_set_event_scheduler(client, scheduler);
     code = discord_run(client);
     rei_log("the gateway stopped: %s", discord_strerror(code, client));

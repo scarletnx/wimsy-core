@@ -5,6 +5,7 @@
    site's folder; "delete N" and "help" answered. Each answer is an embed for a reply */
 #ifndef TR_REPORT_H
 #define TR_REPORT_H
+#include "issues.h"
 #include "message.h"
 #include "store.h"
 #include "titles.h"
@@ -35,7 +36,8 @@ struct Tracer {
     /* whether user, with these roles, is guild's owner or has the Administrator permission there */
     int (*administers)(void* ctx, u64 guild, u64 user, const u64* roles, int nroles);
     void* admin_ctx;
-    const Titles* titles; /* the games' names, for a game its logs don't name; NULL for none */
+    const Titles* titles;   /* the games' names, for a game its logs don't name; NULL for none */
+    const TrIssues* issues; /* where an approved report is filed as an issue; NULL, or its repo NULL, for nowhere */
     /* m's files taken into k (its dir made, its base and counts set), where they are read: in a worker of their own
        (main.c's, without the bot's token), or here by tr_take when take is NULL. 0, or -1 with why (owned) */
     int (*take)(void* ctx, Tracer* t, const TrMessage* m, Taken* k, char** why);
@@ -69,6 +71,11 @@ cJSON* tr_answer(Tracer* t, const TrMessage* m, long* report);
    again, when the log summary or the list of names differs from the one that made them (version: TR_LOGSCAN and the
    list's). The reports summarized again, -1 for an error; the site's pages are not drawn again (site_rebuild) */
 int tr_rescan(Tracer* t, const char* version);
+/* reaction r, to a report's message: when it is the approval's emoji and its user may approve the report (the
+   report's server's owner and administrators, and TRACER_ADMINS), the report filed as an issue once, the site drawn
+   again with it, and the reply: an embed (owned) naming the issue or why GitHub refused it. NULL for any other
+   reaction, and for a report that has its issue or is being filed */
+cJSON* tr_approved(Tracer* t, const TrReaction* r);
 /* reply, the bot's answer, leads to report too, so a reply to it adds to the report */
 void tr_replied(Tracer* t, long report, u64 reply);
 /* message deleted on Discord: a report's own message deletes the report, an update's takes back what it added. 1, or 0

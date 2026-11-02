@@ -58,7 +58,9 @@ A channel id for `REIWIMSY_CHANNELS` and the card channels: Developer Mode, righ
 
 1. Its Discord application (below) and its token.
 2. The env file the package made, `/usr/local/etc/tracer.env` (root's, 600): `TRACER_TOKEN`, `TRACER_URL` (the site's
-   address), and the other keys [Tracer](./TRACER.md) lists.
+   address), `TRACER_CHANNELS` (without it no report is taken), and the other keys [Tracer](./TRACER.md) lists.
+   For the issues, `TRACER_ISSUES_REPO` and `TRACER_ISSUES_TOKEN`: on GitHub, Settings, Developer settings,
+   Fine-grained tokens, the repository alone, the permission Issues: Read and write, nothing else.
 3. On, and started:
 
        sysrc -j tracer tracer_enable=YES

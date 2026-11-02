@@ -37,7 +37,7 @@ noirjail.sh's; each one's own help says what Bastille and pf do under it.
 | `gitscarlet` | Forgejo, on 3000 | isolated | DNS only; reached by `gitedge` and `gitsync` on 3000 |
 | `gitedge` | cloudflared, the forge's tunnel | isolated | Cloudflare's edge (7844, TCP and UDP), `gitscarlet` on 3000 |
 | `status` | Gatus and cloudflared, the status page's tunnel | the host's LAN bridge | the addresses it checks, Cloudflare |
-| `tracer` | Tracer | the host's LAN bridge | Discord |
+| `tracer` | Tracer | the host's LAN bridge | Discord, and GitHub's API with `TRACER_ISSUES_REPO` |
 | `tracerweb` | nginx, tracer-mcp and cloudflared: Tracer's site, its MCP server and their tunnel | the host's LAN bridge | Cloudflare; Tracer's site mounted read-only |
 
 An isolated jail asks `ISOLATED_DNS` for names and reaches no package repository: its packages come from the host's
