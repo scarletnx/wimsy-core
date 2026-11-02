@@ -44,7 +44,7 @@ asked for a report of their own, which goes with the same game. A report its log
 log of the same title ID gives. Words added later are shown under the report's note, each with its date.
 
 `@Tracer help` says how; `@Tracer delete 12`, or a reply with `@Tracer delete`, deletes a report, for the person who
-sent it, the server's owner and administrators (the Administrator permission), and `TRACER_ADMINS`. A message deleted
+sent it, the owner and administrators (the Administrator permission) of the server it was sent in, and `TRACER_ADMINS`. A message deleted
 on Discord takes back what it sent: the whole report, or what it added to one. Ten reports and updates an hour from one
 person at most, counted as they are asked for: one whose files were no log counts, and so does one deleted since (its
 files were downloaded); a message with no file and no note does not. A report's number is never another's after it is

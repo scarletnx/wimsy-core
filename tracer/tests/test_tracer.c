@@ -485,11 +485,11 @@ static void test_game(void) {
 /* ---- whole reports ---- */
 static char site[64];
 static Tracer tracer;
-/* user 88 administers guild 33 through role 5 */
+/* user 88 administers guild 33 through role 5, and guild 34 through role 6 */
 static int fake_administers(void* ctx, u64 guild, u64 user, const u64* roles, int nroles) {
     (void)ctx;
     (void)user;
-    return guild == 33 && nroles == 1 && roles[0] == 5;
+    return nroles == 1 && ((guild == 33 && roles[0] == 5) || (guild == 34 && roles[0] == 6));
 }
 
 static TrMessage message(u64 id, u64 author, const char* content) {
@@ -1331,6 +1331,45 @@ static void test_limits(void) {
     }
 }
 
+/* another server's administrator neither deletes nor adds to a report of this one */
+static void test_other_guild(void) {
+    TrMessage m;
+    char *t, *text;
+    long id;
+    m = message(2600, 81, "<@99>");
+    attach(&m, "game.log", "https://cdn.discordapp.com/1/game.log", 10);
+    free(answer_text(respond(&m)));
+    tr_message_free(&m);
+    id = st_report_of(tracer.store, 2600);
+    CHECK(id > 0);
+    text = rei_format("<@99> delete %ld", id);
+    m = message(2601, 88, text);
+    m.guild = 34;
+    m.roles[m.nroles++] = 6;
+    t = answer_text(respond(&m));
+    HAS(t, "is not yours");
+    free(t);
+    tr_message_free(&m);
+    free(text);
+    text = rei_format("<@99> add %ld from another server", id);
+    m = message(2602, 88, text);
+    m.guild = 34;
+    m.roles[m.nroles++] = 6;
+    t = answer_text(respond(&m));
+    HAS(t, "is not yours");
+    free(t);
+    tr_message_free(&m);
+    free(text);
+    text = rei_format("<@99> delete %ld", id); /* this server's administrator does */
+    m = message(2603, 88, text);
+    m.roles[m.nroles++] = 5;
+    t = answer_text(respond(&m));
+    HAS(t, "is deleted");
+    free(t);
+    tr_message_free(&m);
+    free(text);
+}
+
 int main(void) {
     char *db, *command;
     rei_now = clock_now;
@@ -1362,6 +1401,7 @@ int main(void) {
         test_titles();
         test_missed();
         test_limits();
+        test_other_guild();
     }
     st_close(tracer.store);
     if (getenv("TRACER_TEST_KEEP")) fprintf(stderr, "kept %s\n", site);

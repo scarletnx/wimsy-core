@@ -205,11 +205,14 @@ static char* summary_of(const char* text, size_t n) {
 }
 static int is_log(const cJSON* s) { return jstr(s, "title") || jstr(s, "title_id") || jstr(s, "build"); }
 static char* dup_of(const cJSON* o, const char* key) { return jstr(o, key) ? rei_strdup(jstr(o, key)) : NULL; }
-static int admin(const Tracer* t, const TrMessage* m) {
+/* whether m's author deletes or adds to any report of guild: TRACER_ADMINS, or guild's own owner and administrators
+   (the bot may be in other servers, whose administrators are not this one's) */
+static int admin(const Tracer* t, const TrMessage* m, u64 guild) {
     int i;
     for (i = 0; i < t->nadmins; ++i)
         if (t->admins[i] == m->author) return 1;
-    return t->administers && m->guild && t->administers(t->admin_ctx, m->guild, m->author, m->roles, m->nroles);
+    return t->administers && m->guild && m->guild == guild &&
+           t->administers(t->admin_ctx, m->guild, m->author, m->roles, m->nroles);
 }
 static const char* tone_name(const char* outcome) {
     if (!outcome || !strcmp(outcome, "no failure logged")) return "ok";
@@ -257,7 +260,7 @@ static cJSON* deleted(Tracer* t, const TrMessage* m, long id) {
         free(text);
         return e;
     }
-    if (r.poster != m->author && !admin(t, m))
+    if (r.poster != m->author && !admin(t, m, r.guild))
         text =
             rei_format("Report #%ld is not yours: only the person who sent it, or an administrator, deletes it.", id);
     else {
@@ -668,7 +671,7 @@ static cJSON* updated(Tracer* t, const TrMessage* m, long id, const char* note, 
         free(text);
         return e;
     }
-    if (r.poster != m->author && !admin(t, m)) {
+    if (r.poster != m->author && !admin(t, m, r.guild)) {
         text = rei_format("Report #%ld is not yours: only the person who sent it, or an administrator, adds to it. "
                           "Send a report of your own: it goes with the same game.",
                           id);
