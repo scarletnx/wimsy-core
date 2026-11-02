@@ -478,6 +478,9 @@ static void test_reports(void) {
     HAS(p, "href=\"r/1/\"");
     HAS(p, "data-missed=\"something missed\"");
     HAS(p, "<select data-key=\"missed\"");
+    HAS(p,
+        "<select data-key=\"console\" data-fixed aria-label=\"Console\"><option value=\"\">Console: all</option><option "
+        "value=\"Switch\">Switch</option><option value=\"3DS\">3DS</option>"); /* every console, never hidden */
     free(p);
     /* the JSON: the report, its files and summaries, and no Discord id */
     p = page("api/r/1.json");

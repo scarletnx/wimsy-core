@@ -21,12 +21,17 @@ for (const box of document.querySelectorAll(".filters[data-for]")) {
   const count = box.querySelector("[data-count]");
   const empty = list.closest("main").querySelector("[data-empty]");
 
-  // each choice's values as the rows have them, the most common first
+  // each choice's values as the rows have them, the most common first; a fixed choice (the console) keeps its own
+  // values, each with its count
   for (const s of selects) {
     const seen = new Map();
     for (const r of rows) {
       const v = r.dataset[s.dataset.key];
       if (v) seen.set(v, (seen.get(v) || 0) + 1);
+    }
+    if ("fixed" in s.dataset) {
+      for (const o of s.options) if (o.value) o.textContent = `${o.value} (${seen.get(o.value) || 0})`;
+      continue;
     }
     if (seen.size < 2) continue;
     for (const [v, n] of [...seen].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))) {

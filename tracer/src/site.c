@@ -93,6 +93,9 @@ static void foot(Buf* b) {
                "</body>\n</html>\n");
 }
 /* the controls site.js reads: a search, and a choice of each key's values (filled in from the rows) */
+/* the consoles ScarletNX runs, as the log summary names them */
+static const char* const CONSOLES[] = {"Switch", "3DS", "Vita", "GBA"};
+
 static void filters(Buf* b, const char* list, const char* placeholder, const char* const* keys,
                     const char* const* names, int nkeys) {
     int i;
@@ -100,11 +103,19 @@ static void filters(Buf* b, const char* list, const char* placeholder, const cha
     esc(b, placeholder);
     buf_add(b, "\" aria-label=\"Search\">\n");
     for (i = 0; i < nkeys; ++i) {
-        buf_printf(b, "<select data-key=\"%s\" aria-label=\"", keys[i]);
+        /* the console's choice is always there, with each console ScarletNX runs, so a list can be one console's
+           before it has another's report; site.js counts them. The others list the values the rows have */
+        int console = !strcmp(keys[i], "console");
+        size_t k;
+        buf_printf(b, "<select data-key=\"%s\"%s aria-label=\"", keys[i], console ? " data-fixed" : "");
         esc(b, names[i]);
-        buf_add(b, "\" hidden><option value=\"\">");
+        buf_add(b, console ? "\">" : "\" hidden>");
+        buf_add(b, "<option value=\"\">");
         esc(b, names[i]);
-        buf_add(b, ": all</option></select>\n");
+        buf_add(b, ": all</option>");
+        for (k = 0; console && k < sizeof CONSOLES / sizeof *CONSOLES; ++k)
+            buf_printf(b, "<option value=\"%s\">%s</option>", CONSOLES[k], CONSOLES[k]);
+        buf_add(b, "</select>\n");
     }
     buf_add(b, "<span class=\"count\" data-count></span>\n</div>\n");
 }
