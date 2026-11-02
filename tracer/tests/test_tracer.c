@@ -457,6 +457,25 @@ static void test_public_log(void) {
     shown = tr_public_log("", 0, &n);
     CHECK(shown && !*shown && !n);
     free(shown);
+    { /* the players' addresses: IPv4 but the loopback's, 0.0.0.0 and masks, and e-mail; versions stay */
+        static const char net[] = "ldn: this console is 192.168.1.23/255.255.255.0, the game's sockets bind there\n"
+                                  "ldn: Bob joined as node 1 from 203.0.113.5, 2 of 8 nodes\n"
+                                  "room: joined relay.example.org:24872 as JohnS, at 10.13.0.2:5000, 3 members\n"
+                                  "net: 127.0.0.2 and 0.0.0.0 stay\n"
+                                  "vulkan: 1.3.250.0.1, Windows 10.0.26100.1 and 300.1.1.1 stay\n"
+                                  "room: Alice says: write to alice.b+x@mail.example.com.\n"
+                                  "memcpy@GLIBC_2.14 and vkGet@1.3 stay";
+        shown = tr_public_log(net, sizeof net - 1, &n);
+        SAME(shown, "ldn: this console is [ip]/255.255.255.0, the game's sockets bind there\n"
+                    "ldn: Bob joined as node 1 from [ip], 2 of 8 nodes\n"
+                    "room: joined relay.example.org:24872 as JohnS, at [ip]:5000, 3 members\n"
+                    "net: 127.0.0.2 and 0.0.0.0 stay\n"
+                    "vulkan: 1.3.250.0.1, Windows 10.0.26100.1 and 300.1.1.1 stay\n"
+                    "room: Alice says: write to [email].\n"
+                    "memcpy@GLIBC_2.14 and vkGet@1.3 stay");
+        CHECK(n == strlen(shown));
+        free(shown);
+    }
     /* each prefix the log summary's dump() leaves out is left out here: a prefix added there fails this until it is */
     source = read_file("third_party/logscan/common/utilities/logscan.c", NULL);
     where = source ? strstr(source, "static int dump(Span line)") : NULL;

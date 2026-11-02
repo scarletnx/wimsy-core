@@ -434,13 +434,76 @@ static int dump_line(const char* s, size_t n) {
     return d < n && s[d] == '=';
 }
 
+static int digit(char c) { return c >= '0' && c <= '9'; }
+static int letter(char c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'); }
+
+/* the length of an IPv4 address at s (four numbers to 255 joined by dots, no digit after it, no fifth number), its
+   first number in *first; 0 for none */
+static size_t ipv4(const char* s, size_t n, unsigned* first) {
+    size_t i = 0, start;
+    int part;
+    for (part = 0; part < 4; ++part) {
+        unsigned v = 0;
+        if (part) {
+            if (i >= n || s[i] != '.') return 0;
+            ++i;
+        }
+        for (start = i; i < n && digit(s[i]) && i - start < 3; ++i) v = v * 10 + (unsigned)(s[i] - '0');
+        if (i == start || v > 255 || (i < n && digit(s[i]))) return 0;
+        if (!part) *first = v;
+    }
+    if (i + 1 < n && s[i] == '.' && digit(s[i + 1])) return 0; /* a fifth number: a version */
+    return i;
+}
+static int name_char(char c) {
+    return letter(c) || digit(c) || c == '.' || c == '_' || c == '%' || c == '+' || c == '-';
+}
+static int host_char(char c) { return letter(c) || digit(c) || c == '.' || c == '-'; }
+/* the length of an e-mail address around the '@' at s + at (name@host.tld, its last label two letters or more), *from
+   where it starts; 0 for none */
+static size_t email(const char* s, size_t n, size_t at, size_t* from) {
+    size_t a = at, z = at + 1, dot, i;
+    while (a && name_char(s[a - 1])) --a;
+    while (z < n && host_char(s[z])) ++z;
+    while (z > at + 1 && s[z - 1] == '.') --z; /* a sentence's full stop after it */
+    for (dot = z; dot > at + 1 && s[dot - 1] != '.'; --dot) continue;
+    if (a == at || dot <= at + 2 || z - dot < 2) return 0; /* dot: the last label's start */
+    for (i = dot; i < z; ++i)
+        if (!letter(s[i])) return 0;
+    *from = a;
+    return z - a;
+}
+/* a line of the log as the site shows it, into b: each IPv4 address but the loopback's, 0.0.0.0 and a mask (255.) as
+   [ip], each e-mail address as [email]. A player's address and the other players' on a network game are theirs */
+static void scrubbed(Buf* b, const char* s, size_t n) {
+    size_t i = 0, done = 0;
+    while (i < n) {
+        size_t len, from;
+        unsigned first = 0;
+        if (digit(s[i]) && (!i || (!digit(s[i - 1]) && s[i - 1] != '.')) && (len = ipv4(s + i, n - i, &first))) {
+            if (first != 127 && first != 255 && (first || strncmp(s + i, "0.0.0.0", len))) {
+                buf_addn(b, s + done, i - done);
+                buf_add(b, "[ip]");
+                done = i + len;
+            }
+            i += len;
+        } else if (s[i] == '@' && (len = email(s, n, i, &from)) && from >= done) {
+            buf_addn(b, s + done, from - done);
+            buf_add(b, "[email]");
+            done = i = from + len;
+        } else
+            ++i;
+    }
+    buf_addn(b, s + done, n - done);
+}
+
 char* tr_public_log(const char* text, size_t n, size_t* size) {
     Buf b = {0};
     size_t at = 0;
     while (at < n) {
         const char* nl = memchr(text + at, '\n', n - at);
         size_t len = nl ? (size_t)(nl - (text + at)) + 1 : n - at;
-        if (!dump_line(text + at, len)) buf_addn(&b, text + at, len);
+        if (!dump_line(text + at, len)) scrubbed(&b, text + at, len);
         at += len;
     }
     *size = b.len;

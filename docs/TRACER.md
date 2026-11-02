@@ -11,7 +11,8 @@ A message that mentions it with a ScarletNX log attached becomes a report:
 - Its logs (`.log`, `.txt`, or one packed in a `.gz` or a `.zip`; 3 at most, 64 MiB each) are downloaded from
   Discord, each home folder in them written as `~` (`/home/<user>`, `C:\Users\<user>`, Android's app folders), the
   crash report's code and memory dumps and registers left out (the game's own bytes, which the summary leaves out too),
-  and summarized: the game, its title ID and version, the build, the system and GPU, how the run ended and where, the
+  each IPv4 address but the loopback's written as `[ip]` and each e-mail address as `[email]` (a network game's log
+  names the player's address and the other players'), and summarized: the game, its title ID and version, the build, the system and GPU, how the run ended and where, the
   service commands and what else the runtime missed, the last lines. A file that is no ScarletNX log is named in the
   reply and not kept.
 - Its screenshots (PNG, JPEG, WebP, GIF or PPM, read from their bytes; 8 at most, 25 MiB each) lose their metadata:
