@@ -69,30 +69,54 @@ static size_t strip_png(unsigned char* d, size_t n) {
     }
 }
 
+/* the bytes after a scan's header, its entropy-coded data, up to the marker that ends it: its length from at. In the
+   data a 0xff is followed by 0 (a stuffed byte), a restart marker, or another 0xff (fill) */
+static size_t scan_data(const unsigned char* d, size_t n, size_t at) {
+    size_t j = at;
+    while (j + 1 < n) {
+        if (d[j] != 0xff || d[j + 1] == 0x00 || (d[j + 1] >= 0xd0 && d[j + 1] <= 0xd7))
+            j += d[j] == 0xff ? 2 : 1;
+        else if (d[j + 1] == 0xff)
+            ++j;
+        else
+            return j - at;
+    }
+    return n - at;
+}
+
+/* to the end-of-image marker, which ends what is shown: what a phone appends after it (a motion photo's video, a
+   maker's trailer) goes with the metadata */
 static size_t strip_jpeg(unsigned char* d, size_t n) {
     size_t i = 2, out = 2;
+    int scanned = 0;
     for (;;) {
         unsigned m;
         size_t len;
-        if (n - i < 4 || d[i] != 0xff) return 0;
+        if (i >= n) return scanned ? out : 0; /* cut short after a scan: shown as far as it goes */
+        if (n - i < 2 || d[i] != 0xff) return 0;
         m = d[i + 1];
         if (m == 0xff) { /* a fill byte */
             ++i;
             continue;
         }
-        if (m == 0xda) { /* the scan, the image itself, to the end */
-            memmove(d + out, d + i, n - i);
-            return out + (n - i);
+        if (m == 0xd9) { /* the image's end, or its end before its scan */
+            if (!scanned) return 0;
+            memmove(d + out, d + i, 2);
+            return out + 2;
         }
-        if (m == 0xd9) return 0; /* the image's end before its scan */
         if ((m >= 0xd0 && m <= 0xd7) || m == 0x01) {
             memmove(d + out, d + i, 2);
             out += 2;
             i += 2;
             continue;
         }
+        if (n - i < 4) return 0;
         len = (size_t)d[i + 2] << 8 | d[i + 3];
         if (len < 2 || len > n - i - 2) return 0;
+        if (m == 0xda) { /* a scan: its header, then its data */
+            len += scan_data(d, n, i + 2 + len);
+            scanned = 1;
+        }
         if (!((m >= 0xe1 && m <= 0xef && m != 0xe2 && m != 0xee) || m == 0xfe)) {
             memmove(d + out, d + i, 2 + len);
             out += 2 + len;

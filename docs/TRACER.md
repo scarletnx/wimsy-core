@@ -15,8 +15,9 @@ A message that mentions it with a ScarletNX log attached becomes a report:
   service commands and what else the runtime missed, the last lines. A file that is no ScarletNX log is named in the
   reply and not kept.
 - Its screenshots (PNG, JPEG, WebP, GIF or PPM, read from their bytes; 8 at most, 25 MiB each) lose their metadata:
-  EXIF and its place and camera, XMP, PNG's text and time, JPEG's comments. A PPM, the frames ScarletNX's runtimes
-  save (P6, 8 bits a channel), is kept as a PNG, which a browser shows.
+  EXIF and its place and camera, XMP, PNG's text and time, JPEG's comments, and what follows a JPEG's end (a phone's
+  motion photo video, a maker's trailer). A PPM, the frames ScarletNX's runtimes save (P6, 8 bits a channel), is kept
+  as a PNG, which a browser shows.
 - Its videos (MP4 or WebM, read from their bytes; 2 at most, 100 MiB each) are played on the report's page. An MP4's
   place and camera (its ©xyz, loci, ©mak and ©mod boxes) are blanked where they are, as free boxes of zeros, so that
   nothing in it moves; a WebM is kept as it is. The web server must allow them (`media-src 'self'` in

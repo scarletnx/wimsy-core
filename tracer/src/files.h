@@ -15,9 +15,9 @@ TrKind tr_kind(const char* name, const char* type);
 /* the image's kind from its first bytes: "png", "jpg", "gif", "webp" or "ppm" (a binary PPM, P6, which ScarletNX's
    runtimes write their frames as); NULL for none of them */
 const char* tr_image_ext(const char* data, size_t n);
-/* the image's metadata taken out in place: PNG's text, time and eXIf chunks, JPEG's APP1 and later segments (except
-   ICC's APP2 and Adobe's APP14) and comments, WebP's EXIF and XMP chunks. Its new length, or 0 for an image whose
-   structure is broken (the caller keeps none of it). A GIF stays as it is */
+/* the image's metadata taken out in place: PNG's text, time and eXIf chunks and what follows IEND, JPEG's APP1 and
+   later segments (except ICC's APP2 and Adobe's APP14), comments and what follows its end, WebP's EXIF and XMP chunks.
+   Its new length, or 0 for an image whose structure is broken (the caller keeps none of it). A GIF stays as it is */
 size_t tr_strip_image(char* data, size_t n);
 
 /* the video's kind from its first bytes: "mp4" (an ftyp box first) or "webm" (EBML, its doctype webm); NULL for

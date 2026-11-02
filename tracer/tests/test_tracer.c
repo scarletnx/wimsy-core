@@ -302,6 +302,35 @@ static void test_images(void) {
     CHECK(m == 33 - 9 - 6);
     CHECK(!found(jpg, m, "Exif") && found(jpg, m, "JF") && found(jpg, m, "scan"));
     CHECK(!tr_strip_image("\xff\xd8\xff\xd9", 4)); /* no scan */
+    { /* what follows its end goes (a motion photo's video); stuffed bytes, restarts and tables stay, APP1 goes */
+        static const char shown[] = "\xff\xd8"
+                                    "\xff\xda\x00\x02"
+                                    "ab\xff\x00"
+                                    "c\xff\xd0"
+                                    "d\xff\xff\xc4\x00\x03h"
+                                    "\xff\xda\x00\x02"
+                                    "ef"
+                                    "\xff\xd9";
+        static const char two[] = "\xff\xd8\xff\xda\x00\x02"
+                                  "ab"
+                                  "\xff\xe1\x00\x05"
+                                  "gps" /* an APP1 between two scans */
+                                  "\xff\xda\x00\x02"
+                                  "ef"
+                                  "\xff\xd9";
+        char trailed[96];
+        size_t k = sizeof shown - 1;
+        memcpy(trailed, shown, k);
+        memcpy(trailed + k, "ftypmp42 moov gps 52.1N", 23);
+        m = tr_strip_image(trailed, k + 23);
+        CHECK(m == k && !memcmp(trailed, shown, k));
+        CHECK(!found(trailed, m, "gps"));
+        memcpy(trailed, two, sizeof two - 1);
+        m = tr_strip_image(trailed, sizeof two - 1);
+        CHECK(m == 16 && !found(trailed, m, "gps") && found(trailed, m, "ef\xff\xd9"));
+        memcpy(trailed, two, sizeof two - 1);
+        CHECK(tr_strip_image(trailed, 20) == 13); /* cut in its second scan: as far as it goes, its APP1 out */
+    }
     /* WebP: EXIF and XMP go, VP8X's flags for them are cleared, RIFF's size follows */
     memcpy(webp, "RIFF\x2c\x00\x00\x00WEBP", 12);
     memcpy(webp + 12, "VP8X\x02\x00\x00\x00\x0c\x00", 10);
