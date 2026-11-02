@@ -11,4 +11,5 @@ etc/tracer.env.sample
 share/tracer/style.css
 share/tracer/site.js
 share/tracer/tracer.svg
+share/tracer/titles.tsv
 share/examples/tracer/nginx.conf

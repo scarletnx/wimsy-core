@@ -16,7 +16,9 @@ A message that mentions it with a ScarletNX log attached becomes a report:
 - Its screenshots (PNG, JPEG, WebP or GIF, read from their bytes; 8 at most, 25 MiB each) lose their metadata: EXIF
   and its place and camera, XMP, PNG's text and time, JPEG's comments.
 - The game is the first log's: its title ID, else its name. A log that has the title ID alone takes the name other
-  reports gave the game; one that has the name alone goes with the reports that have its title ID. The message's text
+  reports' logs gave the game, else the name `tracer/titles.tsv` lists for it (base applications by title ID, from
+  [titledb](https://github.com/blawar/titledb); an update's or an add-on's ID finds its game); one that has the name
+  alone goes with the reports that have its title ID. The message's text
   names the game only when the log says neither, and is kept as the report's note.
 - The reply links the report's page, with how the run ended, its signature and build, and what was not kept.
 
@@ -32,8 +34,10 @@ sent it, the server's owner and administrators (the Administrator permission), a
 on Discord takes back what it sent: the whole report, or what it added to one. Ten reports an hour from one person at
 most. A report's number is never another's after it is deleted, as replies link to it.
 
-When the log summary changes (`scripts/sync-logscan.sh`), the next start summarizes each kept log again, draws each
-report's facts again from its first log, and files a report whose first log now names another game under that game.
+When the log summary or the list of names changes (`scripts/sync-logscan.sh`, `scripts/make-titles.py`), the next
+start summarizes each kept log again, draws each report's facts again from its first log, files a report whose first
+log now names another game under that game, and names one its logs don't name from the list. The list is made again
+each month (`.github/workflows/titles.yml`), as a pull request when a name changed.
 
 The site does not say who sent a report. The database keeps the sender's user id (for the deletion, the updates and
 the hourly limit) and the ids of the messages that lead to a report, nothing else of them; it keeps nothing of
@@ -98,6 +102,7 @@ fill in; an empty value stops the service):
 | `TRACER_DB` | `/var/db/tracer/tracer.db` | the database (`tracer_db` in rc.conf) |
 | `TRACER_SITE` | `/var/db/tracer-site` | the site's folder (`tracer_site` in rc.conf) |
 | `TRACER_ASSETS` | `/usr/local/share/tracer` | where `style.css`, `site.js` and `tracer.svg` are |
+| `TRACER_TITLES` | `/usr/local/share/tracer/titles.tsv` | the games' names by title ID; without it a game its logs don't name keeps its title ID |
 
 A `TRACER_` key it does not know stops it, naming the key; so does an id that is not one, and an address that is not
 `https://` or `http://`.

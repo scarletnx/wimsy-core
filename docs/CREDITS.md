@@ -11,6 +11,7 @@ wimsy-core is [GPL-3.0-or-later](../LICENSE).
 | [reflect-c](https://github.com/lcsmuller/reflect-c) | Concord's submodule | MIT |
 | [libcurl](https://curl.se/libcurl/) | linked by the programs, the system's | curl |
 | [SQLite](https://sqlite.org) | Tracer's database, the system's | public domain |
+| [titledb](https://github.com/blawar/titledb) | the games' names by title ID, `tracer/titles.tsv` (`scripts/make-titles.py`) | MIT |
 | [libmicrohttpd](https://www.gnu.org/software/libmicrohttpd/) | the HTTP of `tracer-mcp`, the system's | LGPL-2.1-or-later |
 | [libarchive](https://libarchive.org) | Tracer's `.gz` and `.zip` logs, FreeBSD's base | BSD-2-Clause |
 | ScarletNX's log summary (`logscan.c`, `demangle.c`, `ascii.h`) | `tracer/third_party/logscan`, its commit in `COMMIT` | GPL-3.0-or-later |

@@ -3,7 +3,7 @@
 /* Tracer: the game reports that people send it on Discord, kept in a database and drawn as a static site.
 
     TRACER_TOKEN=... TRACER_URL=https://... [TRACER_CHANNELS=id,id] [TRACER_ADMINS=id,id] [TRACER_DB=file]
-    [TRACER_SITE=folder] [TRACER_ASSETS=folder] tracer
+    [TRACER_SITE=folder] [TRACER_ASSETS=folder] [TRACER_TITLES=file] tracer
 
 A report is deleted by the person who sent it, by the guild's owner and administrators, and by TRACER_ADMINS.
 
@@ -26,23 +26,25 @@ sends the text and the attachments of a message that mentions it */
 #include "report.h"
 #include "rest.h"
 #include "site.h"
+#include "titles.h"
 
 #define LISTED  64   /* the channels and the admins named, at most */
 #define WAITING 1024 /* the events that wait for the thread, at most */
 #define PARENTS 256  /* the threads whose channel is remembered */
 
 static struct {
-    const char *token, *url, *db, *site, *assets;
+    const char *token, *url, *db, *site, *assets, *titles;
     u64 channels[LISTED], admins[LISTED];
     int nchannels, nadmins;
 } env;
 static RhAuth discord_auth;
 static Dc dc;
 static Tracer tracer;
+static Titles titles;
 static u64 self;
 
 static const char* const KNOWN[] = {"TRACER_TOKEN", "TRACER_URL",  "TRACER_CHANNELS", "TRACER_ADMINS",
-                                    "TRACER_DB",    "TRACER_SITE", "TRACER_ASSETS"};
+                                    "TRACER_DB",    "TRACER_SITE", "TRACER_ASSETS",   "TRACER_TITLES"};
 
 static void stop(const char* fmt, const char* value) {
     fputs("tracer: ", stderr);
@@ -92,6 +94,7 @@ static void read_env(void) {
     env.db = setting("TRACER_DB", "/var/db/tracer/tracer.db");
     env.site = setting("TRACER_SITE", "/var/db/tracer-site");
     env.assets = setting("TRACER_ASSETS", "/usr/local/share/tracer");
+    env.titles = setting("TRACER_TITLES", "/usr/local/share/tracer/titles.tsv");
     env.nchannels = ids("TRACER_CHANNELS", env.channels);
     env.nadmins = ids("TRACER_ADMINS", env.admins);
     n = strlen(env.url);
@@ -297,7 +300,15 @@ int main(void) {
     tracer.nadmins = env.nadmins;
     tracer.administers = administers;
     if (site_assets(env.assets, env.site)) stop("the site's files could not be copied from %s", env.assets);
-    tr_rescan(&tracer, TR_LOGSCAN); /* a new log summary: the reports' summaries made with it */
+    if (!tr_titles_load(&titles, env.titles)) {
+        tracer.titles = &titles;
+        rei_log("%d games' names from %s", titles.n, env.titles);
+    }
+    { /* a new log summary or list of names: the reports summarized and named again with them */
+        char* version = rei_format("%s %s", TR_LOGSCAN, titles.version);
+        tr_rescan(&tracer, version);
+        free(version);
+    }
     if (site_rebuild(tracer.store, env.site)) rei_log("some pages could not be drawn again");
     memset(&config, 0, sizeof config);
     config.token = (char*)env.token;

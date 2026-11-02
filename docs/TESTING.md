@@ -24,9 +24,10 @@ What CI runs on each pull request and each push to main. No network and no Disco
   reports: kept with their home folders as `~`, drawn with everything escaped, the same message again, refusals,
   updates (by a reply or `add N`, refused to others, within the limits, taken back with their message, a later log
   naming the game), deletion by the sender and the guild's administrators and by no one else, a database of the first
-  schema upgraded, a deleted message, a report's number never
-  reused, the hourly limit, the JSON with no Discord id; and the MCP server over that site: its handshake and protocol
-  versions, notifications, broken and unknown requests, and each tool's filters, limits and errors.
+  schema upgraded, a deleted message, a report's number never reused, the hourly limit, the JSON with no Discord id,
+  the games' names from the list (an update's and an add-on's ID, a report named at once, one named at the next start,
+  a log's name first); and the MCP server over that site: its handshake and protocol versions, notifications, broken
+  and unknown requests, and each tool's filters, limits and errors.
 - The docs (`scripts/check-docs.sh`): no date in `README.md` and `docs/*.md` outside code, as a doc says what is and
   the commit message says when; `scripts/test-check-docs.sh` holds the check to dates in text, in code and none.
 

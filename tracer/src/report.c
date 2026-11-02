@@ -9,6 +9,7 @@
 #include "common/utilities/logscan.h"
 #include "files.h"
 #include "site.h"
+#include "titles.h"
 
 #define TONE_OK   0x22d3ee /* the phosphor palette's cyan, purple, rose and blue */
 #define TONE_WARN 0xa855f7
@@ -384,6 +385,14 @@ static cJSON* made(Tracer* t, const StReport* r, const Taken* k) {
     return e;
 }
 
+/* the name of a game its logs did not name: one another report's log gave it, else the list's (titles.tsv); owned, or
+   NULL */
+static char* known_name(Tracer* t, const char* key, const char* title_id) {
+    char* known = st_title_of_key(t->store, key);
+    const char* listed = known ? NULL : tr_titles_name(t->titles, title_id);
+    return known ? known : listed ? rei_strdup(listed) : NULL;
+}
+
 static cJSON* reported(Tracer* t, const TrMessage* m, char* note, long* report) {
     Taken k;
     StReport r;
@@ -416,8 +425,8 @@ static cJSON* reported(Tracer* t, const TrMessage* m, char* note, long* report) 
             r.key = known;
         }
     }
-    if (!r.named) { /* a log without the game's name, of a game other reports name */
-        char* known = st_title_of_key(t->store, r.key);
+    if (!r.named) { /* a log without the game's name: another report's log's, else the list's */
+        char* known = known_name(t, r.key, r.title_id);
         if (known) {
             free(r.title);
             r.title = known;
@@ -622,19 +631,20 @@ static void refile(Tracer* t, const StReport* r, const cJSON* s) {
     char *key, *title, *tid;
     int named;
     if (tr_game(s, r->note, &key, &title, &tid, &named)) return;
-    if (strcmp(key, r->key)) {
-        if (!named) { /* a log without the game's name, of a game other reports name */
-            char* known = st_title_of_key(t->store, key);
-            if (known) {
-                free(title);
-                title = known;
-            }
+    if (!named) { /* a log without the game's name: another report's log's, else the list's */
+        char* known = known_name(t, key, tid);
+        if (known) {
+            free(title);
+            title = known;
         }
+    }
+    if (strcmp(key, r->key)) {
         if (!st_set_game(t->store, r->id, key, title, tid, named)) {
             rei_log("report #%ld filed again under %s, not %s", r->id, key, r->key);
             site_update(t->store, t->root, 0, r->key);
         }
-    }
+    } else if (!r->named && strcmp(title, r->title) && !st_set_game(t->store, r->id, key, title, tid, named))
+        rei_log("report #%ld named %s", r->id, title);
     free(key);
     free(title);
     free(tid);

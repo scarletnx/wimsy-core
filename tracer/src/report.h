@@ -7,6 +7,7 @@
 #define TR_REPORT_H
 #include "message.h"
 #include "store.h"
+#include "titles.h"
 
 typedef struct {
     Store* store;
@@ -19,6 +20,7 @@ typedef struct {
     /* whether user, with these roles, is guild's owner or has the Administrator permission there */
     int (*administers)(void* ctx, u64 guild, u64 user, const u64* roles, int nroles);
     void* admin_ctx;
+    const Titles* titles; /* the games' names, for a game its logs don't name; NULL for none */
 } Tracer;
 
 /* the game a log's summary names: *key (its title ID, else n- and the name's letters), *title (its name, else its
@@ -31,9 +33,9 @@ int tr_game(const cJSON* summary, const char* note, char** key, char** title, ch
    once posted, is given to tr_replied. A reply to a report's message (its own, an update, the bot's answer) adds to
    that report, as "add 12" does: for the person who sent it, or an administrator */
 cJSON* tr_answer(Tracer* t, const TrMessage* m, long* report);
-/* each kept log summarized again, and each report's facts drawn again from its first log, when the log summary differs
-   from the one that made them (version, the summary's own: TR_LOGSCAN). The reports summarized again, -1 for an
-   error; the site's pages are not drawn again (site_rebuild) */
+/* each kept log summarized again, each report's facts drawn again from its first log, and its game named or filed
+   again, when the log summary or the list of names differs from the one that made them (version: TR_LOGSCAN and the
+   list's). The reports summarized again, -1 for an error; the site's pages are not drawn again (site_rebuild) */
 int tr_rescan(Tracer* t, const char* version);
 /* reply, the bot's answer, leads to report too, so a reply to it adds to the report */
 void tr_replied(Tracer* t, long report, u64 reply);

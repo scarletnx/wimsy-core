@@ -143,6 +143,7 @@ install -m 555 "$here/tracer-mcp.rc" "$s/etc/rc.d/tracer-mcp"
 install -m 644 "$here/tracer.env.sample" "$s/etc/tracer.env.sample"
 install -m 644 "$work/tracer/site/style.css" "$work/tracer/site/site.js" "$work/tracer/site/tracer.svg" \
 	"$s/share/tracer/"
+install -m 644 "$work/tracer/titles.tsv" "$s/share/tracer/titles.tsv"
 install -m 644 "$here/tracer-nginx.conf" "$s/share/examples/tracer/nginx.conf"
 # libarchive is base's
 tdeps=$(deps curl ca_root_nss sqlite3 libmicrohttpd)

@@ -28,7 +28,7 @@ DEFS = -D_POSIX_C_SOURCE=200809L -DREI_NAME=\"tracer\" -DTR_LOGSCAN=\"`cat $(LOG
 OURS = $(WARN) $(DEFS) -Isrc -I$(REI)/src -I$(REI)/third_party/cjson -Ithird_party/logscan
 LIBS = $(SQLITE_LIBS) $(ARCHIVE_LIBS) $(CXXRT) -lpthread -lm
 
-LOGIC = src/message.o src/files.o src/store.o src/site.o src/report.o src/mcp.o src/rei_util.o \
+LOGIC = src/message.o src/files.o src/store.o src/site.o src/report.o src/titles.o src/mcp.o src/rei_util.o \
 	third_party/cjson.o third_party/logscan.o third_party/demangle.o
 
 all: tracer tracer-mcp
@@ -54,7 +54,9 @@ src/store.o: src/store.c src/store.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) $(SQLITE_CFLAGS) -c -o $@ src/store.c
 src/site.o: src/site.c src/site.h src/store.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/site.c
-src/report.o: src/report.c src/report.h src/files.h src/site.h src/store.h src/message.h src/tracer.h
+src/titles.o: src/titles.c src/titles.h src/tracer.h
+	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/titles.c
+src/report.o: src/report.c src/report.h src/titles.h src/files.h src/site.h src/store.h src/message.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/report.c
 src/mcp.o: src/mcp.c src/mcp.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/mcp.c

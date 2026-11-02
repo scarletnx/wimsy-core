@@ -19,6 +19,7 @@
 #include "report.h"
 #include "site.h"
 #include "store.h"
+#include "titles.h"
 
 static int failures, checks;
 #define CHECK(cond)                                                                                                    \
@@ -956,6 +957,64 @@ static void test_rescan(void) {
     CHECK(tr_rescan(&tracer, "b") == 12);
 }
 
+/* the games' names from the list: an update's and an add-on's id find their game, a report its logs don't name is named
+   by it at once, one made before the list at the next start, and a log's own name stays first */
+static void test_titles(void) {
+    static const char list_text[] = "# title ID, name\n0100EEEE00000000\tListed Game\nnot a line\n"
+                                    "0100aaaabbbb0000\tSome Game From The List\n";
+    static char bare[sizeof LOG + 16];
+    Titles list;
+    char *path = at("titles.tsv"), *t, *name;
+    StReport r;
+    TrMessage m;
+    long first, second;
+    CHECK(!site_write(site, "titles.tsv", list_text, sizeof list_text - 1));
+    CHECK(!tr_titles_load(&list, path));
+    CHECK(list.n == 2 && strlen(list.version) == 16);
+    SAME(tr_titles_name(&list, "0100EEEE00000000"), "Listed Game");
+    SAME(tr_titles_name(&list, "0100eeee00000800"), "Listed Game");
+    SAME(tr_titles_name(&list, "0100EEEE00001001"), "Listed Game");
+    CHECK(!tr_titles_name(&list, "0100FFFF00000000"));
+    CHECK(!tr_titles_name(NULL, "0100EEEE00000000"));
+    name = strstr(strcpy(bare, LOG), "Some Game");
+    memmove(name + 16, name + 9, strlen(name + 9) + 1);
+    memcpy(name, "0100EEEE00000000", 16);
+    memcpy(strstr(bare, "0100aaaabbbb0000"), "0100eeee00000000", 16);
+    serve("https://cdn.discordapp.com/6/bare.log", bare, strlen(bare));
+    m = message(6000, 120, "<@99>");
+    attach(&m, "bare.log", "https://cdn.discordapp.com/6/bare.log", 10);
+    t = answer_text(respond(&m));
+    HAS(t, ": 0100EEEE00000000\""); /* no list yet: its title ID */
+    free(t);
+    tr_message_free(&m);
+    first = st_by_message(tracer.store, 6000);
+    tracer.titles = &list;
+    CHECK(tr_rescan(&tracer, "with the list") > 0);
+    CHECK(st_get(tracer.store, first, &r, NULL, NULL) == 1);
+    SAME(r.title, "Listed Game");
+    CHECK(!r.named);
+    st_report_free(&r);
+    m = message(6001, 120, "<@99>");
+    attach(&m, "bare.log", "https://cdn.discordapp.com/6/bare.log", 10);
+    t = answer_text(respond(&m));
+    HAS(t, ": Listed Game\"");
+    free(t);
+    tr_message_free(&m);
+    second = st_by_message(tracer.store, 6001);
+    CHECK(st_get(tracer.store, 2, &r, NULL, NULL) == 1);
+    SAME(r.title, "Some Game"); /* its log named it */
+    st_report_free(&r);
+    {
+        char* p = page("index.html");
+        HAS(p, ">Listed Game<");
+        free(p);
+    }
+    CHECK(tr_forget(&tracer, 6000) && tr_forget(&tracer, 6001) && first && second);
+    tracer.titles = NULL;
+    tr_titles_free(&list);
+    free(path);
+}
+
 int main(void) {
     char *db, *command;
     rei_now = clock_now;
@@ -983,6 +1042,7 @@ int main(void) {
         test_mcp();
         test_upgrade();
         test_rescan();
+        test_titles();
     }
     st_close(tracer.store);
     if (getenv("TRACER_TEST_KEEP")) fprintf(stderr, "kept %s\n", site);

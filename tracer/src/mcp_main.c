@@ -26,8 +26,8 @@ static Mcp mcp;
 static char origin[512]; /* TRACER_URL's scheme, host and port */
 
 /* the settings of tracer's env file too, which this program may share */
-static const char* const KNOWN[] = {"TRACER_TOKEN", "TRACER_URL",  "TRACER_CHANNELS", "TRACER_ADMINS",
-                                    "TRACER_DB",    "TRACER_SITE", "TRACER_ASSETS",   "TRACER_MCP_LISTEN"};
+static const char* const KNOWN[] = {"TRACER_TOKEN", "TRACER_URL",    "TRACER_CHANNELS",   "TRACER_ADMINS", "TRACER_DB",
+                                    "TRACER_SITE",  "TRACER_ASSETS", "TRACER_MCP_LISTEN", "TRACER_TITLES"};
 
 static void stop(const char* fmt, const char* value) {
     fputs("tracer-mcp: ", stderr);
