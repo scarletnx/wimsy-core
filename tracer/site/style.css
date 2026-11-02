@@ -157,7 +157,7 @@ blockquote {
 .games .name { font-weight: 600; grid-column: 1; overflow-wrap: anywhere; }
 .games .id { font-family: var(--mono); font-size: 0.8em; color: var(--muted); grid-column: 1; }
 .games .meta { font-size: 0.85em; color: var(--muted); grid-column: 1 / -1; }
-.games .badge { grid-column: 2; grid-row: 1 / span 2; align-self: start; }
+.games .badges { grid-column: 2; grid-row: 1 / span 2; align-self: start; flex-direction: column; align-items: flex-end; }
 
 .badge {
   display: inline-block;
@@ -172,7 +172,8 @@ blockquote {
 .badge.ok { color: var(--ok); }
 .badge.warn { color: var(--warn); }
 .badge.bad { color: var(--bad); }
-.badge.missed { color: var(--warn); font-weight: 500; white-space: normal; border-radius: 8px; }
+.badges { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.badge.missed { color: var(--warn); font-weight: 500; cursor: help; }
 
 .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
 table { width: 100%; border-collapse: collapse; }

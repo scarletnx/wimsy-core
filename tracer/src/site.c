@@ -54,16 +54,17 @@ static const char* tone(const char* outcome) {
     if (!strcmp(outcome, "unsupported instruction") || !strcmp(outcome, "thread stopped")) return "warn";
     return "bad";
 }
-/* how the run ended, and beside it what the runtime missed when it missed something */
+/* how the run ended, and beside it that the runtime missed something (what, counted, when the pointer is over it) */
 static void badge(Buf* b, const char* outcome, const char* missed) {
-    buf_printf(b, "<span class=\"badge %s\">", tone(outcome));
+    buf_printf(b, "<span class=\"badges\"><span class=\"badge %s\">", tone(outcome));
     esc(b, outcome ? outcome : "no failure logged");
     buf_add(b, "</span>");
     if (missed) {
-        buf_add(b, " <span class=\"badge missed\">missed ");
+        buf_add(b, "<span class=\"badge missed\" title=\"Missed: ");
         esc(b, missed);
-        buf_add(b, "</span>");
+        buf_add(b, "\">something missed</span>");
     }
+    buf_add(b, "</span>");
 }
 static int hex(const char* s) {
     if (!s || !*s) return 0;

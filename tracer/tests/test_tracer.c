@@ -455,7 +455,7 @@ static void test_reports(void) {
     /* the pages: everything the log and the message said escaped */
     p = page("r/1/index.html");
     HAS(p, "<h1>Report #1</h1>");
-    HAS(p, "<span class=\"badge missed\">missed 1 service command</span>");
+    HAS(p, "<span class=\"badge missed\" title=\"Missed: 1 service command\">something missed</span>");
     HAS(p, "<dt>Missed</dt><dd>1 service command</dd>");
     HAS(p, "crashes at the &lt;b&gt;title&lt;/b&gt; screen");
     LACKS(p, "<b>title</b>");
