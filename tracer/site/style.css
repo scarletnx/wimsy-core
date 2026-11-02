@@ -172,6 +172,7 @@ blockquote {
 .badge.ok { color: var(--ok); }
 .badge.warn { color: var(--warn); }
 .badge.bad { color: var(--bad); }
+.badge.missed { color: var(--warn); font-weight: 500; white-space: normal; border-radius: 8px; }
 
 .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
 table { width: 100%; border-collapse: collapse; }

@@ -18,6 +18,7 @@ typedef struct {
     /* owned; NULL where the log says nothing. key and title are never NULL */
     char *key, *title, *title_id, *note, *version, *build, *commit, *branch, *system, *gpu, *driver, *outcome,
         *signature;
+    char* missed; /* owned: what the runtime missed, counted ("1116 shaders, 1 texture format"), NULL for nothing */
 } StReport;
 
 typedef struct {
@@ -38,7 +39,7 @@ typedef struct {
                                      newest known, NULL for a game known by its name alone */
     int reports;
     double last;
-    char* outcome; /* owned: the newest report's */
+    char *outcome, *missed; /* owned: the newest report's */
 } StGame;
 
 /* path's database, its tables made when they are not there; NULL, said in the log, when it cannot be opened */

@@ -21,6 +21,9 @@ A message that mentions it with a ScarletNX log attached becomes a report:
   alone goes with the reports that have its title ID. The message's text
   names the game only when the log says neither, and is kept as the report's note.
 - The reply links the report's page, with how the run ended, its signature and build, and what was not kept.
+- Beside how the run ended, what the runtime missed, counted from the first log's summary: "1116 shaders, 1 texture
+  format, 1 service command" (shaders by the shaders, the rest by the different ones). A run with no failure that
+  missed something is answered in the warning's colour, and the site has a badge and a filter for it.
 
 A report grows: a reply to any of its messages (the one that sent it, an update, Tracer's answer, also one it posted
 before it kept them, whose link names the report) that mentions Tracer

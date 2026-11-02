@@ -94,6 +94,49 @@ static int named_well(const char* name, size_t n) {
     return 1;
 }
 
+char* tr_missed(const cJSON* summary) {
+    /* what each kind of the summary counts as, by the kinds' names of logscan.c's gap_kinds */
+    static const struct {
+        const char *kind, *one, *many;
+    } kinds[] = {{"shader", "shader", "shaders"},
+                 {"compute shader", "shader", "shaders"},
+                 {"class", "engine class", "engine classes"},
+                 {"texture format", "texture format", "texture formats"},
+                 {"target format", "render target format", "render target formats"},
+                 {"depth format", "depth format", "depth formats"},
+                 {"gpu", "GPU operation", "GPU operations"},
+                 {"macro", "macro", "macros"},
+                 {"macro compile", "macro", "macros"},
+                 {"mme", "macro operation", "macro operations"},
+                 {"svc", "SVC", "SVCs"},
+                 {"cpu", "SVC argument", "SVC arguments"}};
+    double counts[sizeof kinds / sizeof *kinds] = {0}, commands = 0;
+    const cJSON* g;
+    Buf b = {0};
+    size_t i, k;
+    cJSON_ArrayForEach(g, cJSON_GetObjectItemCaseSensitive(summary, "missed")) {
+        const char* kind = jstr(g, "kind");
+        for (k = 0; kind && k < sizeof kinds / sizeof *kinds; ++k)
+            if (!strcmp(kind, kinds[k].kind))
+                counts[k] += !strcmp(kind, "shader") || !strcmp(kind, "compute shader") ? jnum(g, "count") : 1;
+    }
+    commands = cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(summary, "ipc"));
+    for (k = 0; k < sizeof kinds / sizeof *kinds; ++k) {
+        double n = counts[k];
+        if (!n) continue;
+        for (i = k + 1; i < sizeof kinds / sizeof *kinds; ++i) /* the kinds counted as one ("shader") together */
+            if (!strcmp(kinds[i].many, kinds[k].many)) {
+                n += counts[i];
+                counts[i] = 0;
+            }
+        buf_printf(&b, "%s%.0f %s", b.len ? ", " : "", n, n == 1 ? kinds[k].one : kinds[k].many);
+    }
+    if (commands)
+        buf_printf(&b, "%s%.0f %s", b.len ? ", " : "", commands,
+                   commands == 1 ? "service command" : "service commands");
+    return b.len ? buf_take(&b) : NULL;
+}
+
 int tr_game(const cJSON* summary, const char* note, char** key, char** title, char** tid, int* named) {
     const char *id = jstr(summary, "title_id"), *name = jstr(summary, "title");
     char* got = NULL;
@@ -353,6 +396,12 @@ static cJSON* made(Tracer* t, const StReport* r, const Taken* k) {
     cJSON* e;
     text = r->signature ? rei_format("**%s**\n`%s`", r->outcome ? r->outcome : "no failure logged", sig)
                         : rei_format("**%s**", r->outcome ? r->outcome : "no failure logged");
+    if (r->missed) { /* what the runtime missed, after how the run ended */
+        char* with = rei_format("%s\nMissed: %s", text, r->missed);
+        free(text);
+        text = with;
+        if (!strcmp(tone, "ok")) tone = "warn";
+    }
     e = embed(cut, text, !strcmp(tone, "ok") ? TONE_OK : !strcmp(tone, "warn") ? TONE_WARN : TONE_BAD);
     jset(e, "url", url);
     if (r->branch || r->commit) {
@@ -447,6 +496,7 @@ static cJSON* reported(Tracer* t, const TrMessage* m, char* note, long* report) 
     r.driver = dup_of(k.first, "driver");
     r.outcome = dup_of(k.first, "outcome");
     r.signature = dup_of(k.first, "signature");
+    r.missed = tr_missed(k.first);
     if (st_add(t->store, &r, k.files, k.n)) {
         st_report_free(&r);
         taken_free(&k);
@@ -697,7 +747,9 @@ int tr_rescan(Tracer* t, const char* version) {
                 facts.driver = (char*)jstr(s, "driver");
                 facts.outcome = (char*)jstr(s, "outcome");
                 facts.signature = (char*)jstr(s, "signature");
+                facts.missed = tr_missed(s);
                 st_set_facts(t->store, &facts);
+                free(facts.missed);
                 cJSON_Delete(s);
                 first = 0;
             }

@@ -54,10 +54,16 @@ static const char* tone(const char* outcome) {
     if (!strcmp(outcome, "unsupported instruction") || !strcmp(outcome, "thread stopped")) return "warn";
     return "bad";
 }
-static void badge(Buf* b, const char* outcome) {
+/* how the run ended, and beside it what the runtime missed when it missed something */
+static void badge(Buf* b, const char* outcome, const char* missed) {
     buf_printf(b, "<span class=\"badge %s\">", tone(outcome));
     esc(b, outcome ? outcome : "no failure logged");
     buf_add(b, "</span>");
+    if (missed) {
+        buf_add(b, " <span class=\"badge missed\">missed ");
+        esc(b, missed);
+        buf_add(b, "</span>");
+    }
 }
 static int hex(const char* s) {
     if (!s || !*s) return 0;
@@ -141,7 +147,7 @@ char* site_index_html(const StGame* games, int n) {
                    g->reports == 1 ? "report" : "reports");
         when(&b, g->last);
         buf_add(&b, "</span>\n");
-        badge(&b, g->outcome);
+        badge(&b, g->outcome, g->missed);
         buf_add(&b, "\n</a></li>\n");
     }
     buf_add(&b, "</ul>\n<p class=\"empty\" data-empty hidden>No game matches.</p>\n");
@@ -151,10 +157,10 @@ char* site_index_html(const StGame* games, int n) {
 
 /* the reports' table: root before each link, the game's column when game */
 static void table(Buf* b, const char* root, const StReport* reports, int n, int game) {
-    static const char* const keys[] = {"outcome", "branch", "gpu"};
-    static const char* const names[] = {"Outcome", "Branch", "GPU"};
+    static const char* const keys[] = {"outcome", "missed", "branch", "gpu"};
+    static const char* const names[] = {"Outcome", "Missed", "Branch", "GPU"};
     int i;
-    filters(b, "reports", "Search signatures, builds, GPUs, notes", keys, names, 3);
+    filters(b, "reports", "Search signatures, builds, GPUs, notes", keys, names, 4);
     buf_printf(b,
                "<div class=\"scroll\"><table class=\"reports\" id=\"reports\" data-list>\n<thead><tr><th>Report</th>"
                "<th>Sent</th>%s<th>Outcome</th><th>Signature</th><th>Build</th><th>GPU</th></tr></thead>\n<tbody>\n",
@@ -170,8 +176,10 @@ static void table(Buf* b, const char* root, const StReport* reports, int n, int 
         esc_lower(b, r->gpu);
         esc_lower(b, r->system);
         esc_lower(b, r->note);
+        esc_lower(b, r->missed);
         buf_add(b, "\" data-outcome=\"");
         esc(b, r->outcome ? r->outcome : "no failure logged");
+        buf_printf(b, "\" data-missed=\"%s", r->missed ? "something missed" : "nothing missed");
         buf_add(b, "\" data-branch=\"");
         esc(b, r->branch ? r->branch : "unknown");
         buf_add(b, "\" data-gpu=\"");
@@ -185,7 +193,7 @@ static void table(Buf* b, const char* root, const StReport* reports, int n, int 
             buf_add(b, "</a></td>");
         }
         buf_add(b, "<td>");
-        badge(b, r->outcome);
+        badge(b, r->outcome, r->missed);
         buf_add(b, "</td><td class=\"mono\">");
         esc(b, r->signature ? r->signature : "");
         buf_add(b, "</td><td class=\"mono\">");
@@ -378,7 +386,7 @@ char* site_report_html(const StReport* r, const StFile* files, int nfiles, const
     buf_printf(&b, "</a></p>\n<h1>Report #%ld</h1>\n<p class=\"meta\">Sent ", r->id);
     when(&b, r->when);
     buf_add(&b, " ");
-    badge(&b, r->outcome);
+    badge(&b, r->outcome, r->missed);
     buf_add(&b, "</p>\n");
     if (r->note && *r->note) {
         buf_add(&b, "<blockquote>");
@@ -397,6 +405,7 @@ char* site_report_html(const StReport* r, const StFile* files, int nfiles, const
     field(&b, "Title ID", r->title_id);
     field(&b, "Game version", r->version);
     field(&b, "Signature", r->signature);
+    field(&b, "Missed", r->missed);
     if (hex(r->commit)) {
         buf_add(&b, "<dt>Build</dt><dd>");
         esc(&b, r->build ? r->build : r->commit);
@@ -453,6 +462,7 @@ static cJSON* report_object(const StReport* r) {
     jset(o, "driver", r->driver);
     jset(o, "outcome", r->outcome ? r->outcome : "no failure logged");
     jset(o, "signature", r->signature);
+    jset(o, "missed", r->missed);
     return o;
 }
 static char* printed(cJSON* o) {
@@ -481,6 +491,7 @@ char* site_games_json(const StGame* games, int n) {
         cJSON_AddNumberToObject(g, "reports", games[i].reports);
         jset(g, "latest", when);
         jset(g, "outcome", games[i].outcome ? games[i].outcome : "no failure logged");
+        jset(g, "missed", games[i].missed);
         cJSON_AddItemToArray(list, g);
     }
     return printed(o);

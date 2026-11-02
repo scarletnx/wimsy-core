@@ -37,12 +37,14 @@ static const char* const UPGRADES[] = {
     "CREATE INDEX messages_report ON messages(report);"
     "INSERT OR IGNORE INTO messages(message, report) SELECT message, id FROM reports;",
     /* 2, a value each for what the program keeps of itself: the log summary its reports were made with */
-    "CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);"};
+    "CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);",
+    /* 3, what the runtime missed, counted, beside the outcome */
+    "ALTER TABLE reports ADD COLUMN missed TEXT;"};
 
 /* a report's columns, in the order row_report reads them */
 #define REPORT_COLUMNS                                                                                                 \
     "id, created, guild, channel, message, poster, game, title, named, title_id, note, version, build, commit_id, "    \
-    "branch, system, gpu, driver, outcome, signature"
+    "branch, system, gpu, driver, outcome, signature, missed"
 
 static void said(Store* s, const char* what) { rei_log("the database, %s: %s", what, sqlite3_errmsg(s->db)); }
 
@@ -132,8 +134,8 @@ int st_add(Store* s, StReport* r, const StFile* files, int nfiles) {
         return -1;
     }
     q = prepared(s, "INSERT INTO reports(created, guild, channel, message, poster, game, title, named, title_id, note,"
-                    " version, build, commit_id, branch, system, gpu, driver, outcome, signature)"
-                    " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+                    " version, build, commit_id, branch, system, gpu, driver, outcome, signature, missed)"
+                    " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
     f = prepared(s, "INSERT INTO files(report, n, kind, name, path, bytes, summary, message) VALUES(?,?,?,?,?,?,?,?)");
     ok = q && f;
     if (ok) {
@@ -156,6 +158,7 @@ int st_add(Store* s, StReport* r, const StFile* files, int nfiles) {
         text_at(q, 17, r->driver);
         text_at(q, 18, r->outcome);
         text_at(q, 19, r->signature);
+        text_at(q, 20, r->missed);
         ok = sqlite3_step(q) == SQLITE_DONE;
         if (!ok) said(s, "a report added");
     }
@@ -387,7 +390,7 @@ int st_set_summary(Store* s, long report, int n, const char* summary) {
 
 int st_set_facts(Store* s, const StReport* r) {
     sqlite3_stmt* q = prepared(s, "UPDATE reports SET version = ?, build = ?, commit_id = ?, branch = ?, system = ?,"
-                                  " gpu = ?, driver = ?, outcome = ?, signature = ? WHERE id = ?");
+                                  " gpu = ?, driver = ?, outcome = ?, signature = ?, missed = ? WHERE id = ?");
     int ok;
     if (!q) return -1;
     text_at(q, 1, r->version);
@@ -399,7 +402,8 @@ int st_set_facts(Store* s, const StReport* r) {
     text_at(q, 7, r->driver);
     text_at(q, 8, r->outcome);
     text_at(q, 9, r->signature);
-    sqlite3_bind_int64(q, 10, r->id);
+    text_at(q, 10, r->missed);
+    sqlite3_bind_int64(q, 11, r->id);
     ok = sqlite3_step(q) == SQLITE_DONE;
     if (!ok) said(s, "a report's facts made again");
     sqlite3_finalize(q);
@@ -473,6 +477,7 @@ static void row_report(sqlite3_stmt* q, StReport* r) {
     r->driver = text_of(q, 17);
     r->outcome = text_of(q, 18);
     r->signature = text_of(q, 19);
+    r->missed = text_of(q, 20);
 }
 
 int st_get(Store* s, long id, StReport* r, StFile** files, int* nfiles) {
@@ -556,6 +561,7 @@ static void row_game(sqlite3_stmt* q, void* to) {
     g->reports = sqlite3_column_int(q, 3);
     g->last = sqlite3_column_double(q, 4);
     g->outcome = text_of(q, 5);
+    g->missed = text_of(q, 6);
 }
 static void row_any_report(sqlite3_stmt* q, void* to) { row_report(q, to); }
 
@@ -563,7 +569,7 @@ int st_games(Store* s, StGame** games, int* n) {
     sqlite3_stmt* q = prepared(
         s, "SELECT r.game, (SELECT t.title FROM reports t WHERE t.game = r.game ORDER BY t.named DESC, t.id"
            " DESC LIMIT 1), (SELECT t.title_id FROM reports t WHERE t.game = r.game AND t.title_id IS NOT NULL ORDER BY"
-           " t.id DESC LIMIT 1), c.n, r.created, r.outcome FROM reports r JOIN (SELECT game,"
+           " t.id DESC LIMIT 1), c.n, r.created, r.outcome, r.missed FROM reports r JOIN (SELECT game,"
            " count(*) AS n, max(id) AS last FROM reports GROUP BY game) c ON r.id = c.last ORDER BY r.id DESC");
     return rows(q, (void**)games, n, sizeof **games, row_game);
 }
@@ -589,6 +595,7 @@ void st_report_free(StReport* r) {
     free(r->driver);
     free(r->outcome);
     free(r->signature);
+    free(r->missed);
     memset(r, 0, sizeof *r);
 }
 void st_files_free(StFile* f, int n) {
@@ -612,6 +619,7 @@ void st_games_free(StGame* g, int n) {
         free(g[i].title);
         free(g[i].title_id);
         free(g[i].outcome);
+        free(g[i].missed);
     }
     free(g);
 }

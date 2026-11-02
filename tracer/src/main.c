@@ -305,7 +305,7 @@ int main(void) {
         rei_log("%d games' names from %s", titles.n, env.titles);
     }
     { /* a new log summary or list of names: the reports summarized and named again with them */
-        char* version = rei_format("%s %s", TR_LOGSCAN, titles.version);
+        char* version = rei_format("%s %s %s", TR_LOGSCAN, titles.version, TR_FACTS);
         tr_rescan(&tracer, version);
         free(version);
     }

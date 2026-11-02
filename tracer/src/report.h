@@ -28,6 +28,12 @@ typedef struct {
    of the game. 0, or -1 (nothing owned) when neither says one */
 int tr_game(const cJSON* summary, const char* note, char** key, char** title, char** title_id, int* named);
 
+/* what a log's summary says the runtime missed, counted, most first by area: "1116 shaders, 1 texture format, 2 service
+   commands" (shaders by the shaders, the rest by the different ones); owned, NULL for nothing */
+char* tr_missed(const cJSON* summary);
+/* what a report keeps of its logs, as a version: a new one summarizes the kept reports again (tr_rescan) */
+#define TR_FACTS "facts 2"
+
 /* the reply to m, a message that mentions the bot: an embed (owned), or NULL for a message already handled (the
    gateway sends a message again after a resume). *report is the report it made or updated, 0 for none: the reply,
    once posted, is given to tr_replied. A reply to a report's message (its own, an update, the bot's answer) adds to

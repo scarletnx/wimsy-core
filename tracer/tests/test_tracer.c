@@ -423,6 +423,7 @@ static void test_reports(void) {
     HAS(t, "https://reports.example/r/1/");
     HAS(t, "svcBreak");
     HAS(t, "1 log, 1 screenshot");
+    HAS(t, "Missed: 1 service command"); /* the log's undeclared command */
     HAS(t, "setup.exe: not a log or a screenshot");
     HAS(t, "@Tracer delete 1");
     free(t);
@@ -454,6 +455,8 @@ static void test_reports(void) {
     /* the pages: everything the log and the message said escaped */
     p = page("r/1/index.html");
     HAS(p, "<h1>Report #1</h1>");
+    HAS(p, "<span class=\"badge missed\">missed 1 service command</span>");
+    HAS(p, "<dt>Missed</dt><dd>1 service command</dd>");
     HAS(p, "crashes at the &lt;b&gt;title&lt;/b&gt; screen");
     LACKS(p, "<b>title</b>");
     HAS(p, "~/save.bin &lt;script&gt;");
@@ -473,11 +476,14 @@ static void test_reports(void) {
     free(p);
     p = page("all.html");
     HAS(p, "href=\"r/1/\"");
+    HAS(p, "data-missed=\"something missed\"");
+    HAS(p, "<select data-key=\"missed\"");
     free(p);
     /* the JSON: the report, its files and summaries, and no Discord id */
     p = page("api/r/1.json");
     HAS(p, "\"game\":\"0100AAAABBBB0000\"");
     HAS(p, "\"path\":\"r/1/1.log\"");
+    HAS(p, "\"missed\":\"1 service command\"");
     HAS(p, "\"summary\":{");
     HAS(p, "\"note\":\"crashes at the <b>title</b> screen\"");
     LACKS(p, "1001");
@@ -934,6 +940,7 @@ static void test_rescan(void) {
     SAME(r.outcome, "svcBreak");
     SAME(r.signature, "svcBreak in _ZN2nn3hid18GetNpadJoyHoldTypeEv");
     SAME(r.title, "Some Game"); /* the game stays as it was */
+    SAME(r.missed, "1 service command");
     st_report_free(&r);
     CHECK(tr_rescan(&tracer, "a") == 0); /* the same summary: nothing to do */
     /* a report filed under another game than its log names (an older summary's mistake) is filed again */
@@ -959,6 +966,24 @@ static void test_rescan(void) {
 
 /* the games' names from the list: an update's and an add-on's id find their game, a report its logs don't name is named
    by it at once, one made before the list at the next start, and a log's own name stays first */
+/* what the runtime missed, counted: shaders by the shaders (compute ones too), the rest by the different ones */
+static void test_missed(void) {
+    cJSON* s = cJSON_Parse(
+        "{\"missed\":[{\"kind\":\"shader\",\"what\":\"a jump table\",\"count\":763},{\"kind\":\"shader\","
+        "\"what\":\"unknown opcode\",\"count\":352},{\"kind\":\"compute shader\",\"what\":\"x\",\"count\":1},"
+        "{\"kind\":\"texture format\",\"what\":\"0\",\"count\":3},{\"kind\":\"macro\",\"what\":\"a\",\"count\":1},"
+        "{\"kind\":\"macro compile\",\"what\":\"b\",\"count\":9}],\"ipc\":[{\"kind\":\"undeclared\"},"
+        "{\"kind\":\"unknown\"}]}");
+    char* t = tr_missed(s);
+    SAME(t, "1116 shaders, 1 texture format, 2 macros, 2 service commands");
+    free(t);
+    cJSON_Delete(s);
+    s = cJSON_Parse("{\"missed\":[],\"ipc\":[]}");
+    CHECK(!tr_missed(s));
+    cJSON_Delete(s);
+    CHECK(!tr_missed(NULL));
+}
+
 static void test_titles(void) {
     static const char list_text[] = "# title ID, name\n0100EEEE00000000\tListed Game\nnot a line\n"
                                     "0100aaaabbbb0000\tSome Game From The List\n";
@@ -1043,6 +1068,7 @@ int main(void) {
         test_upgrade();
         test_rescan();
         test_titles();
+        test_missed();
     }
     st_close(tracer.store);
     if (getenv("TRACER_TEST_KEEP")) fprintf(stderr, "kept %s\n", site);
