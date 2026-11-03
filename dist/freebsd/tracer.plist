@@ -5,7 +5,7 @@ libexec/tracer
 libexec/tracer-mcp
 @mode 555
 etc/rc.d/tracer
-etc/rc.d/tracer-mcp
+etc/rc.d/tracer_mcp
 @mode 644
 etc/tracer.env.sample
 share/tracer/style.css

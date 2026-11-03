@@ -55,7 +55,7 @@ checkout with their own tests first, and writes with `pkg create`:
 | Package | Its files | Depends on |
 |---|---|---|
 | `reiwimsy-<VERSION>.pkg` | `/usr/local/libexec/reiwimsy`, `/usr/local/etc/rc.d/reiwimsy`, `/usr/local/etc/reiwimsy.env.sample` | curl, ca_root_nss |
-| `tracer-<VERSION>.pkg` | `/usr/local/libexec/tracer`, `/usr/local/libexec/tracer-mcp`, `/usr/local/etc/rc.d/tracer`, `/usr/local/etc/rc.d/tracer-mcp`, `/usr/local/etc/tracer.env.sample`, `/usr/local/share/tracer/{style.css,site.js,tracer.svg}`, `/usr/local/share/examples/tracer/nginx.conf` | curl, ca_root_nss, sqlite3, libmicrohttpd |
+| `tracer-<VERSION>.pkg` | `/usr/local/libexec/tracer`, `/usr/local/libexec/tracer-mcp`, `/usr/local/etc/rc.d/tracer`, `/usr/local/etc/rc.d/tracer_mcp`, `/usr/local/etc/tracer.env.sample`, `/usr/local/share/tracer/{style.css,site.js,tracer.svg}`, `/usr/local/share/examples/tracer/nginx.conf` | curl, ca_root_nss, sqlite3, libmicrohttpd |
 | `accordwimsy-<VERSION>.pkg` | `/usr/local/bin/accordwimsy`, `/usr/local/etc/accordwimsy/accordwimsy.env.sample`, `/usr/local/share/examples/accordwimsy/{accordwimsy.cron,accordwimsy.newsyslog}` | curl, git-lite or git, ca_root_nss |
 
 `VERSION`, at the top of the checkout, is both packages' version; a dependency is recorded at the version the building
