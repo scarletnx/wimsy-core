@@ -1,0 +1,6 @@
+Tracer keeps the ScarletNX game reports that people send it on Discord: a message that
+mentions it with a log attached becomes a report, its logs summarized, their home folders
+shown as ~, its screenshots without their metadata. It draws them as a static site, grouped
+by game, for a web server to serve, and tracer-mcp serves the reports to agents as an MCP
+server. They run as the services tracer and tracer_mcp, the bot's settings in
+/usr/local/etc/tracer.env.

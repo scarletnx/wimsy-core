@@ -1,0 +1,35 @@
+#!/bin/sh
+# PROVIDE: tracer_mcp
+# REQUIRE: LOGIN NETWORKING
+# KEYWORD: shutdown
+#
+# Tracer's MCP server, in the jail that serves Tracer's site: run by daemon(8) as the tracer user, started again when
+# it stops, its output in syslog. It reads only tracer_mcp_site, the site's folder (mounted read-only there), and
+# listens on tracer_mcp_listen, where nginx sends the requests to /mcp. tracer_mcp_url is the site's address.
+
+. /etc/rc.subr
+
+name=tracer_mcp
+rcvar=tracer_mcp_enable
+load_rc_config $name
+
+: ${tracer_mcp_enable:=NO}
+: ${tracer_mcp_url:=}
+: ${tracer_mcp_site:=/usr/local/www/tracer}
+: ${tracer_mcp_listen:=127.0.0.1:8081}
+
+pidfile=/var/run/${name}.pid
+command=/usr/sbin/daemon
+command_args="-f -r -R 30 -S -T tracer-mcp -u tracer -P ${pidfile} /usr/local/libexec/tracer-mcp"
+start_precmd="${name}_precmd"
+
+tracer_mcp_precmd()
+{
+	if [ -z "${tracer_mcp_url}" ]; then
+		echo "tracer_mcp_url is not set: sysrc tracer_mcp_url=https://<the site's name>"
+		return 1
+	fi
+	export TRACER_URL="${tracer_mcp_url}" TRACER_SITE="${tracer_mcp_site}" TRACER_MCP_LISTEN="${tracer_mcp_listen}"
+}
+
+run_rc_command "$1"

@@ -7,7 +7,7 @@
 #include <string.h>
 #include <strings.h>
 
-#define AGENT "DiscordBot (https://github.com/scarletnx/discord-bots, 1) reiwimsy"
+#define AGENT "DiscordBot (https://github.com/scarletnx/discord-bots, 1) " REI_NAME
 
 static size_t body_of(char* data, size_t size, size_t n, void* to) {
     buf_addn(to, data, size * n);

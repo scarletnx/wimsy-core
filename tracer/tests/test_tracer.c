@@ -1,0 +1,1947 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+   Copyright 2026 the ScarletNX contributors */
+/* Tracer without Discord or the network: what a message asks, which files are logs and screenshots, the screenshots'
+   metadata taken out, the logs unpacked, the game a log names, and whole reports kept, drawn, refused and deleted
+   through a fake download into a database and a site of a temporary folder */
+#define _POSIX_C_SOURCE 200809L
+#include <archive.h>
+#include <archive_entry.h>
+#include <sqlite3.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <dirent.h>
+#include <signal.h>
+#include <sys/stat.h>
+#include <time.h>
+#include <unistd.h>
+#include <zlib.h>
+
+#include "common/utilities/demangle.h"
+#include "common/utilities/logscan.h"
+#include "channels.h"
+#include "files.h"
+#include "issues.h"
+#include "mcp.h"
+#include "message.h"
+#include "report.h"
+#include "site.h"
+#include "store.h"
+#include "titles.h"
+#include "worker.h"
+
+static int failures, checks;
+#define CHECK(cond)                                                                                                    \
+    do {                                                                                                               \
+        ++checks;                                                                                                      \
+        if (!(cond)) {                                                                                                 \
+            ++failures;                                                                                                \
+            fprintf(stderr, "%s:%d: %s\n", __FILE__, __LINE__, #cond);                                                 \
+        }                                                                                                              \
+    } while (0)
+#define SAME(a, b)                                                                                                     \
+    do {                                                                                                               \
+        const char *x_ = (a), *y_ = (b);                                                                               \
+        ++checks;                                                                                                      \
+        if (!x_ || !y_ || strcmp(x_, y_)) {                                                                            \
+            ++failures;                                                                                                \
+            fprintf(stderr, "%s:%d: %s\n  is: %s\n  not: %s\n", __FILE__, __LINE__, #a, x_ ? x_ : "(null)",            \
+                    y_ ? y_ : "(null)");                                                                               \
+        }                                                                                                              \
+    } while (0)
+#define HAS(text, part)   CHECK((text) && strstr((text), (part)))
+#define LACKS(text, part) CHECK((text) && !strstr((text), (part)))
+
+static double now_is = 1800000000;
+static double clock_now(void) { return now_is; }
+
+/* ---- a log in the runtime's format ---- */
+static const char LOG[] =
+    "[   0.00] ScarletNX - Some Game\n"
+    "[   0.00] build: ScarletNX main 1234abc (clang 23.1.3, Linux x86_64)\n"
+    "[   0.00] system: Some Linux 1.0 (Linux 6.1.0), Some CPU 9000, 12 threads, 32 GB RAM\n"
+    "[   0.27] vulkan: Some GPU 3000, Vulkan 1.4.351, driver 99d38200, graphics queue family 0, compute 2\n"
+    "[   0.30] game: 0100aaaabbbb0000, version 1.2.3\n"
+    "[   1.00]   [undeclared] nn::audio::detail::IAudioDevice cmd 7 -> ok\n"
+    "[   1.04] [game] loading /home/someone/save.bin <script>\n"
+    "[   2.25]\n"
+    "*** The game called svcBreak (reason 0, info 1300100df8, 4 bytes) ***\n"
+    "[   2.25]   pc=164ab3c4 lr=163d4828 sp=1300100c30 fp=1300100c30 tls=0\n"
+    "[   2.25]    #0 163d18d8 <_ZN2nn4diag6detail10VAbortImplEv+d8>\n"
+    "[   2.25]    #1 1683a358 <_ZN2nn3hid18GetNpadJoyHoldTypeEv+38>\n";
+
+/* ---- a fake network: each URL's bytes ---- */
+typedef struct {
+    const char* url;
+    const char* data;
+    size_t n;
+} Served;
+static Served served[16];
+static int nserved, downloads;
+static void serve(const char* url, const char* data, size_t n) {
+    served[nserved].url = url;
+    served[nserved].data = data;
+    served[nserved++].n = n;
+}
+static int fake_get(void* ctx, const char* url, size_t max, Buf* out, char** why) {
+    int i;
+    (void)ctx;
+    buf_free(out);
+    *why = NULL;
+    ++downloads;
+    for (i = 0; i < nserved; ++i)
+        if (!strcmp(served[i].url, url)) {
+            if (served[i].n > max) break;
+            buf_addn(out, served[i].data, served[i].n);
+            return 0;
+        }
+    *why = rei_format("%s: HTTP 404", url);
+    return -1;
+}
+
+static char* read_file(const char* path, size_t* n) {
+    FILE* f = fopen(path, "rb");
+    Buf b = {0};
+    char piece[4096];
+    size_t got;
+    if (!f) return NULL;
+    while ((got = fread(piece, 1, sizeof piece, f))) buf_addn(&b, piece, got);
+    fclose(f);
+    if (n) *n = b.len;
+    return buf_take(&b);
+}
+static int exists(const char* path) {
+    struct stat st;
+    return !stat(path, &st);
+}
+
+/* a .gz or a .zip of one file, written by libarchive */
+static char* packed(int zip, const char* inner, const char* text, size_t* n) {
+    static char out[1 << 16];
+    struct archive* a = archive_write_new();
+    struct archive_entry* e = archive_entry_new();
+    size_t used = 0;
+    if (zip)
+        archive_write_set_format_zip(a);
+    else {
+        archive_write_add_filter_gzip(a);
+        archive_write_set_format_raw(a);
+    }
+    archive_write_open_memory(a, out, sizeof out, &used);
+    archive_entry_set_pathname(e, inner);
+    archive_entry_set_size(e, (la_int64_t)strlen(text));
+    archive_entry_set_filetype(e, AE_IFREG);
+    archive_entry_set_perm(e, 0644);
+    archive_write_header(a, e);
+    archive_write_data(a, text, strlen(text));
+    archive_entry_free(e);
+    archive_write_close(a);
+    archive_write_free(a);
+    *n = used;
+    return out;
+}
+
+static void test_message(void) {
+    TrMessage m;
+    const char* mention =
+        "{\"id\":\"11\",\"channel_id\":\"22\",\"guild_id\":\"33\",\"author\":{\"id\":\"44\"},\"content\":\"<@99> "
+        "crashes in the menu\",\"mentions\":[{\"id\":\"99\"}],\"attachments\":[{\"filename\":\"a.log\",\"url\":"
+        "\"https://cdn.discordapp.com/a.log\",\"size\":10,\"content_type\":\"text/plain; charset=utf-8\"},{\"url\":"
+        "\"https://cdn.discordapp.com/nameless\"}],\"member\":{\"roles\":[\"5\",\"6\"]}}";
+    CHECK(tr_message(mention, strlen(mention), 99, &m));
+    CHECK(m.id == 11 && m.channel == 22 && m.guild == 33 && m.author == 44 && m.mentioned);
+    CHECK(m.nfiles == 1);
+    CHECK(m.nroles == 2 && m.roles[0] == 5 && m.roles[1] == 6);
+    CHECK(!m.reply_to);
+    SAME(m.files[0].name, "a.log");
+    CHECK(m.files[0].size == 10);
+    tr_message_free(&m);
+    {
+        const char* reply = "{\"id\":\"12\",\"channel_id\":\"22\",\"guild_id\":\"33\",\"author\":{\"id\":\"44\"},"
+                            "\"content\":\"<@99>\",\"mentions\":[{\"id\":\"99\"}],\"message_reference\":{"
+                            "\"message_id\":\"555\",\"channel_id\":\"22\"}}";
+        const char* answer = "{\"id\":\"13\",\"channel_id\":\"22\",\"guild_id\":\"33\",\"author\":{\"id\":\"44\"},"
+                             "\"content\":\"<@99> more\",\"mentions\":[{\"id\":\"99\"}],\"message_reference\":{"
+                             "\"message_id\":\"556\"},\"referenced_message\":{\"id\":\"556\",\"author\":{\"id\":"
+                             "\"99\",\"bot\":true},\"embeds\":[{\"title\":\"Report #2\",\"url\":"
+                             "\"https://reports.example/r/2/\"}]}}";
+        CHECK(tr_message(reply, strlen(reply), 99, &m) && m.reply_to == 555 && !m.reply_report);
+        tr_message_free(&m);
+        CHECK(tr_message(answer, strlen(answer), 99, &m) && m.reply_to == 556 && m.reply_report == 2);
+        tr_message_free(&m);
+        CHECK(tr_message(answer, strlen(answer), 98, &m) && !m.reply_report); /* another bot's message */
+    }
+    tr_message_free(&m);
+    CHECK(tr_message(mention, strlen(mention), 98, &m) && !m.mentioned);
+    tr_message_free(&m);
+    CHECK(!tr_message("{\"id\":\"1\",\"channel_id\":\"2\",\"author\":{\"id\":\"3\",\"bot\":true}}", 60, 99, &m));
+    CHECK(
+        !tr_message("{\"id\":\"1\",\"channel_id\":\"2\",\"webhook_id\":\"5\",\"author\":{\"id\":\"3\"}}", 64, 99, &m));
+    CHECK(!tr_message("not json", 8, 99, &m));
+    CHECK(tr_deleted("{\"id\":\"77\",\"channel_id\":\"2\"}", 29) == 77);
+    {
+        char* name;
+        CHECK(tr_ready("{\"user\":{\"id\":\"99\",\"username\":\"Tracer\"}}", 41, &name) == 99);
+        SAME(name, "Tracer");
+        free(name);
+    }
+}
+
+static void test_command(void) {
+    char* note;
+    long n;
+    char longer[400];
+    CHECK(tr_command("<@99> help", &note, &n) == TR_HELP && !note);
+    CHECK(tr_command("<@!99>   HELP  ", &note, &n) == TR_HELP);
+    CHECK(tr_command("<@99> delete 12", &note, &n) == TR_DELETE && n == 12);
+    CHECK(tr_command("<@99> delete #7", &note, &n) == TR_DELETE && n == 7);
+    CHECK(tr_command("<@99> delete", &note, &n) == TR_DELETE && n == 0 && !note);
+    CHECK(tr_command("<@99> add #12 it crashes after the boss", &note, &n) == TR_ADD && n == 12);
+    SAME(note, "it crashes after the boss");
+    free(note);
+    CHECK(tr_command("<@99> add 3", &note, &n) == TR_ADD && n == 3);
+    SAME(note, "");
+    free(note);
+    CHECK(tr_command("<@99> add more", &note, &n) == TR_REPORT);
+    free(note);
+    CHECK(tr_command("<@99> delete it", &note, &n) == TR_REPORT);
+    SAME(note, "delete it");
+    free(note);
+    CHECK(tr_command("<@99>\n  Some   Game\n<@&5> crashes <#6>", &note, &n) == TR_REPORT);
+    SAME(note, "Some Game crashes");
+    free(note);
+    CHECK(tr_command("<@99>", &note, &n) == TR_REPORT);
+    SAME(note, "");
+    free(note);
+    memset(longer, 'a', sizeof longer);
+    memcpy(longer + TR_NOTE - 1, "\xc3\xa9", 2); /* an é across the cut */
+    longer[sizeof longer - 1] = 0;
+    tr_command(longer, &note, &n);
+    CHECK(strlen(note) == TR_NOTE - 1);
+    free(note);
+}
+
+static void test_kind_and_text(void) {
+    char* t;
+    CHECK(tr_kind("game.LOG", "") == TR_LOG);
+    CHECK(tr_kind("game.log.gz", "") == TR_LOG);
+    CHECK(tr_kind("logs.zip", "application/zip") == TR_LOG);
+    CHECK(tr_kind("shot.JPEG", "") == TR_IMAGE);
+    CHECK(tr_kind("message", "text/plain; charset=utf-8") == TR_LOG);
+    CHECK(tr_kind("shot", "image/png") == TR_IMAGE);
+    CHECK(tr_kind("frame-0-01.PPM", "") == TR_IMAGE);
+    CHECK(tr_kind("clip.MP4", "") == TR_VIDEO && tr_kind("clip.webm", "") == TR_VIDEO);
+    CHECK(tr_kind("clip", "video/quicktime") == TR_VIDEO);
+    CHECK(tr_kind("game.exe", "application/octet-stream") == TR_OTHER);
+    t = tr_utf8("a\xf7"
+                "b\xc3\xa9"
+                "c\0d\xe0\x80\x80"
+                "e\xf0\x9f\x98\x80",
+                16);
+    SAME(t, "a\xef\xbf\xbd"
+            "b\xc3\xa9"
+            "cd\xef\xbf\xbd\xef\xbf\xbd\xef\xbf\xbd"
+            "e\xf0\x9f\x98\x80");
+    free(t);
+    t = tr_utf8("cut \xe2\x82", 6);
+    SAME(t, "cut \xef\xbf\xbd\xef\xbf\xbd");
+    free(t);
+}
+
+/* whether part is in the n bytes at data */
+static int found(const char* data, size_t n, const char* part) {
+    size_t k = strlen(part), i;
+    for (i = 0; i + k <= n; ++i)
+        if (!memcmp(data + i, part, k)) return 1;
+    return 0;
+}
+/* a PNG's chunk: its length, type and data (the CRC is not checked here) */
+static size_t chunk(char* to, const char* type, const char* data, size_t n) {
+    to[0] = 0, to[1] = 0, to[2] = 0, to[3] = (char)n;
+    memcpy(to + 4, type, 4);
+    memcpy(to + 8, data, n);
+    memset(to + 8 + n, 0, 4);
+    return 12 + n;
+}
+/* an MP4 box's header at to: its size (n, its header's 8 bytes with it) and type */
+static void box_head(char* to, const char* type, size_t n) {
+    to[0] = (char)(n >> 24), to[1] = (char)(n >> 16), to[2] = (char)(n >> 8), to[3] = (char)n;
+    memcpy(to + 4, type, 4);
+}
+/* an MP4 box of n bytes of data at to: its length */
+static size_t mp4_box(char* to, const char* type, const char* data, size_t n) {
+    box_head(to, type, 8 + n);
+    memcpy(to + 8, data, n);
+    return 8 + n;
+}
+/* an MP4 of a phone: its ftyp, a moov with udta's place (©xyz) and meta's make (©mak), then its media */
+static size_t mp4(char* to, size_t room) {
+    static const unsigned char box[] = {
+        0,   0,   0,   16,  'f',  't', 'y', 'p', 'i', 's', 'o', 'm', 0,   0,   2,   0,         /* ftyp, 16 */
+        0,   0,   0,   74,  'm',  'o', 'o', 'v',                                               /* moov, 8 + 30 + 36 */
+        0,   0,   0,   30,  'u',  'd', 't', 'a',                                               /* udta, 8 + 22 */
+        0,   0,   0,   22,  0xa9, 'x', 'y', 'z', '+', '4', '0', '.', '7', '1', '2', '8',       /* ©xyz, 8 + 14 */
+        '-', '0', '7', '4', '.',  '0', 0,   0,   0,   36,  'm', 'e', 't', 'a', 0,   0,   0, 0, /* meta, 12 + 24 */
+        0,   0,   0,   24,  'i',  'l', 's', 't',                                               /* ilst, 8 + 16 */
+        0,   0,   0,   16,  0xa9, 'm', 'a', 'k', 'S', 'o', 'm', 'e', 'P', 'h', 'o', 'n',       /* ©mak, 8 + 8 */
+        0,   0,   0,   16,  'm',  'd', 'a', 't', 'f', 'r', 'a', 'm', 'e', 's', '!', '!'};      /* mdat, 16 */
+    if (room < sizeof box) return 0;
+    memcpy(to, box, sizeof box);
+    return sizeof box;
+}
+
+static void test_images(void) {
+    char png[256] = {0}, jpg[64] = {0}, webp[128] = {0};
+    size_t n = 8, m;
+    /* PNG: its text and time go, its header and data stay */
+    memcpy(png, "\x89PNG\r\n\x1a\n", 8);
+    n += chunk(png + n, "IHDR", "0123456789abc", 13);
+    n += chunk(png + n, "tEXt", "Author\0someone", 14);
+    n += chunk(png + n, "eXIf", "MM\0*gps", 7);
+    n += chunk(png + n, "IDAT", "pixels", 6);
+    n += chunk(png + n, "IEND", "", 0);
+    SAME(tr_image_ext(png, n), "png");
+    m = tr_strip_image(png, n);
+    CHECK(m == n - 26 - 19);
+    CHECK(!found(png, m, "someone") && !found(png, m, "gps") && found(png, m, "pixels"));
+    CHECK(!tr_strip_image(png, 20)); /* cut short */
+    /* JPEG: APP1 (EXIF) and a comment go, JFIF's APP0 and the scan stay */
+    memcpy(jpg,
+           "\xff\xd8"
+           "\xff\xe0\x00\x04JF"
+           "\xff\xe1\x00\x07"
+           "Exif!"
+           "\xff\xfe\x00\x04hi"
+           "\xff\xda\x00\x02scan\xff\xd9",
+           33);
+    m = tr_strip_image(jpg, 33);
+    CHECK(m == 33 - 9 - 6);
+    CHECK(!found(jpg, m, "Exif") && found(jpg, m, "JF") && found(jpg, m, "scan"));
+    CHECK(!tr_strip_image("\xff\xd8\xff\xd9", 4)); /* no scan */
+    { /* what follows its end goes (a motion photo's video); stuffed bytes, restarts and tables stay, APP1 goes */
+        static const char shown[] = "\xff\xd8"
+                                    "\xff\xda\x00\x02"
+                                    "ab\xff\x00"
+                                    "c\xff\xd0"
+                                    "d\xff\xff\xc4\x00\x03h"
+                                    "\xff\xda\x00\x02"
+                                    "ef"
+                                    "\xff\xd9";
+        static const char two[] = "\xff\xd8\xff\xda\x00\x02"
+                                  "ab"
+                                  "\xff\xe1\x00\x05"
+                                  "gps" /* an APP1 between two scans */
+                                  "\xff\xda\x00\x02"
+                                  "ef"
+                                  "\xff\xd9";
+        char trailed[96];
+        size_t k = sizeof shown - 1;
+        memcpy(trailed, shown, k);
+        memcpy(trailed + k, "ftypmp42 moov gps 52.1N", 23);
+        m = tr_strip_image(trailed, k + 23);
+        CHECK(m == k && !memcmp(trailed, shown, k));
+        CHECK(!found(trailed, m, "gps"));
+        memcpy(trailed, two, sizeof two - 1);
+        m = tr_strip_image(trailed, sizeof two - 1);
+        CHECK(m == 16 && !found(trailed, m, "gps") && found(trailed, m, "ef\xff\xd9"));
+        memcpy(trailed, two, sizeof two - 1);
+        CHECK(tr_strip_image(trailed, 20) == 13); /* cut in its second scan: as far as it goes, its APP1 out */
+    }
+    /* WebP: EXIF and XMP go, VP8X's flags for them are cleared, RIFF's size follows */
+    memcpy(webp, "RIFF\x2c\x00\x00\x00WEBP", 12);
+    memcpy(webp + 12, "VP8X\x02\x00\x00\x00\x0c\x00", 10);
+    memcpy(webp + 22, "VP8L\x03\x00\x00\x00px!\x00", 12);
+    memcpy(webp + 34, "EXIF\x02\x00\x00\x00gp", 10);
+    m = tr_strip_image(webp, 44);
+    CHECK(!m); /* RIFF says 0x2c + 8 = 52 bytes, and the file has 44 */
+    webp[4] = 0x24;
+    m = tr_strip_image(webp, 44);
+    CHECK(m == 34 && webp[4] == 26 && !webp[20]);
+    CHECK(!found(webp, m, "EXIF") && found(webp, m, "px!"));
+    SAME(tr_image_ext("GIF89a...", 9), "gif");
+    SAME(tr_image_ext("P6\n2 1\n255\n", 11), "ppm");
+    {
+        /* an MP4's place and make blanked where they are, its length and media as they were */
+        char clip[256];
+        size_t len = mp4(clip, sizeof clip);
+        SAME(tr_video_ext(clip, len), "mp4");
+        CHECK(tr_strip_video(clip, len) == len);
+        CHECK(!found(clip, len, "\xa9xyz") && !found(clip, len, "+40.71") && !found(clip, len, "SomePhon"));
+        CHECK(found(clip, len, "frames!!") && !found(clip, len, "udta") && !found(clip, len, "ilst"));
+        { /* a phone's place as its maker keeps it: meta's keys and ilst, and XMP's uuid box; its media as it was */
+            static const char xmp_id[] = "\xbe\x7a\xcf\xcb\x97\xa9\x42\xe8\x9c\x71\x99\x94\x91\xe3\xaf\xac";
+            char phone[512];
+            size_t at = 0, moov, meta, trak;
+            at += mp4_box(phone + at, "ftyp", "qt  \0\0\0\0", 8);
+            moov = at;
+            at += 8;
+            meta = at;
+            at += 8;
+            at += mp4_box(phone + at, "hdlr", "\0\0\0\0\0\0\0\0mdta", 12);
+            at += mp4_box(phone + at, "keys",
+                          "\0\0\0\0\0\0\0\1\0\0\0\x2d"
+                          "mdtacom.apple.quicktime.location.ISO6709",
+                          8 + 45);
+            at += mp4_box(phone + at, "ilst",
+                          "\0\0\0\x1a\0\0\0\1\0\0\0\x12"
+                          "data+52.1000+004.3000/",
+                          26);
+            box_head(phone + meta, "meta", at - meta);
+            trak = at;
+            at += 8;
+            at += mp4_box(phone + at, "udta", "\0\0\0\x0e\xa9xyz+52.1/", 14);
+            box_head(phone + trak, "trak", at - trak);
+            memcpy(phone + at + 8, xmp_id, 16);
+            memcpy(phone + at + 24, "<exif:GPSLatitude>52,6</exif:GPSLatitude>", 41);
+            box_head(phone + at, "uuid", 8 + 16 + 41);
+            at += 8 + 16 + 41;
+            box_head(phone + moov, "moov", at - moov);
+            at += mp4_box(phone + at, "mdat", "frames!!", 8);
+            CHECK(tr_strip_video(phone, at) == at);
+            CHECK(!found(phone, at, "ISO6709") && !found(phone, at, "+52.1") && !found(phone, at, "GPSLatitude"));
+            CHECK(found(phone, at, "frames!!") && found(phone, at, "moov") && found(phone, at, "trak"));
+        }
+        len = mp4(clip, sizeof clip);
+        clip[19] = 100; /* moov's size past the file */
+        CHECK(!tr_strip_video(clip, len));
+        SAME(tr_video_ext("\x1a\x45\xdf\xa3\x9f\x42\x82\x84webm", 12), "webm");
+        CHECK(!tr_video_ext("\x1a\x45\xdf\xa3\x9f\x42\x82\x88matroska", 16)); /* Matroska, not WebM */
+        CHECK(!tr_video_ext("RIFF....AVI ", 12));
+    }
+    {
+        /* a PPM with a comment, as a PNG: its header, and its pixels after each row's filter byte */
+        static const char ppm[] = "P6\n# a frame\n2 1\n255\nRGBrgb";
+        unsigned char rows[16];
+        uLongf rows_n = sizeof rows;
+        Buf out = {0};
+        const unsigned char* p;
+        CHECK(!tr_ppm_png(ppm, sizeof ppm - 1, &out));
+        p = (const unsigned char*)out.text;
+        CHECK(out.len > 45 && !memcmp(p, "\x89PNG\r\n\x1a\n", 8) && !memcmp(p + 12, "IHDR", 4));
+        CHECK(p[19] == 2 && p[23] == 1 && p[24] == 8 && p[25] == 2); /* 2x1, 8 bits, RGB */
+        CHECK(crc32(0, p + 12, 17) == ((uLong)p[29] << 24 | (uLong)p[30] << 16 | (uLong)p[31] << 8 | p[32]));
+        CHECK(!memcmp(p + 37, "IDAT", 4));
+        CHECK(uncompress(rows, &rows_n, p + 41, (uLong)(p[33] << 24 | p[34] << 16 | p[35] << 8 | p[36])) == Z_OK);
+        CHECK(rows_n == 7 && !memcmp(rows, "\0RGBrgb", 7));
+        CHECK(!memcmp(p + out.len - 8, "IEND", 4));
+        CHECK(tr_ppm_png("P6\n2 1\n255\nRGB", 15, &out));      /* not whole */
+        CHECK(tr_ppm_png("P6\n1 1\n65535\n123456", 20, &out)); /* 16 bits a channel */
+        CHECK(tr_ppm_png("GIF89a...", 9, &out));
+        buf_free(&out);
+    }
+    CHECK(tr_strip_image("GIF89a...", 9) == 9);
+    CHECK(!tr_image_ext("<svg>", 5));
+}
+
+static void test_unpack(void) {
+    Buf out = {0};
+    char *why, *data;
+    size_t n;
+    data = packed(0, "data", LOG, &n);
+    CHECK(!tr_unpack("game.log.gz", data, n, TR_LOG_MAX, &out, &why));
+    CHECK(out.len == strlen(LOG) && !memcmp(out.text, LOG, out.len));
+    CHECK(tr_unpack("game.log.gz", data, n, 100, &out, &why) && strstr(why, "over"));
+    free(why);
+    data = packed(1, "logs/game.log", LOG, &n);
+    CHECK(!tr_unpack("logs.ZIP", data, n, TR_LOG_MAX, &out, &why));
+    CHECK(out.len == strlen(LOG));
+    CHECK(tr_unpack("bad.zip", "PK\3\4 nothing", 13, TR_LOG_MAX, &out, &why));
+    free(why);
+    CHECK(!tr_unpack("plain.txt", "text", 4, TR_LOG_MAX, &out, &why) && out.len == 4);
+    CHECK(tr_unpack("plain.txt", "text", 4, 3, &out, &why));
+    free(why);
+    buf_free(&out);
+}
+
+/* the log's summary as the bot makes it, owned */
+static char* summarized(const char* text, size_t n) {
+    SnxLogScan* s = calloc(1, sizeof *s);
+    char* json = NULL;
+    if (s && !snx_logscan(s, text, n)) json = snx_logscan_json(s, snx_demangle);
+    snx_logscan_free(s);
+    free(s);
+    return json;
+}
+
+/* the crash report's code and memory dumps and registers stay off the site, as they stay out of the summary */
+static void test_public_log(void) {
+    static const char crash[] = "[   0.00] ScarletNX - Some Game\n"
+                                "[   2.25]\n"
+                                "*** The game crashed: signal 11 at 1300100df8 ***\n"
+                                "[   2.25]   pc=164ab3c4 lr=163d4828 sp=1300100c30\n"
+                                "[   2.25]   x0= 0  x1= 1300100c30  x2= 5  x3= 0\n"
+                                "[   2.25]   r3 = 12\n"
+                                "[   2.25]   code 164ab380: d10083ff  a9017bfd [b9400000] d65f03c0\n"
+                                "[   2,25]   mem x1 1300100c30: 00000000 0000002a\n"
+                                "  code at lr 163d4800: 94000010 f9400260\n"
+                                "[   2.25]   info+00: 0000000000000001\n"
+                                "[   2.25]    #0 163d18d8 <_ZN2nn4diag6detail10VAbortImplEv+d8>\n"
+                                "[   2.25]   pc <main+10>  lr <main+4>\n"
+                                "[   2.25] code that the game wrote\n"
+                                "[   2.25] xenon=1 is a setting\n"
+                                "the last line, no newline";
+    size_t n, i;
+    char *shown = tr_public_log(crash, sizeof crash - 1, &n), *before, *after, *source, *where;
+    CHECK(n == strlen(shown));
+    LACKS(shown, "pc=164ab3c4");
+    LACKS(shown, "x1= 1300100c30");
+    LACKS(shown, "r3 = 12");
+    LACKS(shown, "d10083ff");
+    LACKS(shown, "0000002a");
+    LACKS(shown, "94000010");
+    LACKS(shown, "info+00");
+    HAS(shown, "*** The game crashed: signal 11 at 1300100df8 ***\n");
+    HAS(shown, "#0 163d18d8 <_ZN2nn4diag6detail10VAbortImplEv+d8>\n");
+    HAS(shown, "[   2.25]   pc <main+10>  lr <main+4>\n"); /* the symbols' line is no dump */
+    HAS(shown, "[   2.25] code that the game wrote\n");    /* not indented: the game's own words */
+    HAS(shown, "[   2.25] xenon=1 is a setting\n");
+    HAS(shown, "the last line, no newline");
+    /* the summary reads the log shown as it read the whole one */
+    before = summarized(crash, sizeof crash - 1);
+    after = summarized(shown, n);
+    SAME(after, before);
+    free(before);
+    free(after);
+    free(shown);
+    shown = tr_public_log("", 0, &n);
+    CHECK(shown && !*shown && !n);
+    free(shown);
+    { /* the players' addresses: IPv4 but the loopback's, 0.0.0.0 and masks, and e-mail; versions stay */
+        static const char net[] = "ldn: this console is 192.168.1.23/255.255.255.0, the game's sockets bind there\n"
+                                  "ldn: Bob joined as node 1 from 203.0.113.5, 2 of 8 nodes\n"
+                                  "room: joined relay.example.org:24872 as JohnS, at 10.13.0.2:5000, 3 members\n"
+                                  "net: 127.0.0.2 and 0.0.0.0 stay\n"
+                                  "vulkan: 1.3.250.0.1, Windows 10.0.26100.1 and 300.1.1.1 stay\n"
+                                  "room: Alice says: write to alice.b+x@mail.example.com.\n"
+                                  "memcpy@GLIBC_2.14 and vkGet@1.3 stay";
+        shown = tr_public_log(net, sizeof net - 1, &n);
+        SAME(shown, "ldn: this console is [ip]/255.255.255.0, the game's sockets bind there\n"
+                    "ldn: Bob joined as node 1 from [ip], 2 of 8 nodes\n"
+                    "room: joined relay.example.org:24872 as JohnS, at [ip]:5000, 3 members\n"
+                    "net: 127.0.0.2 and 0.0.0.0 stay\n"
+                    "vulkan: 1.3.250.0.1, Windows 10.0.26100.1 and 300.1.1.1 stay\n"
+                    "room: Alice says: write to [email].\n"
+                    "memcpy@GLIBC_2.14 and vkGet@1.3 stay");
+        CHECK(n == strlen(shown));
+        free(shown);
+    }
+    /* each prefix the log summary's dump() leaves out is left out here: a prefix added there fails this until it is */
+    source = read_file("third_party/logscan/common/utilities/logscan.c", NULL);
+    where = source ? strstr(source, "static int dump(Span line)") : NULL;
+    where = where ? strstr(where, "prefixes[] = {") : NULL;
+    CHECK(where != NULL);
+    for (i = 0; where && *where != '}'; ++where)
+        if (*where == '"') {
+            size_t len = strcspn(where + 1, "\"");
+            char* line = rei_format("[   2.25]   %.*s 1234: 00\n", (int)len, where + 1);
+            char* left = tr_public_log(line, strlen(line), &n);
+            CHECK(n == 0);
+            if (n) fprintf(stderr, "  a dump line is shown: %s", line);
+            free(left);
+            free(line);
+            where += len + 1;
+            ++i;
+        }
+    CHECK(i == 9);
+    free(source);
+}
+
+static void game(const char* summary, const char* note, int ok, const char* key, const char* title, const char* tid,
+                 int named) {
+    cJSON* s = cJSON_Parse(summary);
+    char *k, *t, *id;
+    int n;
+    CHECK(tr_game(s, note, &k, &t, &id, &n) == (ok ? 0 : -1));
+    if (ok) {
+        SAME(k, key);
+        SAME(t, title);
+        CHECK(tid ? id && !strcmp(id, tid) : !id);
+        CHECK(n == named);
+    }
+    free(k);
+    free(t);
+    free(id);
+    cJSON_Delete(s);
+}
+static void test_game(void) {
+    game("{\"title\":\"Some Game\",\"title_id\":\"0100aaaabbbb0000\"}", "", 1, "0100AAAABBBB0000", "Some Game",
+         "0100AAAABBBB0000", 1);
+    game("{\"title\":\"SUPER GAME (0100ABAB00010000/0100ABAB00010000)\",\"title_id\":null}", "", 1, "0100ABAB00010000",
+         "SUPER GAME", "0100ABAB00010000", 1);
+    game("{\"title\":\"0100F00D12340000\"}", "it stutters", 1, "0100F00D12340000", "0100F00D12340000",
+         "0100F00D12340000", 0);
+    game("{\"title\":\"E\xef\xbf\xbdJ\x01G\",\"title_id\":\"0100BEEF0000A000\"}", "", 1, "0100BEEF0000A000",
+         "0100BEEF0000A000", "0100BEEF0000A000", 0);
+    game("{\"title\":\"0100F00D12340000\"}", "", 1, "0100F00D12340000", "0100F00D12340000", "0100F00D12340000", 0);
+    game("{\"title\":\"Tale: Of a Made Up Game\"}", "", 1, "n-tale-of-a-made-up-game", "Tale: Of a Made Up Game", NULL,
+         1);
+    game("{\"build\":\"ScarletNX main 1\"}", "My Game!", 1, "n-my-game", "My Game!", NULL, 0);
+    game("{\"build\":\"ScarletNX main 1\"}", "\xe3\x82\xb2\xe3\x83\xbc\xe3\x83\xa0", 1, "n-0adc07b2",
+         "\xe3\x82\xb2\xe3\x83\xbc\xe3\x83\xa0", NULL, 0);
+    game("{\"build\":\"ScarletNX main 1\"}", "", 0, NULL, NULL, NULL, 0);
+}
+
+/* ---- whole reports ---- */
+static char site[64];
+static Tracer tracer;
+/* user 88 administers guild 33 through role 5, and guild 34 through role 6 */
+static int fake_administers(void* ctx, u64 guild, u64 user, const u64* roles, int nroles) {
+    (void)ctx;
+    (void)user;
+    return nroles == 1 && ((guild == 33 && roles[0] == 5) || (guild == 34 && roles[0] == 6));
+}
+
+static TrMessage message(u64 id, u64 author, const char* content) {
+    TrMessage m;
+    memset(&m, 0, sizeof m);
+    m.id = id;
+    m.channel = 22;
+    m.guild = 33;
+    m.author = author;
+    m.mentioned = 1;
+    m.content = rei_strdup(content);
+    return m;
+}
+static void attach(TrMessage* m, const char* name, const char* url, double size) {
+    TrAttachment* a = &m->files[m->nfiles++];
+    a->name = rei_strdup(name);
+    a->url = rei_strdup(url);
+    a->type = rei_strdup("");
+    a->size = size;
+}
+/* the bot's answer to m, its reply linked to its report as main.c does; the reply's id in last_reply */
+static u64 last_reply = 900000;
+static cJSON* respond(const TrMessage* m) {
+    long report;
+    cJSON* e = tr_answer(&tracer, m, &report);
+    if (e) tr_replied(&tracer, report, ++last_reply);
+    return e;
+}
+static char* at(const char* rel) { return rei_format("%s/%s", site, rel); }
+static char* page(const char* rel) {
+    char *path = at(rel), *text = read_file(path, NULL);
+    free(path);
+    return text;
+}
+static char* answer_text(cJSON* e) {
+    char* t = cJSON_PrintUnformatted(e);
+    cJSON_Delete(e);
+    return t;
+}
+
+static void test_reports(void) {
+    static char png[128];
+    size_t npng = 8;
+    TrMessage m;
+    char *t, *p, *path;
+    StReport r;
+    StFile* files;
+    int nfiles, i;
+    memcpy(png, "\x89PNG\r\n\x1a\n", 8);
+    npng += chunk(png + npng, "IHDR", "0123456789abc", 13);
+    npng += chunk(png + npng, "tEXt", "GPS here", 8);
+    npng += chunk(png + npng, "IEND", "", 0);
+    serve("https://cdn.discordapp.com/1/game.log", LOG, strlen(LOG));
+    serve("https://cdn.discordapp.com/1/shot.png", png, npng);
+    serve("https://cdn.discordapp.com/1/notes.txt", "just some notes\n", 16);
+
+    /* a report: the log and the screenshot kept, the other file named */
+    m = message(1001, 44, "<@99> crashes at the <b>title</b> screen");
+    attach(&m, "game.log", "https://cdn.discordapp.com/1/game.log", (double)strlen(LOG));
+    attach(&m, "shot.png", "https://cdn.discordapp.com/1/shot.png", (double)npng);
+    attach(&m, "setup.exe", "https://cdn.discordapp.com/1/setup.exe", 5);
+    t = answer_text(respond(&m));
+    HAS(t, "Report #1: Some Game");
+    HAS(t, "https://reports.example/r/1/");
+    HAS(t, "svcBreak");
+    HAS(t, "1 log, 1 screenshot");
+    HAS(t, "Missed: 1 service command"); /* the log's undeclared command */
+    HAS(t, "setup.exe: not a log or a screenshot");
+    HAS(t, "@Tracer delete 1");
+    free(t);
+    CHECK(downloads == 2);
+    CHECK(st_get(tracer.store, 1, &r, &files, &nfiles) == 1);
+    SAME(r.key, "0100AAAABBBB0000");
+    SAME(r.outcome, "svcBreak");
+    SAME(r.commit, "1234abc");
+    SAME(r.note, "crashes at the <b>title</b> screen");
+    CHECK(r.poster == 44 && r.message == 1001 && r.named);
+    CHECK(nfiles == 2);
+    SAME(files[0].path, "1.log");
+    SAME(files[1].path, "2.png");
+    HAS(files[0].summary, "\"outcome\"");
+    st_report_free(&r);
+    st_files_free(files, nfiles);
+    /* the log keeps no home folder, the screenshot no text */
+    path = at("r/1/1.log");
+    p = read_file(path, NULL);
+    HAS(p, "loading ~/save.bin");
+    LACKS(p, "someone");
+    LACKS(p, "pc=164ab3c4"); /* the registers' line stays off the site */
+    HAS(p, "#1 1683a358 <_ZN2nn3hid18GetNpadJoyHoldTypeEv+38>");
+    free(p);
+    free(path);
+    path = at("r/1/2.png");
+    p = read_file(path, NULL);
+    CHECK(p && !strstr(p + 8, "GPS"));
+    free(p);
+    free(path);
+    /* the pages: everything the log and the message said escaped */
+    p = page("r/1/index.html");
+    HAS(p, "<h1>Report #1</h1>");
+    HAS(p, "<span class=\"badge missed\" title=\"Missed: 1 service command\">something missed</span>");
+    HAS(p, "<dt>Missed</dt><dd>1 service command</dd>");
+    HAS(p, "crashes at the &lt;b&gt;title&lt;/b&gt; screen");
+    LACKS(p, "<b>title</b>");
+    HAS(p, "~/save.bin &lt;script&gt;");
+    HAS(p, "nn::hid::GetNpadJoyHoldType()");
+    HAS(p, "https://github.com/scarletnx/ScarletNX/commit/1234abc");
+    HAS(p, "<img src=\"2.png\"");
+    HAS(p, "href=\"1.log\" download=\"game.log\"");
+    HAS(p, "href=\"../../g/0100AAAABBBB0000.html\"");
+    free(p);
+    p = page("g/0100AAAABBBB0000.html");
+    HAS(p, "<h1>Some Game</h1>");
+    HAS(p, "href=\"../r/1/\"");
+    free(p);
+    p = page("index.html");
+    HAS(p, "href=\"g/0100AAAABBBB0000.html\"");
+    HAS(p, "<b>1</b> game, <b>1</b> report");
+    free(p);
+    p = page("all.html");
+    HAS(p, "href=\"r/1/\"");
+    HAS(p, "data-missed=\"something missed\"");
+    HAS(p, "<select data-key=\"missed\"");
+    HAS(p,
+        "<select data-key=\"console\" data-fixed aria-label=\"Console\"><option value=\"\">Console: all</option><option "
+        "value=\"Switch\">Switch</option><option value=\"3DS\">3DS</option>"); /* every console, never hidden */
+    free(p);
+    /* the JSON: the report, its files and summaries, and no Discord id */
+    p = page("api/r/1.json");
+    HAS(p, "\"game\":\"0100AAAABBBB0000\"");
+    HAS(p, "\"path\":\"r/1/1.log\"");
+    HAS(p, "\"missed\":\"1 service command\"");
+    HAS(p, "\"summary\":{");
+    HAS(p, "\"note\":\"crashes at the <b>title</b> screen\"");
+    LACKS(p, "1001");
+    LACKS(p, "\"44\"");
+    free(p);
+    p = page("api/games.json");
+    HAS(p, "\"reports\":1");
+    free(p);
+    p = page("api/reports.json");
+    HAS(p, "\"id\":1,");
+    free(p);
+
+    /* the same message again (the gateway after a resume): no reply, no second report */
+    CHECK(!respond(&m));
+    tr_message_free(&m);
+
+    /* no log, a file that is no ScarletNX log, a broken download, a log without a game */
+    m = message(1002, 44, "<@99> look");
+    attach(&m, "shot.png", "https://cdn.discordapp.com/1/shot.png", (double)npng);
+    t = answer_text(respond(&m));
+    HAS(t, "Attach the game's ScarletNX log");
+    free(t);
+    tr_message_free(&m);
+    m = message(1003, 44, "<@99>");
+    attach(&m, "notes.txt", "https://cdn.discordapp.com/1/notes.txt", 16);
+    attach(&m, "gone.log", "https://cdn.discordapp.com/1/gone.log", 16);
+    attach(&m, "elsewhere.log", "https://example.com/x.log", 16);
+    attach(&m, "huge.log", "https://cdn.discordapp.com/1/huge.log", 1e9);
+    t = answer_text(respond(&m));
+    HAS(t, "No ScarletNX log here");
+    HAS(t, "notes.txt: not a ScarletNX log");
+    HAS(t, "gone.log: the download failed");
+    HAS(t, "elsewhere.log: not a file on Discord");
+    HAS(t, "huge.log: over 64 MiB");
+    free(t);
+    tr_message_free(&m);
+
+    /* deletion: someone else's refused, an admin's or the poster's done, a message deleted on Discord */
+    m = message(1004, 55, "<@99> delete 1");
+    t = answer_text(respond(&m));
+    HAS(t, "is not yours");
+    free(t);
+    tr_message_free(&m);
+    m = message(1010, 88, "<@99> delete 1");
+    m.roles[m.nroles++] = 6;
+    t = answer_text(respond(&m));
+    HAS(t, "is not yours");
+    free(t);
+    tr_message_free(&m);
+    path = at("r/1/1.log");
+    CHECK(exists(path));
+    m = message(1005, 88, "<@99> delete #1");
+    m.roles[m.nroles++] = 5; /* an administrator */
+    t = answer_text(respond(&m));
+    HAS(t, "Report #1 is deleted");
+    free(t);
+    tr_message_free(&m);
+    CHECK(!exists(path));
+    free(path);
+    path = at("api/r/1.json");
+    CHECK(!exists(path));
+    free(path);
+    path = at("g/0100AAAABBBB0000.html");
+    CHECK(!exists(path));
+    free(path);
+    p = page("index.html");
+    HAS(p, "No reports yet");
+    free(p);
+    m = message(1006, 44, "<@99> delete 1");
+    t = answer_text(respond(&m));
+    HAS(t, "There is no report #1");
+    free(t);
+    tr_message_free(&m);
+
+    /* a log that names its game but not its title ID goes with the reports that know the ID */
+    {
+        static char named[sizeof LOG];
+        char* cut;
+        strcpy(named, LOG);
+        cut = strstr(named, "[   0.30] game:");
+        memmove(cut, strchr(cut, '\n') + 1, strlen(strchr(cut, '\n') + 1) + 1);
+        serve("https://cdn.discordapp.com/2/named.log", named, strlen(named));
+    }
+    m = message(1007, 66, "<@99>");
+    attach(&m, "game.log", "https://cdn.discordapp.com/1/game.log", 10);
+    free(answer_text(respond(&m)));
+    tr_message_free(&m);
+    m = message(1008, 66, "<@99>");
+    attach(&m, "named.log", "https://cdn.discordapp.com/2/named.log", 10);
+    free(answer_text(respond(&m)));
+    tr_message_free(&m);
+    CHECK(st_get(tracer.store, 3, &r, NULL, NULL) == 1);
+    SAME(r.key, "0100AAAABBBB0000");
+    CHECK(!r.title_id);
+    st_report_free(&r);
+    CHECK(tr_forget(&tracer, 1008));
+    CHECK(!tr_forget(&tracer, 1008));
+    CHECK(st_get(tracer.store, 3, &r, NULL, NULL) == 0);
+    /* a log with the title ID alone takes the name other reports gave the game */
+    {
+        static char bare[sizeof LOG + 16];
+        char* name = strstr(strcpy(bare, LOG), "Some Game");
+        memmove(name + 16, name + 9, strlen(name + 9) + 1);
+        memcpy(name, "0100AAAABBBB0000", 16);
+        serve("https://cdn.discordapp.com/2/bare.log", bare, strlen(bare));
+    }
+    m = message(1009, 66, "<@99> it stutters");
+    attach(&m, "bare.log", "https://cdn.discordapp.com/2/bare.log", 10);
+    t = answer_text(respond(&m));
+    HAS(t, "Report #4: Some Game");
+    free(t);
+    tr_message_free(&m);
+    CHECK(st_get(tracer.store, 4, &r, NULL, NULL) == 1);
+    CHECK(!r.named);
+    SAME(r.note, "it stutters");
+    st_report_free(&r);
+    CHECK(tr_forget(&tracer, 1009));
+
+    /* ten reports in an hour, then a wait */
+    for (i = 0; i < TR_HOURLY; ++i) {
+        m = message(2000 + (u64)i, 77, "<@99>");
+        attach(&m, "game.log", "https://cdn.discordapp.com/1/game.log", 10);
+        t = answer_text(respond(&m));
+        if (i == TR_HOURLY - 1) HAS(t, "Report #");
+        free(t);
+        tr_message_free(&m);
+    }
+    m = message(2100, 77, "<@99>");
+    attach(&m, "game.log", "https://cdn.discordapp.com/1/game.log", 10);
+    t = answer_text(respond(&m));
+    HAS(t, "in the last hour");
+    free(t);
+    now_is += 3601;
+    t = answer_text(respond(&m));
+    HAS(t, "Report #");
+    free(t);
+    tr_message_free(&m);
+
+    /* updates: by a reply or "add N", for the sender and administrators, within the limits, taken back with their
+       message; a log that names a game the report did not */
+    {
+        static char other[sizeof LOG + 16], other_named[sizeof LOG + 16];
+        char *name, *id;
+        u64 answer;
+        long report;
+        strcpy(other, LOG);
+        name = strstr(other, "Some Game");
+        memmove(name + 16, name + 9, strlen(name + 9) + 1);
+        memcpy(name, "0100CCCCDDDD0000", 16);
+        id = strstr(other, "0100aaaabbbb0000");
+        memcpy(id, "0100ccccdddd0000", 16);
+        strcpy(other_named, LOG);
+        memcpy(strstr(other_named, "Some Game"), "Next Game", 9);
+        memcpy(strstr(other_named, "0100aaaabbbb0000"), "0100ccccdddd0000", 16);
+        serve("https://cdn.discordapp.com/3/other.log", other, strlen(other));
+        serve("https://cdn.discordapp.com/3/named.log", other_named, strlen(other_named));
+        m = message(4000, 101, "<@99>");
+        attach(&m, "other.log", "https://cdn.discordapp.com/3/other.log", 10);
+        t = answer_text(respond(&m));
+        HAS(t, "Report #16: 0100CCCCDDDD0000");
+        free(t);
+        tr_message_free(&m);
+        answer = last_reply;
+        /* a reply to an answer the bot did not keep (posted before it kept them): its embed names the report */
+        m = message(3999, 101, "<@99> from an old answer");
+        m.reply_to = 777777;
+        m.reply_report = 16;
+        t = answer_text(respond(&m));
+        HAS(t, "0 logs, 0 screenshots, a note");
+        free(t);
+        tr_message_free(&m);
+        CHECK(st_report_of(tracer.store, 777777) == 16);
+        /* someone else's reply is refused */
+        m = message(4001, 102, "<@99> same here");
+        m.reply_to = answer;
+        attach(&m, "shot.png", "https://cdn.discordapp.com/1/shot.png", (double)npng);
+        t = answer_text(respond(&m));
+        HAS(t, "Report #16 is not yours");
+        free(t);
+        tr_message_free(&m);
+        /* the sender's reply to the answer adds a screenshot and a note */
+        m = message(4002, 101, "<@99> after the boss <i>");
+        m.reply_to = answer;
+        attach(&m, "shot.png", "https://cdn.discordapp.com/1/shot.png", (double)npng);
+        t = answer_text(respond(&m));
+        HAS(t, "Report #16: 0100CCCCDDDD0000");
+        HAS(t, "0 logs, 1 screenshot, a note");
+        free(t);
+        CHECK(!respond(&m)); /* the gateway's event again */
+        tr_message_free(&m);
+        p = page("r/16/index.html");
+        HAS(p, "after the boss &lt;i&gt;");
+        HAS(p, "<img src=\"2.png\"");
+        free(p);
+        /* an administrator's "add 16", a note alone; nothing at all is refused */
+        m = message(4003, 88, "<@99> add 16 also in the menu");
+        m.roles[m.nroles++] = 5;
+        t = answer_text(respond(&m));
+        HAS(t, "0 logs, 0 screenshots, a note");
+        free(t);
+        tr_message_free(&m);
+        m = message(4004, 101, "<@99> add 16");
+        t = answer_text(respond(&m));
+        HAS(t, "Nothing to add");
+        free(t);
+        tr_message_free(&m);
+        /* three logs at most: the report has one, two more are kept; the second names the game */
+        m = message(4005, 101, "<@99>");
+        m.reply_to = 4000; /* the report's own message */
+        attach(&m, "named.log", "https://cdn.discordapp.com/3/named.log", 10);
+        attach(&m, "game.log", "https://cdn.discordapp.com/1/game.log", 10);
+        attach(&m, "third.log", "https://cdn.discordapp.com/1/game.log", 10);
+        t = answer_text(respond(&m));
+        HAS(t, "Report #16: Next Game");
+        HAS(t, "named by its new log");
+        HAS(t, "2 logs, 0 screenshots");
+        HAS(t, "third.log: a report keeps 3 logs");
+        free(t);
+        tr_message_free(&m);
+        CHECK(st_get(tracer.store, 16, &r, &files, &nfiles) == 1);
+        SAME(r.title, "Next Game");
+        SAME(r.key, "0100CCCCDDDD0000");
+        CHECK(r.named && nfiles == 4);
+        SAME(files[2].path, "3.log");
+        SAME(files[3].path, "4.log");
+        st_report_free(&r);
+        st_files_free(files, nfiles);
+        p = page("g/0100CCCCDDDD0000.html");
+        HAS(p, "<h1>Next Game</h1>");
+        free(p);
+        p = page("api/r/16.json");
+        HAS(p, "\"notes_added\":[{");
+        HAS(p, "also in the menu");
+        free(p);
+        /* a reply to the update's answer reaches the report too; a PPM frame is kept as a PNG */
+        {
+            static const char frame[] = "P6\n2 2\n255\nRGBrgbRGBrgb";
+            serve("https://cdn.discordapp.com/1/frame.ppm", frame, sizeof frame - 1);
+        }
+        m = message(4006, 101, "<@99> add #16");
+        attach(&m, "shot.png", "https://cdn.discordapp.com/1/shot.png", (double)npng);
+        attach(&m, "frame-0-01.ppm", "https://cdn.discordapp.com/1/frame.ppm", 22);
+        {
+            static char clip[256];
+            serve("https://cdn.discordapp.com/1/clip.mp4", clip, mp4(clip, sizeof clip));
+        }
+        attach(&m, "clip.mp4", "https://cdn.discordapp.com/1/clip.mp4", 90);
+        attach(&m, "again.mp4", "https://cdn.discordapp.com/1/clip.mp4", 90);
+        attach(&m, "third.mp4", "https://cdn.discordapp.com/1/clip.mp4", 90);
+        t = answer_text(respond(&m));
+        HAS(t, "0 logs, 2 screenshots, 2 videos");
+        HAS(t, "third.mp4: a report keeps 2 videos");
+        free(t);
+        tr_message_free(&m);
+        p = page("r/16/index.html");
+        HAS(p, "<img src=\"6.png\" alt=\"frame-0-01.ppm\"");
+        HAS(p, "<video controls preload=\"metadata\" src=\"7.mp4\"></video>");
+        free(p);
+        path = at("r/16/6.png");
+        p = read_file(path, NULL);
+        CHECK(p && !memcmp(p, "\x89PNG", 4));
+        free(p);
+        free(path);
+        m = message(4007, 101, "<@99> delete");
+        t = answer_text(respond(&m));
+        HAS(t, "Which report?");
+        free(t);
+        tr_message_free(&m);
+        /* the update's message deleted: its screenshot and its note go, the report stays */
+        CHECK(tr_forget(&tracer, 4002));
+        path = at("r/16/2.png");
+        CHECK(!exists(path));
+        free(path);
+        p = page("r/16/index.html");
+        LACKS(p, "after the boss");
+        HAS(p, "also in the menu");
+        free(p);
+        CHECK(!tr_forget(&tracer, 4002));
+        /* a reply with "delete" deletes the report it answers */
+        m = message(4008, 101, "<@99> delete");
+        m.reply_to = answer;
+        t = answer_text(respond(&m));
+        HAS(t, "Report #16 is deleted");
+        free(t);
+        tr_message_free(&m);
+        CHECK(st_get(tracer.store, 16, &r, NULL, NULL) == 0);
+        CHECK(st_report_of(tracer.store, answer) == 0); /* its messages went with it */
+        path = at("r/16/5.png");
+        CHECK(!exists(path));
+        free(path);
+        (void)report;
+    }
+
+    /* the help */
+    m = message(3000, 44, "<@99> help");
+    t = answer_text(respond(&m));
+    HAS(t, "delete 12");
+    free(t);
+    tr_message_free(&m);
+
+    /* every page drawn again, as after an upgrade */
+    CHECK(!site_rebuild(tracer.store, site));
+    p = page("index.html");
+    HAS(p, "<b>1</b> game, <b>12</b> reports");
+    free(p);
+}
+
+/* one JSON-RPC message to the MCP server: its answer and HTTP status */
+static char* ask(const Mcp* m, const char* body, int* status) { return mcp_handle(m, body, strlen(body), status); }
+static char* call(const Mcp* m, const char* tool, const char* args) {
+    int status;
+    char *body = rei_format("{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"tools/call\",\"params\":{\"name\":\"%s\","
+                            "\"arguments\":%s}}",
+                            tool, args),
+         *text = ask(m, body, &status);
+    CHECK(status == 200);
+    free(body);
+    return text;
+}
+
+/* the MCP server over the site test_reports left: report 2 and reports 5 to 15 of one game, all svcBreak */
+static void test_mcp(void) {
+    Mcp m;
+    int status;
+    char* t;
+    cJSON* o;
+    TrMessage add = message(5000, 66, "<@99> add 2");
+    attach(&add, "shot.png", "https://cdn.discordapp.com/1/shot.png", 10);
+    free(answer_text(respond(&add))); /* report 2 gets a screenshot, 2.png */
+    tr_message_free(&add);
+    m.root = site;
+    m.url = "https://reports.example";
+    t = ask(&m,
+            "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":"
+            "\"2025-03-26\",\"capabilities\":{},\"clientInfo\":{\"name\":\"t\",\"version\":\"1\"}}}",
+            &status);
+    CHECK(status == 200);
+    HAS(t, "\"protocolVersion\":\"2025-03-26\"");
+    HAS(t, "\"name\":\"tracer\"");
+    HAS(t, "\"tools\":{\"listChanged\":false}");
+    HAS(t, "\"id\":1");
+    free(t);
+    t = ask(&m,
+            "{\"jsonrpc\":\"2.0\",\"id\":\"a\",\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"1999\"}}",
+            &status);
+    HAS(t, "\"protocolVersion\":\"2025-06-18\"");
+    HAS(t, "\"id\":\"a\"");
+    free(t);
+    CHECK(!ask(&m, "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}", &status) && status == 202);
+    t = ask(&m, "{nope", &status);
+    CHECK(status == 400);
+    HAS(t, "-32700");
+    free(t);
+    t = ask(&m, "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"resources/list\"}", &status);
+    HAS(t, "-32601");
+    free(t);
+    t = ask(&m, "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/list\"}", &status);
+    o = cJSON_Parse(t);
+    CHECK(cJSON_GetArraySize(jpath(o, "result.tools")) == 6);
+    cJSON_Delete(o);
+    HAS(t, "\"read_log\"");
+    free(t);
+
+    t = call(&m, "list_games", "{\"query\":\"some GAME\"}");
+    HAS(t, "\\\"count\\\":1");
+    HAS(t, "https://reports.example/g/0100AAAABBBB0000.html");
+    free(t);
+    t = call(&m, "list_games", "{}");
+    HAS(t, "\\\"count\\\":1");
+    free(t);
+    t = call(&m, "list_games", "{\"console\":\"switch\"}");
+    HAS(t, "\\\"count\\\":1");
+    free(t);
+    t = call(&m, "search_reports", "{\"console\":\"3DS\"}");
+    HAS(t, "\\\"matched\\\":0");
+    free(t);
+    t = call(&m, "list_games", "{\"query\":\"made up\"}");
+    HAS(t, "\\\"count\\\":0");
+    free(t);
+    t = call(&m, "search_reports", "{\"game\":\"0100aaaabbbb0000\",\"outcome\":\"SVCBREAK\",\"limit\":2}");
+    HAS(t, "\\\"matched\\\":12");
+    HAS(t, "\\\"shown\\\":2");
+    HAS(t, "https://reports.example/r/15/");
+    LACKS(t, "r/13/");
+    free(t);
+    t = call(&m, "search_reports", "{\"signature\":\"GetNpadJoyHoldType\",\"gpu\":\"some gpu\",\"query\":\"#2\"}");
+    HAS(t, "\\\"matched\\\":1");
+    free(t);
+    t = call(&m, "get_report", "{\"id\":2}");
+    HAS(t, "https://reports.example/r/2/1.log");
+    HAS(t, "\\\"summary\\\":{");
+    LACKS(t, "isError");
+    HAS(t, "\\\"symbolize\\\":{\\\"title_id\\\":\\\"0100AAAABBBB0000\\\",\\\"game_version\\\":\\\"1.2.3\\\","
+           "\\\"addresses\\\":[\\\"163d18d8\\\",\\\"1683a358\\\"]");
+    free(t);
+    t = call(&m, "get_screenshot", "{\"id\":2}");
+    HAS(t, "{\"type\":\"image\",\"data\":\"iVBORw0KGgo"); /* a PNG's first bytes, in base64 */
+    HAS(t, "\"mimeType\":\"image/png\"");
+    HAS(t, "screenshot 1 of 1: shot.png, https://reports.example/r/2/2.png");
+    LACKS(t, "isError");
+    free(t);
+    t = call(&m, "get_screenshot", "{\"id\":2,\"n\":2}");
+    HAS(t, "has 1 screenshot, not a screenshot 2");
+    HAS(t, "\"isError\":true");
+    free(t);
+    t = call(&m, "get_report", "{\"id\":999}");
+    HAS(t, "there is no report #999");
+    HAS(t, "\"isError\":true");
+    free(t);
+    t = call(&m, "get_report", "{}");
+    HAS(t, "\"isError\":true");
+    free(t);
+    t = call(&m, "read_log", "{\"id\":2,\"grep\":\"SVCBREAK\"}");
+    HAS(t, "11 lines; 1 from line 1 on hold"); /* LOG's 12 without its registers' line */
+    HAS(t, "9: *** The game called svcBreak");
+    free(t);
+    t = call(&m, "read_log", "{\"id\":2,\"start\":3,\"lines\":2}");
+    HAS(t, "lines 3 to 4 shown; go on with start=5");
+    HAS(t, "3: [   0.00] system:");
+    LACKS(t, "5: ");
+    free(t);
+    t = call(&m, "read_log", "{\"id\":2,\"log\":2}");
+    HAS(t, "has 1 log, not a log 2");
+    free(t);
+    t = call(&m, "signatures", "{}");
+    HAS(t, "\\\"signature\\\":\\\"svcBreak in _ZN2nn3hid18GetNpadJoyHoldTypeEv\\\"");
+    HAS(t, "\\\"reports\\\":12");
+    HAS(t, "\\\"newest\\\":[15,14,13,12,11]");
+    free(t);
+    t = ask(&m, "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"rm\"}}", &status);
+    HAS(t, "-32602");
+    free(t);
+}
+
+/* a database of the first schema (no user_version) brought to the last: each report's message leads to it, each
+   file knows its message, the notes' table is there */
+static void test_upgrade(void) {
+    char* path = rei_format("%s/old.db", site);
+    sqlite3* db;
+    Store* s;
+    StFile* files;
+    int nfiles;
+    CHECK(sqlite3_open(path, &db) == SQLITE_OK);
+    CHECK(sqlite3_exec(db,
+                       "CREATE TABLE reports(id INTEGER PRIMARY KEY AUTOINCREMENT, created REAL NOT NULL, guild INTEGER"
+                       " NOT NULL, channel INTEGER NOT NULL, message INTEGER NOT NULL UNIQUE, poster INTEGER NOT NULL,"
+                       " game TEXT NOT NULL, title TEXT NOT NULL, named INTEGER NOT NULL, title_id TEXT, note TEXT,"
+                       " version TEXT, build TEXT, commit_id TEXT, branch TEXT, system TEXT, gpu TEXT, driver TEXT,"
+                       " outcome TEXT, signature TEXT);"
+                       "CREATE TABLE files(report INTEGER NOT NULL REFERENCES reports(id) ON DELETE CASCADE, n INTEGER"
+                       " NOT NULL, kind TEXT NOT NULL, name TEXT NOT NULL, path TEXT NOT NULL, bytes REAL NOT NULL,"
+                       " summary TEXT, PRIMARY KEY(report, n));"
+                       "INSERT INTO reports(created, guild, channel, message, poster, game, title, named) VALUES(1, 1,"
+                       " 2, 7777, 3, 'K', 'T', 1);"
+                       "INSERT INTO files VALUES(1, 1, 'log', 'a.log', '1.log', 10, NULL);",
+                       NULL, NULL, NULL) == SQLITE_OK);
+    sqlite3_close(db);
+    s = st_open(path);
+    CHECK(s != NULL);
+    if (s) {
+        CHECK(st_report_of(s, 7777) == 1);
+        CHECK(st_counts(s, 1, &nfiles, &nfiles, &nfiles) == 1);
+        CHECK(!st_update(s, 1, 7778, 2, NULL, 0, "a note"));
+        CHECK(st_take_back(s, 7778, &files, &nfiles) == 1 && nfiles == 0);
+        st_files_free(files, nfiles);
+        CHECK(st_take_back(s, 7777, &files, &nfiles) == 0); /* the report's own message is not an update */
+        st_close(s);
+        s = st_open(path); /* opened again: nothing left to upgrade */
+        CHECK(s != NULL);
+        st_close(s);
+    }
+    free(path);
+}
+
+/* the reports summarized again when the log summary changed, once: report 2's facts as its log says them */
+static void test_rescan(void) {
+    StReport r;
+    CHECK(st_set_facts(tracer.store, &(StReport){.id = 2, .outcome = "stale"}) == 0);
+    CHECK(st_get(tracer.store, 2, &r, NULL, NULL) == 1);
+    SAME(r.outcome, "stale");
+    st_report_free(&r);
+    CHECK(tr_rescan(&tracer, "a") == 12);
+    CHECK(st_get(tracer.store, 2, &r, NULL, NULL) == 1);
+    SAME(r.outcome, "svcBreak");
+    SAME(r.signature, "svcBreak in _ZN2nn3hid18GetNpadJoyHoldTypeEv");
+    SAME(r.title, "Some Game"); /* the game stays as it was */
+    SAME(r.missed, "1 service command");
+    SAME(r.console, "Switch");
+    st_report_free(&r);
+    CHECK(tr_rescan(&tracer, "a") == 0); /* the same summary: nothing to do */
+    /* a report filed under another game than its log names (an older summary's mistake) is filed again */
+    CHECK(!st_set_game(tracer.store, 2, "0100DDDD00000000", "Wrong Game", "0100DDDD00000000", 1));
+    CHECK(!site_update(tracer.store, site, 2, "0100DDDD00000000"));
+    {
+        char* path = at("g/0100DDDD00000000.html");
+        CHECK(exists(path));
+        free(path);
+    }
+    CHECK(tr_rescan(&tracer, "c") == 12);
+    CHECK(st_get(tracer.store, 2, &r, NULL, NULL) == 1);
+    SAME(r.key, "0100AAAABBBB0000");
+    SAME(r.title, "Some Game");
+    st_report_free(&r);
+    {
+        char* path = at("g/0100DDDD00000000.html");
+        CHECK(!exists(path)); /* the wrong game's page went with its last report */
+        free(path);
+    }
+    CHECK(tr_rescan(&tracer, "b") == 12);
+    { /* a log kept before the site left its dumps out: written again without them, its size with it */
+        char *path = at("r/2/1.log"), *text = read_file(path, NULL), *dumped;
+        StFile* files;
+        int nfiles;
+        size_t n = 0;
+        CHECK(text != NULL);
+        dumped = rei_format("%s[   2.25]   code 164ab380: d10083ff  a9017bfd\n", text ? text : "");
+        CHECK(!site_write(site, "r/2/1.log", dumped, strlen(dumped)));
+        CHECK(tr_rescan(&tracer, "e") == 12);
+        free(text);
+        text = read_file(path, &n);
+        LACKS(text, "d10083ff");
+        HAS(text, "GetNpadJoyHoldType");
+        CHECK(st_get(tracer.store, 2, &r, &files, &nfiles) == 1);
+        CHECK(nfiles >= 1 && files[0].bytes == (double)n);
+        st_report_free(&r);
+        st_files_free(files, nfiles);
+        free(dumped);
+        free(text);
+        free(path);
+    }
+}
+
+/* the games' names from the list: an update's and an add-on's id find their game, a report its logs don't name is named
+   by it at once, one made before the list at the next start, and a log's own name stays first */
+/* what the runtime missed, counted: shaders by the shaders (compute ones too), the rest by the different ones */
+static void test_missed(void) {
+    cJSON* s = cJSON_Parse(
+        "{\"missed\":[{\"kind\":\"shader\",\"what\":\"a jump table\",\"count\":763},{\"kind\":\"shader\","
+        "\"what\":\"unknown opcode\",\"count\":352},{\"kind\":\"compute shader\",\"what\":\"x\",\"count\":1},"
+        "{\"kind\":\"texture format\",\"what\":\"0\",\"count\":3},{\"kind\":\"macro\",\"what\":\"a\",\"count\":1},"
+        "{\"kind\":\"macro compile\",\"what\":\"b\",\"count\":9}],\"ipc\":[{\"kind\":\"undeclared\"},"
+        "{\"kind\":\"unknown\"}]}");
+    char* t = tr_missed(s);
+    SAME(t, "1116 shaders, 1 texture format, 2 macros, 2 service commands");
+    free(t);
+    cJSON_Delete(s);
+    s = cJSON_Parse("{\"missed\":[],\"ipc\":[]}");
+    CHECK(!tr_missed(s));
+    cJSON_Delete(s);
+    CHECK(!tr_missed(NULL));
+}
+
+static void test_titles(void) {
+    static const char list_text[] =
+        "# title ID, name\n0100EEEE00000000\tListed Game\nnot a line\n"
+        "0100aaaabbbb0000\tSome Game From The List\nAGB-ZQXE\tMade Up Quest - Green Version\n";
+    static char bare[sizeof LOG + 16];
+    Titles list;
+    char *path = at("titles.tsv"), *t, *name;
+    StReport r;
+    TrMessage m;
+    long first, second;
+    CHECK(!site_write(site, "titles.tsv", list_text, sizeof list_text - 1));
+    CHECK(!tr_titles_load(&list, path));
+    CHECK(list.n == 3 && strlen(list.version) == 16);
+    SAME(tr_titles_name(&list, "GBA", "zqxe"), "Made Up Quest - Green Version");
+    SAME(tr_titles_name(&list, "Switch", "0100EEEE00000000"), "Listed Game");
+    CHECK(!tr_titles_name(&list, "3DS", "0100EEEE00000000")); /* the list has the Switch's and the GBA's */
+    CHECK(!tr_titles_name(&list, "GBA", "BPEJ"));
+    SAME(tr_titles_name(&list, NULL, "0100EEEE00000000"), "Listed Game");
+    SAME(tr_titles_name(&list, NULL, "0100eeee00000800"), "Listed Game");
+    SAME(tr_titles_name(&list, NULL, "0100EEEE00001001"), "Listed Game");
+    CHECK(!tr_titles_name(&list, NULL, "0100FFFF00000000"));
+    CHECK(!tr_titles_name(NULL, NULL, "0100EEEE00000000"));
+    name = strstr(strcpy(bare, LOG), "Some Game");
+    memmove(name + 16, name + 9, strlen(name + 9) + 1);
+    memcpy(name, "0100EEEE00000000", 16);
+    memcpy(strstr(bare, "0100aaaabbbb0000"), "0100eeee00000000", 16);
+    serve("https://cdn.discordapp.com/6/bare.log", bare, strlen(bare));
+    m = message(6000, 120, "<@99>");
+    attach(&m, "bare.log", "https://cdn.discordapp.com/6/bare.log", 10);
+    t = answer_text(respond(&m));
+    HAS(t, ": 0100EEEE00000000\""); /* no list yet: its title ID */
+    free(t);
+    tr_message_free(&m);
+    first = st_by_message(tracer.store, 6000);
+    tracer.titles = &list;
+    CHECK(tr_rescan(&tracer, "with the list") > 0);
+    CHECK(st_get(tracer.store, first, &r, NULL, NULL) == 1);
+    SAME(r.title, "Listed Game");
+    CHECK(!r.named);
+    st_report_free(&r);
+    m = message(6001, 120, "<@99>");
+    attach(&m, "bare.log", "https://cdn.discordapp.com/6/bare.log", 10);
+    t = answer_text(respond(&m));
+    HAS(t, ": Listed Game\"");
+    free(t);
+    tr_message_free(&m);
+    second = st_by_message(tracer.store, 6001);
+    CHECK(st_get(tracer.store, 2, &r, NULL, NULL) == 1);
+    SAME(r.title, "Some Game"); /* its log named it */
+    st_report_free(&r);
+    {
+        char* p = page("index.html");
+        HAS(p, ">Listed Game<");
+        free(p);
+    }
+    /* the other consoles: a 3DS game by its title ID, a Vita game by its name, a GBA game by its code and the list */
+    {
+        static const char three[] = "Game: Some 3DS Game (0004000000ABC400) - ScarletNX main d22bbab (clang 23.1.4, "
+                                    "Linux x86_64)\nNo Vulkan device: no frames will be drawn, shown or saved\n";
+        static const char vita[] = "Game: Some Vita Game - ScarletNX main 1234abc (clang 23.1.3, Linux x86_64)\n";
+        static const char gba[] = "ScarletNX - MADEUP QUEST (GBA)\nbuild: ScarletNX main 1234abc (clang 23.1.3, Linux "
+                                  "x86_64)\ncartridge: ZQXE\n";
+        static const struct {
+            const char *text, *url, *key, *title, *console, *reply;
+        } cases[] = {{three, "https://cdn.discordapp.com/7/3ds.log", "0004000000ABC400", "Some 3DS Game", "3DS",
+                      ": Some 3DS Game (3DS)\""},
+                     {vita, "https://cdn.discordapp.com/7/vita.log", "n-vita-some-vita-game", "Some Vita Game", "Vita",
+                      ": Some Vita Game (Vita)\""},
+                     {gba, "https://cdn.discordapp.com/7/gba.log", "gba-ZQXE", "Made Up Quest - Green Version", "GBA",
+                      ": Made Up Quest - Green Version (GBA)\""}};
+        size_t c;
+        for (c = 0; c < sizeof cases / sizeof *cases; ++c) {
+            long id;
+            serve(cases[c].url, cases[c].text, strlen(cases[c].text));
+            m = message(6100 + (u64)c, 121, "<@99>");
+            attach(&m, "last-run.log.txt", cases[c].url, 10);
+            t = answer_text(respond(&m));
+            HAS(t, cases[c].reply);
+            free(t);
+            tr_message_free(&m);
+            id = st_by_message(tracer.store, 6100 + (u64)c);
+            CHECK(st_get(tracer.store, id, &r, NULL, NULL) == 1);
+            SAME(r.key, cases[c].key);
+            SAME(r.title, cases[c].title);
+            SAME(r.console, cases[c].console);
+            st_report_free(&r);
+        }
+        {
+            char* p = page("index.html");
+            HAS(p, "data-console=\"GBA\"");
+            HAS(p, "GBA · ZQXE");
+            free(p);
+        }
+        for (c = 0; c < sizeof cases / sizeof *cases; ++c) CHECK(tr_forget(&tracer, 6100 + (u64)c));
+    }
+    CHECK(tr_forget(&tracer, 6000) && tr_forget(&tracer, 6001) && first && second);
+    tracer.titles = NULL;
+    tr_titles_free(&list);
+    free(path);
+}
+
+/* the hourly limit counts what was asked: reports deleted since, files that were no log, and updates */
+static void test_limits(void) {
+    TrMessage m;
+    char* t;
+    int i;
+    now_is += 3601;
+    for (i = 0; i < TR_HOURLY; ++i) {
+        m = message(2200 + (u64)i, 78, "<@99>");
+        attach(&m, "game.log", "https://cdn.discordapp.com/1/game.log", 10);
+        t = answer_text(respond(&m));
+        HAS(t, "Report #");
+        free(t);
+        tr_message_free(&m);
+        CHECK(tr_forget(&tracer, 2200 + (u64)i));
+    }
+    m = message(2300, 78, "<@99>");
+    attach(&m, "game.log", "https://cdn.discordapp.com/1/game.log", 10);
+    t = answer_text(respond(&m));
+    HAS(t, "You sent 10 reports and updates in the last hour");
+    free(t);
+    tr_message_free(&m);
+    downloads = 0;
+    for (i = 0; i <= TR_HOURLY; ++i) {
+        m = message(2400 + (u64)i, 79, "<@99>");
+        attach(&m, "notes.txt", "https://cdn.discordapp.com/1/notes.txt", 10);
+        t = answer_text(respond(&m));
+        HAS(t, i < TR_HOURLY ? "No ScarletNX log here" : "in the last hour");
+        free(t);
+        tr_message_free(&m);
+    }
+    CHECK(downloads == TR_HOURLY);
+    m = message(2500, 80, "<@99>"); /* no file: nothing to download, nothing counted */
+    t = answer_text(respond(&m));
+    HAS(t, "Attach the game's ScarletNX log");
+    free(t);
+    tr_message_free(&m);
+    {
+        long made;
+        m = message(2501, 80, "<@99>");
+        attach(&m, "game.log", "https://cdn.discordapp.com/1/game.log", 10);
+        free(answer_text(respond(&m)));
+        tr_message_free(&m);
+        made = st_report_of(tracer.store, 2501);
+        CHECK(made > 0);
+        for (i = 1; i <= TR_HOURLY; ++i) {
+            char* add = rei_format("<@99> add %ld a note", made);
+            m = message(2501 + (u64)i, 80, add);
+            t = answer_text(respond(&m));
+            HAS(t, i < TR_HOURLY ? "a note" : "in the last hour");
+            free(t);
+            tr_message_free(&m);
+            free(add);
+        }
+        CHECK(tr_forget(&tracer, 2501));
+    }
+}
+
+/* another server's administrator neither deletes nor adds to a report of this one */
+static void test_other_guild(void) {
+    TrMessage m;
+    char *t, *text;
+    long id;
+    m = message(2600, 81, "<@99>");
+    attach(&m, "game.log", "https://cdn.discordapp.com/1/game.log", 10);
+    free(answer_text(respond(&m)));
+    tr_message_free(&m);
+    id = st_report_of(tracer.store, 2600);
+    CHECK(id > 0);
+    text = rei_format("<@99> delete %ld", id);
+    m = message(2601, 88, text);
+    m.guild = 34;
+    m.roles[m.nroles++] = 6;
+    t = answer_text(respond(&m));
+    HAS(t, "is not yours");
+    free(t);
+    tr_message_free(&m);
+    free(text);
+    text = rei_format("<@99> add %ld from another server", id);
+    m = message(2602, 88, text);
+    m.guild = 34;
+    m.roles[m.nroles++] = 6;
+    t = answer_text(respond(&m));
+    HAS(t, "is not yours");
+    free(t);
+    tr_message_free(&m);
+    free(text);
+    text = rei_format("<@99> delete %ld", id); /* this server's administrator does */
+    m = message(2603, 88, text);
+    m.roles[m.nroles++] = 5;
+    t = answer_text(respond(&m));
+    HAS(t, "is deleted");
+    free(t);
+    tr_message_free(&m);
+    free(text);
+}
+
+/* read_log's grep: in any case, overlapping starts, and in time linear in the line: a 2 MiB line and a 16 KiB grep that
+   matches all but its last byte at each place took over a minute, its length times the line's */
+static void test_mcp_grep(void) {
+    static const char lines[] = "first aaab line\nthe abaabab line\nAbAb\nnothing here\n";
+    size_t line = (size_t)2 << 20, glen = 16 << 10;
+    char *log = malloc(line + 2), *grep = malloc(glen + 1), *t, *args;
+    Mcp m;
+    clock_t start;
+    m.root = site;
+    m.url = "https://reports.example";
+    CHECK(!site_write(site, "api/r/990.json",
+                      "{\"id\":990,\"title\":\"x\",\"files\":[{\"kind\":\"log\",\"name\":\"a.log\","
+                      "\"path\":\"r/990/1.log\"},{\"kind\":\"log\",\"name\":\"b.log\",\"path\":\"r/990/2.log\"}]}",
+                      strlen("{\"id\":990,\"title\":\"x\",\"files\":[{\"kind\":\"log\",\"name\":\"a.log\","
+                             "\"path\":\"r/990/1.log\"},{\"kind\":\"log\",\"name\":\"b.log\",\"path\":"
+                             "\"r/990/2.log\"}]}")));
+    CHECK(!site_write(site, "r/990/1.log", lines, strlen(lines)));
+    t = call(&m, "read_log", "{\"id\":990,\"grep\":\"aab\"}");
+    HAS(t, "2 from line 1 on hold");
+    HAS(t, "1: first aaab line");
+    HAS(t, "2: the abaabab line");
+    free(t);
+    t = call(&m, "read_log", "{\"id\":990,\"grep\":\"ABAB\"}");
+    HAS(t, "2 from line 1 on hold");
+    HAS(t, "2: the abaabab line");
+    HAS(t, "3: AbAb");
+    free(t);
+    t = call(&m, "read_log", "{\"id\":990,\"grep\":\"abac\"}");
+    HAS(t, "0 from line 1 on hold");
+    free(t);
+    memset(log, 'a', line);
+    log[line] = '\n';
+    memset(grep, 'a', glen - 1);
+    grep[glen - 1] = 'b';
+    grep[glen] = 0;
+    CHECK(!site_write(site, "r/990/2.log", log, line + 1));
+    args = rei_format("{\"id\":990,\"log\":2,\"grep\":\"%s\"}", grep);
+    start = clock();
+    t = call(&m, "read_log", args);
+    CHECK((double)(clock() - start) / CLOCKS_PER_SEC < 2);
+    HAS(t, "1 lines; 0 from line 1 on hold");
+    free(t);
+    free(args);
+    free(log);
+    free(grep);
+}
+
+/* the channels: none without a list, a listed one, a thread of one asked once */
+static int parents_asked;
+static u64 fake_parent(void* ctx, u64 channel) {
+    (void)ctx;
+    ++parents_asked;
+    return channel == 701 ? 70 : 0; /* thread 701 is channel 70's */
+}
+static void test_channels(void) {
+    static const u64 listed[2] = {70, 71};
+    TrParents cache;
+    char* said;
+    memset(&cache, 0, sizeof cache);
+    CHECK(!tr_answers_in(listed, 0, &cache, 70, fake_parent, NULL) && !parents_asked); /* no list: no channel */
+    said = tr_channels_said(listed, 0);
+    SAME(said, "none, as TRACER_CHANNELS is not set: no report is taken");
+    free(said);
+    said = tr_channels_said(listed, 2);
+    SAME(said, "70,71");
+    free(said);
+    CHECK(tr_answers_in(listed, 2, &cache, 71, fake_parent, NULL) && !parents_asked);
+    CHECK(tr_answers_in(listed, 2, &cache, 701, fake_parent, NULL) && parents_asked == 1);
+    CHECK(tr_answers_in(listed, 2, &cache, 701, fake_parent, NULL) && parents_asked == 1);
+    CHECK(!tr_answers_in(listed, 2, &cache, 702, fake_parent, NULL) && parents_asked == 2);
+}
+
+/* ---- the worker ---- */
+/* a download in a worker that the tests run: url's bytes from the file the test wrote for it in WORKER_TEST_SERVED (no
+   TRACER_ name, which a worker never gets) */
+static char* served_path(const char* url) {
+    unsigned long h = 2166136261UL;
+    const char* dir = getenv("WORKER_TEST_SERVED");
+    for (; *url; ++url) h = ((h ^ (unsigned char)*url) * 16777619UL) & 0xffffffffUL;
+    return rei_format("%s/%08lx", dir ? dir : ".", h);
+}
+static int served_get(void* ctx, const char* url, size_t max, Buf* out, char** why) {
+    char* path = served_path(url);
+    size_t n;
+    char* data = read_file(path, &n);
+    (void)ctx;
+    buf_free(out);
+    *why = NULL;
+    free(path);
+    if (!data || n > max) {
+        free(data);
+        *why = rei_format("%s: HTTP 404", url);
+        return -1;
+    }
+    buf_addn(out, data, n);
+    free(data);
+    return 0;
+}
+static void serve_file(const char* url, const char* data, size_t n) {
+    char* path = served_path(url);
+    FILE* f = fopen(path, "wb");
+    CHECK(f && fwrite(data, 1, n, f) == n);
+    if (f) fclose(f);
+    free(path);
+}
+/* the test program run as a worker that answers what it is told: the files, a crash, a wait, its environment, a lie */
+static int as_worker(const char* how) {
+    if (!strcmp(how, "--report")) {
+        wk_limit();
+        return wk_serve(stdin, stdout, served_get, NULL);
+    }
+    if (!strcmp(how, "--crash")) kill(getpid(), SIGKILL);
+    if (!strcmp(how, "--hang")) sleep(30);
+    if (!strcmp(how, "--gone")) return 0; /* gone before it reads its question */
+    if (!strcmp(how, "--env"))
+        printf("{\"logs\":0,\"images\":0,\"files\":[],\"skipped\":\"TRACER_TOKEN %s, HOME %s\"}",
+               getenv("TRACER_TOKEN") ? "seen" : "none", getenv("HOME") ? "seen" : "none");
+    if (!strcmp(how, "--lie")) /* a worker taken over: a file of the host as a report's */
+        printf("{\"logs\":0,\"images\":1,\"files\":[{\"n\":1,\"kind\":\"image\",\"name\":\"x.png\","
+               "\"path\":\"1.png\",\"taken\":\"/etc/passwd\"}]}");
+    return 0;
+}
+static char* worker_argv[3];
+static int test_worker_take(void* ctx, Tracer* t, const TrMessage* m, Taken* k, char** why) {
+    (void)ctx;
+    (void)t;
+    return wk_take(worker_argv, 20, m, k, why);
+}
+/* files waiting in the work folder: how many */
+static int waiting_files(void) {
+    char* path = rei_format("%s/work", site);
+    int n = 0;
+    DIR* d = opendir(path);
+    struct dirent* e;
+    while (d && (e = readdir(d)))
+        if (e->d_name[0] != '.') {
+            ++n;
+            fprintf(stderr, "  left in the work folder: %s\n", e->d_name);
+        }
+    if (d) closedir(d);
+    free(path);
+    return n;
+}
+static void test_worker(const char* self_path) {
+    static char png[128];
+    size_t npng = 8;
+    TrMessage m;
+    char *t, *p, *why, **env;
+    Taken k;
+    long id;
+    char* const fake_environ[] = {"HOME=/home/x", "TRACER_TOKEN=secret", "TRACER_URL=https://a", "PATH=/bin", NULL};
+    /* its environment: no setting or token of the bot's */
+    env = wk_env(fake_environ);
+    CHECK(env[0] && !strcmp(env[0], "HOME=/home/x") && env[1] && !strcmp(env[1], "PATH=/bin") && !env[2]);
+    free(env);
+    worker_argv[0] = (char*)self_path;
+    worker_argv[2] = NULL;
+    setenv("TRACER_TOKEN", "secret", 1);
+    memset(&k, 0, sizeof k);
+    k.dir = rei_format("%s/work/take.XXXXXX", site);
+    CHECK(mkdtemp(k.dir) != NULL);
+    m = message(7000, 130, "<@99>");
+    worker_argv[1] = "--env";
+    CHECK(!wk_take(worker_argv, 20, &m, &k, &why));
+    SAME(k.skipped.text, "TRACER_TOKEN none, HOME seen");
+    tr_taken_free(&k);
+    tr_message_free(&m);
+    unsetenv("TRACER_TOKEN");
+    /* a report through the worker: the same as one taken here, nothing left waiting */
+    memcpy(png, "\x89PNG\r\n\x1a\n", 8);
+    npng += chunk(png + npng, "IHDR", "0123456789abc", 13);
+    npng += chunk(png + npng, "tEXt", "GPS here", 8);
+    npng += chunk(png + npng, "IEND", "", 0);
+    serve_file("https://cdn.discordapp.com/8/game.log", LOG, strlen(LOG));
+    serve_file("https://cdn.discordapp.com/8/shot.png", png, npng);
+    tracer.take = test_worker_take;
+    worker_argv[1] = "--report";
+    m = message(7001, 131, "<@99> through the worker");
+    attach(&m, "game.log", "https://cdn.discordapp.com/8/game.log", 10);
+    attach(&m, "shot.png", "https://cdn.discordapp.com/8/shot.png", 10);
+    attach(&m, "gone.log", "https://cdn.discordapp.com/8/gone.log", 10);
+    t = answer_text(respond(&m));
+    HAS(t, "1 log, 1 screenshot");
+    HAS(t, "gone.log: the download failed");
+    free(t);
+    tr_message_free(&m);
+    id = st_by_message(tracer.store, 7001);
+    CHECK(id > 0);
+    {
+        char *log = rei_format("r/%ld/1.log", id), *shot = rei_format("r/%ld/2.png", id), *path = at(shot);
+        size_t n = 0;
+        p = page(log);
+        HAS(p, "loading ~/save.bin");
+        LACKS(p, "pc=164ab3c4");
+        free(p);
+        p = read_file(path, &n);
+        CHECK(p && n == npng - 20 && !found(p, n, "GPS"));
+        free(p);
+        free(path);
+        free(shot);
+        free(log);
+    }
+    CHECK(waiting_files() == 0);
+    /* a worker that crashes, one that never answers, and one that names a host file: nothing kept, nothing left */
+    worker_argv[1] = "--crash";
+    m = message(7002, 132, "<@99>");
+    attach(&m, "game.log", "https://cdn.discordapp.com/8/game.log", 10);
+    t = answer_text(respond(&m));
+    HAS(t, "Your files could not be read, so nothing was kept");
+    free(t);
+    CHECK(!st_by_message(tracer.store, 7002));
+    memset(&k, 0, sizeof k);
+    k.dir = rei_format("%s/work/take.XXXXXX", site);
+    CHECK(mkdtemp(k.dir) != NULL);
+    CHECK(wk_take(worker_argv, 20, &m, &k, &why) == -1);
+    SAME(why, "the worker stopped on signal 9 (Killed)");
+    free(why);
+    worker_argv[1] = "--hang";
+    CHECK(wk_take(worker_argv, 1, &m, &k, &why) == -1);
+    SAME(why, "the worker took over 1 s, and was stopped");
+    free(why);
+    { /* a worker gone before it reads a question longer than a pipe holds: an error said, not the bot's end */
+        TrMessage big = message(7003, 133, "<@99>");
+        char name[8000];
+        int f;
+        memset(name, 'a', sizeof name - 5);
+        memcpy(name + sizeof name - 5, ".log", 5);
+        for (f = 0; f < TR_FILES; ++f) attach(&big, name, "https://cdn.discordapp.com/8/game.log", 10);
+        worker_argv[1] = "--gone";
+        CHECK(wk_take(worker_argv, 20, &big, &k, &why) == -1);
+        SAME(why, "its answer is no JSON object");
+        free(why);
+        tr_message_free(&big);
+    }
+    worker_argv[1] = "--lie";
+    CHECK(wk_take(worker_argv, 20, &m, &k, &why) == -1);
+    SAME(why, "its file 0 is not one it may answer (image 1.png, at /etc/passwd)");
+    free(why);
+    CHECK(k.n == 0);
+    tr_taken_free(&k);
+    tr_message_free(&m);
+    worker_argv[1] = "--report";
+    tracer.take = NULL;
+    CHECK(waiting_files() == 0);
+}
+
+/* ---- the issues ---- */
+static int gh_posts, gh_status = 201;
+static char* gh_body;
+static char gh_url[256];
+static void fake_github(void* ctx, const char* method, const char* url, const char* body, const char* etag,
+                        RgAnswer* out) {
+    (void)ctx;
+    (void)etag;
+    memset(out, 0, sizeof *out);
+    ++gh_posts;
+    snprintf(gh_url, sizeof gh_url, "%s %s", method, url);
+    free(gh_body);
+    gh_body = rei_strdup(body ? body : "");
+    out->status = gh_status;
+    out->body = rei_strdup(gh_status == 201 ? "{\"number\":345,\"html_url\":\"https://github.com/o/r/issues/345\"}"
+                                            : "{\"message\":\"Resource not accessible by personal access token\"}");
+}
+static const char* issue_settings[8][2];
+static const char* issue_env(const char* name) {
+    int i;
+    for (i = 0; i < 8 && issue_settings[i][0]; ++i)
+        if (!strcmp(issue_settings[i][0], name)) return issue_settings[i][1];
+    return NULL;
+}
+/* setting i, and none after it */
+static void issue_set(int i, const char* name, const char* value) {
+    issue_settings[i][0] = name;
+    issue_settings[i][1] = value;
+    issue_settings[i + 1][0] = NULL;
+}
+/* the gateway's reaction json, self being 99 */
+static int read_reaction(const char* json, TrReaction* r) { return tr_reaction(json, strlen(json), 99, r); }
+static TrReaction reaction(u64 user, u64 guild, u64 message, const char* emoji) {
+    TrReaction r;
+    memset(&r, 0, sizeof r);
+    r.user = user;
+    r.channel = 22;
+    r.guild = guild;
+    r.message = message;
+    r.emoji = rei_strdup(emoji);
+    return r;
+}
+static void test_issues(void) {
+    TrIssues is;
+    TrReaction r;
+    TrMessage m;
+    StReport rep;
+    const char* token;
+    char *why, *t, *p;
+    long id;
+    /* the settings: off without a repository, said; the token, the emoji and the labels */
+    issue_settings[0][0] = NULL;
+    CHECK(!tr_issues_settings(&is, issue_env, &token, &why) && !is.repo && !token);
+    t = tr_issues_said(&is);
+    SAME(t, "issues: none, as TRACER_ISSUES_REPO is not set");
+    free(t);
+    issue_set(0, "TRACER_ISSUES_TOKEN", "github_pat_x");
+    CHECK(tr_issues_settings(&is, issue_env, &token, &why) == -1);
+    SAME(why, "TRACER_ISSUES_TOKEN is set, and TRACER_ISSUES_REPO, the issues' repository, is not");
+    free(why);
+    issue_set(0, "TRACER_ISSUES_REPO", "o/r");
+    CHECK(tr_issues_settings(&is, issue_env, &token, &why) == -1);
+    SAME(why, "TRACER_ISSUES_REPO=o/r needs TRACER_ISSUES_TOKEN, a fine-grained token that writes its issues");
+    free(why);
+    issue_set(0, "TRACER_ISSUES_REPO", "o/r/x");
+    issue_set(1, "TRACER_ISSUES_TOKEN", "github_pat_x");
+    CHECK(tr_issues_settings(&is, issue_env, &token, &why) == -1);
+    SAME(why, "TRACER_ISSUES_REPO=o/r/x is not OWNER/NAME");
+    free(why);
+    issue_set(0, "TRACER_ISSUES_REPO", "o/r");
+    issue_set(1, "TRACER_ISSUES_TOKEN", "github_pat_x");
+    issue_set(2, "TRACER_ISSUES_LABELS", "game report, needs triage");
+    CHECK(!tr_issues_settings(&is, issue_env, &token, &why));
+    SAME(token, "github_pat_x");
+    SAME(is.emoji, "\xe2\x9c\x85");
+    CHECK(is.nlabels == 2);
+    SAME(is.labels[1], "needs triage");
+    t = tr_issues_said(&is);
+    SAME(t, "issues: into o/r, once a server's administrator reacts to a report with \xe2\x9c\x85; labels: game "
+            "report,needs triage");
+    LACKS(t, "github_pat");
+    free(t);
+    is.fetch = fake_github;
+    tracer.issues = &is;
+    /* a report: then reactions to it */
+    m = message(8000, 140, "<@99> @everyone #12 ```ticks```");
+    attach(&m, "game.log", "https://cdn.discordapp.com/1/game.log", 10);
+    free(answer_text(respond(&m)));
+    tr_message_free(&m);
+    id = st_report_of(tracer.store, 8000);
+    CHECK(id > 0);
+    gh_posts = 0;
+    r = reaction(141, 33, 8000, "\xe2\x9c\x85"); /* not an administrator */
+    CHECK(!tr_approved(&tracer, &r));
+    tr_reaction_free(&r);
+    r = reaction(88, 33, 8000, "\xf0\x9f\x91\x8d"); /* an administrator, another emoji */
+    r.roles[r.nroles++] = 5;
+    CHECK(!tr_approved(&tracer, &r));
+    tr_reaction_free(&r);
+    r = reaction(88, 34, 8000, "\xe2\x9c\x85"); /* another server's administrator */
+    r.roles[r.nroles++] = 6;
+    CHECK(!tr_approved(&tracer, &r));
+    tr_reaction_free(&r);
+    CHECK(gh_posts == 0);
+    /* GitHub refuses: said, and a later approval tries again */
+    gh_status = 403;
+    r = reaction(88, 33, 8000, "\xe2\x9c\x85");
+    r.roles[r.nroles++] = 5;
+    t = answer_text(tr_approved(&tracer, &r));
+    HAS(t, "could not be filed as an issue: GitHub answered 403 to POST repos/o/r/issues: Resource not accessible");
+    free(t);
+    CHECK(gh_posts == 1 && st_get(tracer.store, id, &rep, NULL, NULL) == 1 && rep.issue == 0);
+    st_report_free(&rep);
+    gh_status = 201;
+    t = answer_text(tr_approved(&tracer, &r));
+    HAS(t, "is issue #345 now");
+    HAS(t, "https://github.com/o/r/issues/345");
+    free(t);
+    CHECK(gh_posts == 2);
+    SAME(gh_url, "POST https://api.github.com/repos/o/r/issues");
+    HAS(gh_body, "\"labels\":[\"game report\",\"needs triage\"]");
+    HAS(gh_body, "approved on Discord by a server's administrator");
+    { /* no "#" outside the code block, where GitHub would link an issue */
+        const char* fence = strstr(gh_body, "````text");
+        CHECK(fence && !memchr(gh_body, '#', (size_t)(fence - gh_body)));
+    }
+    HAS(gh_body, "https://reports.example/r/");
+    HAS(gh_body, "````text"); /* a fence longer than the note's backticks: what it says is code, no @ or # link */
+    HAS(gh_body, "@everyone #12 ```ticks```");
+    HAS(gh_body, "svcBreak");
+    LACKS(gh_body, "140"); /* no Discord id */
+    CHECK(st_get(tracer.store, id, &rep, NULL, NULL) == 1 && rep.issue == 345);
+    SAME(rep.issue_url, "https://github.com/o/r/issues/345");
+    st_report_free(&rep);
+    {
+        char* rel = rei_format("r/%ld/index.html", id);
+        p = page(rel);
+        HAS(p, "<dt>Issue</dt><dd><a href=\"https://github.com/o/r/issues/345\">#345</a></dd>");
+        free(p);
+        free(rel);
+        rel = rei_format("api/r/%ld.json", id);
+        p = page(rel);
+        HAS(p, "\"issue\":345");
+        free(p);
+        free(rel);
+    }
+    /* approved again, by another administrator or on the bot's answer: no second issue */
+    CHECK(!tr_approved(&tracer, &r));
+    tr_reaction_free(&r);
+    r = reaction(88, 33, last_reply, "\xe2\x9c\x85");
+    r.roles[r.nroles++] = 5;
+    CHECK(!tr_approved(&tracer, &r) && gh_posts == 2);
+    tr_reaction_free(&r);
+    /* the gateway's reaction read: a person's, never a bot's or self's */
+    CHECK(
+        read_reaction("{\"user_id\":\"88\",\"channel_id\":\"22\",\"message_id\":\"8000\",\"guild_id\":\"33\","
+                      "\"member\":{\"roles\":[\"5\"],\"user\":{\"id\":\"88\"}},\"emoji\":{\"id\":null,\"name\":\"x\"}}",
+                      &r));
+    CHECK(r.user == 88 && r.guild == 33 && r.message == 8000 && r.nroles == 1 && r.roles[0] == 5);
+    SAME(r.emoji, "x");
+    tr_reaction_free(&r);
+    CHECK(!read_reaction("{\"user_id\":\"99\",\"channel_id\":\"22\",\"message_id\":\"1\",\"emoji\":{\"name\":\"x\"}}",
+                         &r));
+    CHECK(!read_reaction(
+        "{\"user_id\":\"7\",\"channel_id\":\"22\",\"message_id\":\"1\",\"member\":{\"user\":{\"bot\":true}},"
+        "\"emoji\":{\"name\":\"x\"}}",
+        &r));
+    CHECK(tr_forget(&tracer, 8000));
+    tracer.issues = NULL;
+    tr_issues_free(&is);
+    free(gh_body);
+    gh_body = NULL;
+}
+
+int main(int argc, char** argv) {
+    char *db, *command;
+    if (argc == 2) return as_worker(argv[1]);
+    rei_now = clock_now;
+    strcpy(site, "/tmp/tracer-test-XXXXXX");
+    if (!mkdtemp(site)) {
+        perror("mkdtemp");
+        return 1;
+    }
+    db = rei_format("%s/tracer.db", site);
+    tracer.store = st_open(db);
+    tracer.root = site;
+    tracer.work = rei_format("%s/work", site);
+    CHECK(!mkdir(tracer.work, 0700));
+    {
+        char* files = rei_format("%s/served", site);
+        CHECK(!mkdir(files, 0700));
+        setenv("WORKER_TEST_SERVED", files, 1);
+        free(files);
+    }
+    tracer.url = "https://reports.example";
+    tracer.get = fake_get;
+    tracer.administers = fake_administers;
+    tracer.admins = NULL;
+    CHECK(tracer.store != NULL);
+    test_message();
+    test_command();
+    test_kind_and_text();
+    test_images();
+    test_unpack();
+    test_public_log();
+    test_channels();
+    test_game();
+    if (tracer.store) {
+        test_reports();
+        test_mcp();
+        test_upgrade();
+        test_rescan();
+        test_titles();
+        test_missed();
+        test_limits();
+        test_other_guild();
+        test_mcp_grep();
+        test_worker(argv[0]);
+        test_issues();
+    }
+    st_close(tracer.store);
+    if (getenv("TRACER_TEST_KEEP")) fprintf(stderr, "kept %s\n", site);
+    command = rei_format(getenv("TRACER_TEST_KEEP") ? "true %s" : "rm -rf '%s'", site);
+    if (system(command)) fprintf(stderr, "%s failed\n", command);
+    free(command);
+    free(db);
+    fprintf(stderr, "tracer: %d of %d checks passed\n", checks - failures, checks);
+    return failures != 0;
+}

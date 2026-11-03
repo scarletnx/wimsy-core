@@ -37,6 +37,8 @@ noirjail.sh's; each one's own help says what Bastille and pf do under it.
 | `gitscarlet` | Forgejo, on 3000 | isolated | DNS only; reached by `gitedge` and `gitsync` on 3000 |
 | `gitedge` | cloudflared, the forge's tunnel | isolated | Cloudflare's edge (7844, TCP and UDP), `gitscarlet` on 3000 |
 | `status` | Gatus and cloudflared, the status page's tunnel | the host's LAN bridge | the addresses it checks, Cloudflare |
+| `tracer` | Tracer | the host's LAN bridge | Discord, and GitHub's API with `TRACER_ISSUES_REPO` |
+| `tracerweb` | nginx, tracer-mcp and cloudflared: Tracer's site, its MCP server and their tunnel | the host's LAN bridge | Cloudflare; Tracer's site mounted read-only |
 
 An isolated jail asks `ISOLATED_DNS` for names and reaches no package repository: its packages come from the host's
 (noirjail.sh's `jail pkg` mounts them in).
@@ -46,6 +48,23 @@ An isolated jail asks `ISOLATED_DNS` for names and reaches no package repository
     bastille create discordbots 15.1-RELEASE <ip> <interface>
 
 Then the package and its settings: [Install](./INSTALL.md#reiwimsy).
+
+## Tracer's jails
+
+The bot listens on nothing; its site is served from another jail, which can read it and write nothing of it:
+
+    bastille create tracer 15.1-RELEASE <ip> <interface>
+    bastille create tracerweb 15.1-RELEASE <ip> <interface>
+    bastille cmd tracer mkdir -p /var/db/tracer-site
+    bastille cmd tracerweb mkdir -p /usr/local/www/tracer
+    bastille mount tracerweb /usr/local/bastille/jails/tracer/root/var/db/tracer-site /usr/local/www/tracer nullfs ro 0 0
+    bastille pkg tracerweb install nginx cloudflared
+
+Then the package and its settings in `tracer` ([Install](./INSTALL.md#tracer)); in `tracerweb`, the same package
+for `tracer-mcp`, and nginx with Tracer's
+`nginx.conf` (the package's `/usr/local/share/examples/tracer/nginx.conf`, copied in) and
+`noirjail.sh cloudflared install --url tracerweb`, its token from a file (`--token-file`), the tunnel's public name
+routed to `http://127.0.0.1:8080`. The service makes `/var/db/tracer-site` its user's at start.
 
 ## The forge
 

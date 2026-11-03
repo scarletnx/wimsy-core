@@ -1,0 +1,38 @@
+#!/bin/sh
+# PROVIDE: tracer
+# REQUIRE: LOGIN NETWORKING
+# KEYWORD: shutdown
+#
+# The Tracer Discord bot, run by daemon(8) as the tracer user, started again when it stops; its output in syslog. Its
+# token and settings are in tracer_env_file (root's, mode 600), which rc.subr exports to it. Its database is in
+# tracer_db's folder, which only it reads; the site it draws is tracer_site, which anyone may read (a web server's
+# jail mounts it read-only).
+
+. /etc/rc.subr
+
+name=tracer
+rcvar=tracer_enable
+load_rc_config $name
+
+: ${tracer_enable:=NO}
+: ${tracer_env_file:=/usr/local/etc/tracer.env}
+: ${tracer_db:=/var/db/tracer/tracer.db}
+: ${tracer_site:=/var/db/tracer-site}
+
+pidfile=/var/run/${name}.pid
+command=/usr/sbin/daemon
+command_args="-f -r -R 30 -S -T ${name} -u ${name} -P ${pidfile} /usr/local/libexec/${name}"
+start_precmd="${name}_precmd"
+
+tracer_precmd()
+{
+	if [ ! -s "${tracer_env_file}" ] || grep -q '^[^#]*=$' "${tracer_env_file}"; then
+		echo "${tracer_env_file} lacks a value: fill it in first"
+		return 1
+	fi
+	install -d -o tracer -g tracer -m 700 "$(dirname "${tracer_db}")"
+	install -d -o tracer -g tracer -m 755 "${tracer_site}"
+	export TRACER_DB="${tracer_db}" TRACER_SITE="${tracer_site}"
+}
+
+run_rc_command "$1"

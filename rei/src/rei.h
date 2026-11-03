@@ -7,6 +7,11 @@
 #include <stdint.h>
 #include "cJSON.h"
 
+/* the program's name in its log lines and its user agent: tracer builds these files too */
+#ifndef REI_NAME
+#define REI_NAME "reiwimsy"
+#endif
+
 typedef uint64_t u64;
 
 /* a string that grows; its text is NUL-terminated, "" while empty */
@@ -34,7 +39,7 @@ const cJSON* jpath(const cJSON* o, const char* path);
 /* a string member added to an object, or skipped when s is NULL */
 void jset(cJSON* o, const char* key, const char* s);
 
-/* a line in the log (stderr, which daemon(8) sends to syslog): "reiwimsy: ..." */
+/* a line in the log (stderr, which daemon(8) sends to syslog): "reiwimsy: ..." (REI_NAME) */
 void rei_log(const char* fmt, ...);
 
 /* seconds since the epoch, settable for the tests */

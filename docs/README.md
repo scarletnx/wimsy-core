@@ -9,5 +9,6 @@ New here? Start with [Install](./INSTALL.md); to make the whole thing again, [Se
 - **[Build](./BUILD.md)** - from source, and the FreeBSD packages
 - **[ReiWimsy](./REIWIMSY.md)** - what it does, its settings, what it keeps
 - **[AccordWimsy](./ACCORDWIMSY.md)** - what it mirrors, its settings, its logs
+- **[Tracer](./TRACER.md)** - the game reports it keeps, its site, its settings, what it keeps of people
 - **[Testing](./TESTING.md)**
 - **[Licenses and credits](./CREDITS.md)**

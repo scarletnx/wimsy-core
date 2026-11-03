@@ -8,6 +8,7 @@ The services around [ScarletNX](https://github.com/scarletnx/ScarletNX), as Free
 |---|---|
 | [ReiWimsy](docs/REIWIMSY.md) (`rei/`) | ScarletNX's Discord bot: a message that names an issue or a pull request gets a link to each, and a card is kept for each open pull request, each open issue and each nightly, edited as GitHub changes |
 | [AccordWimsy](docs/ACCORDWIMSY.md) (`accordwimsy/`) | the GitHub organization kept the same on a Forgejo, every 10 minutes |
+| [Tracer](docs/TRACER.md) (`tracer/`) | the game reports people send it on Discord, a log and screenshots each, kept and drawn as a static site grouped by game, and an MCP server for agents (`tracer-mcp`) |
 
 Beside them, the pages they show on: the status page (`dist/status`, Gatus) and the forge's start page
 (`dist/forge`, Forgejo).
@@ -17,7 +18,7 @@ Beside them, the pages they show on: the status page (`dist/status`, Gatus) and 
 On FreeBSD 15.1, from a checkout:
 
     pkg install git gmake pkgconf curl ca_root_nss
-    sh dist/freebsd/build.sh                 # packages/reiwimsy-1.0.0.pkg, packages/accordwimsy-1.0.0.pkg
+    sh dist/freebsd/build.sh                 # packages/reiwimsy-1.0.0.pkg, accordwimsy-1.0.0.pkg, tracer-1.0.0.pkg
     sh scripts/install.sh discordbots packages/reiwimsy-1.0.0.pkg
 
 then fill in `/usr/local/etc/reiwimsy.env` in the jail and start the service: [Install](docs/INSTALL.md).
