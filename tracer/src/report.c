@@ -523,6 +523,12 @@ static cJSON* made(Tracer* t, const StReport* r, const Taken* k) {
         text = with;
         if (!strcmp(tone, "ok")) tone = "warn";
     }
+    if (r->age) { /* an old build, or one with changes: said before anyone digs in */
+        char *age = plain(r->age, 400), *with = rei_format("%s\n%s", text, age);
+        free(text);
+        free(age);
+        text = with;
+    }
     e = embed(cut, text, !strcmp(tone, "ok") ? TONE_OK : !strcmp(tone, "warn") ? TONE_WARN : TONE_BAD);
     jset(e, "url", url);
     if (r->branch || r->commit) {
@@ -663,6 +669,7 @@ static cJSON* reported(Tracer* t, const TrMessage* m, char* note, long* report) 
     r.outcome = dup_of(k.first, "outcome");
     r.signature = dup_of(k.first, "signature");
     r.missed = tr_missed(k.first);
+    r.age = tr_age_line(t->age, t->store, r.commit, r.branch);
     if (st_add(t->store, &r, k.files, k.n)) {
         st_report_free(&r);
         tr_taken_free(&k);

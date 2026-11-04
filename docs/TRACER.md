@@ -38,7 +38,8 @@ the database) into the site. A report keeps:
   `scripts/make-titles.py --out FILE` makes it where the bot runs. One that has the name alone goes with the reports
   that have its title ID. The 3DS's and the Vita's headers have the game's own name. The message's text names the game
   only when the log says neither, and is kept as the report's note.
-- The reply links the report's page, with how the run ended, its signature and build, and what was not kept.
+- The reply links the report's page, with how the run ended, its signature and build, how old that build is (below),
+  and what was not kept.
 - Beside how the run ended, what the runtime missed, counted from the first log's summary: "1116 shaders, 1 texture
   format, 1 service command" (shaders by the shaders, the rest by the different ones). A run with no failure that
   missed something is answered in the warning's colour. The site marks it "something missed" beside the outcome, the
@@ -72,6 +73,22 @@ the report's page and its JSON, and into a short reply on Discord. A report is f
 other issue, and one GitHub refused (its status and message in the reply) is tried again by the next approval. Anyone
 else's reaction, and another emoji, are left as they are. GitHub is asked from the bot's own process, with a 30 s
 timeout; the worker that reads the files never holds this token either.
+
+How old a new report's build is goes into the reply and onto the report's page and its JSON (`build_age`), as it was
+when the report came: the commits of main it lacks and the days from its commit's day to main's last (UTC), with the
+newest nightly to try instead; or, for a build with local changes (`-dirty`) or with a commit the repository does not
+have, that it is not a published one:
+
+    Build a52fd20 (main) is 37 commits and 2 days behind main; the newest nightly is 2026-11-04 (413fc2f): retry on it before we dig in.
+    Build 89b2da3-dirty is not a published build (local changes): numbers from it may not match main.
+
+The repository is
+`TRACER_UPSTREAM_REPO`, and the nightlies are the releases of its owner's `nightly` repository (tagged
+`nightly-<day>-<commit>`). GitHub is asked with `TRACER_ISSUES_TOKEN`, from the bot's own process: one GraphQL query a
+commit (its day, main's, how far behind main it is, the newest nightly), its answer kept in the database for an hour,
+as main and the nightlies move. There is no line for a build that has every commit of main, a build of the newest
+nightly, one without git, or when GitHub does not answer (said in the log, and asked again at the next report). Without
+the token nothing is asked, and only a `-dirty` build is said.
 
 The site does not say who sent a report. The database keeps the sender's user id (for the deletion, the updates and
 the hourly limit) and the ids of the messages that lead to a report, nothing else of them; it keeps nothing of
@@ -141,6 +158,7 @@ fill in; an empty value stops the service):
 | `TRACER_ISSUES_TOKEN` | none: needed with the repository | a fine-grained token of that repository alone, with Issues read and write and nothing else; never in the log |
 | `TRACER_ISSUES_EMOJI` | the check mark (U+2705) | the approval's emoji: its character, or a server emoji's name |
 | `TRACER_ISSUES_LABELS` | none | `label,label`: the labels each issue gets |
+| `TRACER_UPSTREAM_REPO` | `scarletnx/ScarletNX` | `OWNER/NAME`: the repository whose main a report's build is compared with, its owner's `nightly` the nightlies'; asked with `TRACER_ISSUES_TOKEN`, not at all without it |
 
 A `TRACER_` key it does not know stops it, naming the key; so does an id that is not one, and an address that is not
 `https://` or `http://`.

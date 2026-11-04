@@ -22,7 +22,17 @@ typedef struct {
     char* console;   /* owned: "Switch", "3DS", "Vita", "GBA" as the log summary names it, NULL when it doesn't say */
     long issue;      /* its GitHub issue's number; 0 for none, -1 while one is being opened */
     char* issue_url; /* owned: that issue's page, NULL for none */
+    char* age; /* owned: how far its build was behind main when it came, or that it is not a published one (age.h's
+                  line), NULL for none */
 } StReport;
+
+/* what GitHub said of a commit (age.h), kept by the commit */
+typedef struct {
+    double asked;      /* when */
+    int found;         /* the repository has the commit */
+    long behind, days; /* main's commits it lacks, and the days from its commit's day to main's (UTC) */
+    char* nightly;     /* owned: the newest nightly's tag, NULL for none */
+} StAge;
 
 typedef struct {
     int n;             /* 1, 2... in the report */
@@ -94,6 +104,12 @@ long st_by_message(Store* s, u64 message);
 int st_get(Store* s, long id, StReport* r, StFile** files, int* nfiles);
 /* report id and its files gone from the database: 0, or -1 */
 int st_remove(Store* s, long id);
+
+/* what was said of commit (a is zeroed first): 1, 0 when nothing was, -1 said in the log */
+int st_age(Store* s, const char* commit, StAge* a);
+/* what GitHub said of commit, kept in place of what it said before: 0, or -1 said in the log */
+int st_set_age(Store* s, const char* commit, const StAge* a);
+void st_age_free(StAge* a);
 
 /* every game, the newest report first */
 int st_games(Store* s, StGame** games, int* n);

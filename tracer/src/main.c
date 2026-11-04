@@ -3,7 +3,7 @@
 /* Tracer: the game reports that people send it on Discord, kept in a database and drawn as a static site.
 
     TRACER_TOKEN=... TRACER_URL=https://... [TRACER_CHANNELS=id,id] [TRACER_ADMINS=id,id] [TRACER_DB=file]
-    [TRACER_SITE=folder] [TRACER_ASSETS=folder] [TRACER_TITLES=file] tracer
+    [TRACER_SITE=folder] [TRACER_ASSETS=folder] [TRACER_TITLES=file] [TRACER_UPSTREAM_REPO=owner/name] tracer
 
 A report is deleted by the person who sent it, by the guild's owner and administrators, and by TRACER_ADMINS.
 
@@ -26,6 +26,7 @@ sends the text and the attachments of a message that mentions it */
 
 #include <discord.h> /* Concord's */
 
+#include "age.h"
 #include "channels.h"
 #include "fetch.h"
 #include "issues.h"
@@ -47,14 +48,15 @@ static struct {
 static RhAuth discord_auth, github_auth;
 static Dc dc;
 static TrIssues issues; /* issues.repo NULL: no report is filed as an issue */
+static TrAge age;       /* age.fetch NULL: no token, nothing asked of GitHub */
 static Tracer tracer;
 static Titles titles;
 static u64 self;
 
-static const char* const KNOWN[] = {"TRACER_TOKEN",        "TRACER_URL",          "TRACER_CHANNELS",
-                                    "TRACER_ADMINS",       "TRACER_DB",           "TRACER_SITE",
-                                    "TRACER_ASSETS",       "TRACER_TITLES",       "TRACER_ISSUES_REPO",
-                                    "TRACER_ISSUES_TOKEN", "TRACER_ISSUES_EMOJI", "TRACER_ISSUES_LABELS"};
+static const char* const KNOWN[] = {
+    "TRACER_TOKEN",        "TRACER_URL",           "TRACER_CHANNELS",     "TRACER_ADMINS",      "TRACER_DB",
+    "TRACER_SITE",         "TRACER_ASSETS",        "TRACER_TITLES",       "TRACER_ISSUES_REPO", "TRACER_ISSUES_TOKEN",
+    "TRACER_ISSUES_EMOJI", "TRACER_ISSUES_LABELS", "TRACER_UPSTREAM_REPO"};
 
 static void stop(const char* fmt, const char* value) {
     fputs("tracer: ", stderr);
@@ -97,7 +99,7 @@ static void read_env(void) {
             known |= !strncmp(*e, KNOWN[k], strlen(KNOWN[k])) && (*e)[strlen(KNOWN[k])] == '=';
         if (!known)
             stop("%s: no such setting (TRACER_TOKEN, _URL, _CHANNELS, _ADMINS, _DB, _SITE, _ASSETS, _TITLES, "
-                 "_ISSUES_REPO, _ISSUES_TOKEN, _ISSUES_EMOJI, _ISSUES_LABELS)",
+                 "_ISSUES_REPO, _ISSUES_TOKEN, _ISSUES_EMOJI, _ISSUES_LABELS, _UPSTREAM_REPO)",
                  *e);
     }
     env.token = setting("TRACER_TOKEN", NULL);
@@ -122,6 +124,10 @@ static void read_env(void) {
         github_auth.accept = "application/vnd.github+json";
         issues.fetch = rh_fetch;
         issues.ctx = &github_auth;
+        /* a build's age: asked with the same token, once a commit */
+        if (tr_age_settings(&age, environment, &why)) stop("%s", why);
+        age.fetch = token ? rh_fetch : NULL;
+        age.ctx = &github_auth;
     }
 }
 
@@ -359,8 +365,12 @@ int main(int argc, char** argv) {
     tracer.nadmins = env.nadmins;
     tracer.administers = administers;
     tracer.issues = &issues;
+    tracer.age = &age;
     {
         char* said = tr_issues_said(&issues);
+        rei_log("%s", said);
+        free(said);
+        said = tr_age_said(&age);
         rei_log("%s", said);
         free(said);
     }
