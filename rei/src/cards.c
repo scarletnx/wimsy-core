@@ -1299,9 +1299,30 @@ static void draw(Cards* c, CdCard* card, double now) {
     card->dirty = 0;
     cJSON_Delete(e);
 }
-/* the cards of pull requests and issues closed over a day ago deleted; what is left of a week ago forgotten */
+static int newer_message(const void* a, const void* b) {
+    u64 x = *(const u64*)a, y = *(const u64*)b;
+    return x < y ? 1 : x > y ? -1 : 0;
+}
+/* the oldest message of the 2 * CD_KEEP newest nightlies' cards, 0 while there are no more: by Discord's ids, which grow
+   with time, as the cards' order says nothing (a card forgotten takes the place of the last one) */
+static u64 nightly_least(const Cards* c) {
+    u64 *ids = malloc(((size_t)c->ncards + 1) * sizeof *ids), least = 0;
+    int n = 0, i;
+    if (!ids) abort();
+    for (i = 0; i < c->ncards; ++i)
+        if (prefix(c->cards[i].key, "nightly-")) ids[n++] = c->cards[i].message;
+    if (n > 2 * CD_KEEP) {
+        qsort(ids, (size_t)n, sizeof *ids, newer_message);
+        least = ids[2 * CD_KEEP - 1];
+    }
+    free(ids);
+    return least;
+}
+/* the cards of pull requests and issues closed over a day ago deleted; what is left of a week ago forgotten, and the
+   nightlies' past the newest 2 * CD_KEEP */
 static void sweep(Cards* c, double now) {
-    int i, nightly = 0;
+    u64 least;
+    int i;
     for (i = 0; i < c->ncards; ++i) {
         CdCard* card = &c->cards[i];
         if (card->stale && !card->dirty) unstale(c, card, channel_of(c, card->key)); /* a dirty one: by its draw */
@@ -1315,10 +1336,11 @@ static void sweep(Cards* c, double now) {
                         (unsigned long long)card->message, said);
         }
     }
+    least = nightly_least(c);
     for (i = c->ncards - 1; i >= 0; --i) {
         CdCard* card = &c->cards[i];
         int forget = card->closed && !card->message && now - card->closed >= CD_DAY + 7 * 86400;
-        if (prefix(card->key, "nightly-") && !card->dirty && ++nightly > 2 * CD_KEEP) forget = 1;
+        if (prefix(card->key, "nightly-") && !card->dirty && card->message < least) forget = 1;
         if (forget) c->cards[i] = c->cards[--c->ncards];
     }
 }

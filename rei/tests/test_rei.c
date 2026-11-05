@@ -755,6 +755,40 @@ static void cards_tests(void) {
     forget();
 }
 
+/* more nightlies' cards than are kept, the newest first in the array as forgotten cards' places leave them: the oldest
+   messages go, the newest stay */
+static void nightly_sweep(void) {
+    Cards c;
+    CdDiscord dc = {NULL, c_post, c_edit, c_remove, c_history};
+    Buf state = {0};
+    cJSON* saved;
+    int i, newest = 0, oldest = 0, most = 2 * CD_KEEP + 1;
+    forget();
+    rg_init(&g, "o/r", NULL, fake, NULL);
+    cd_init(&c, &g, dc, 0, 0, 3);
+    buf_add(&state, "{\"cards\":[");
+    for (i = most; i >= 1; --i)
+        buf_printf(&state, "%s{\"key\":\"nightly-%040d\",\"message\":\"%d\",\"drawn\":\"x\",\"dirty\":false}",
+                   i == most ? "" : ",", i, 1000 + i);
+    buf_add(&state, "],\"head\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}");
+    saved = cJSON_Parse(state.text);
+    cd_load(&c, saved);
+    CHECK(c.ncards == most && c.cards[0].message == (u64)(1000 + most));
+    cards_fixtures("open", "null");
+    now_is += 30;
+    cd_round(&c);
+    for (i = 0; i < c.ncards; ++i) {
+        newest |= c.cards[i].message == (u64)(1000 + most);
+        oldest |= c.cards[i].message == 1001;
+    }
+    CHECK(c.ncards == 2 * CD_KEEP && newest && !oldest);
+    cJSON_Delete(saved);
+    buf_free(&state);
+    cd_free(&c);
+    rg_free(&g);
+    forget();
+}
+
 /* pull request 7 drawn, as a round draws it: its releases asked again */
 static void drawn_pr(Cards* c) {
     int open;
@@ -1222,6 +1256,7 @@ int main(void) {
     github_tests();
     rest_tests();
     cards_tests();
+    nightly_sweep();
     pr_card();
     state_tests();
     event_tests();
