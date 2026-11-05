@@ -1,0 +1,2 @@
+:root{color-scheme:dark;--font:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--bg:#000000;--faint:#505050;--ink:#dcdcdc;--surface:#141414;--raised:#282828;--soft:#a0aab4;--accent:#ffff00;--ok:#55ff55;--warn:#ffaa00;--bad:#ff4d4d;--rule:#a0aab4;--on-accent:#000000;--on-ok:#000000;--ok-fill:#55ff55;--on-warn:#000000;--warn-fill:#ffaa00;--on-bad:#000000;--bad-fill:#ff0000}
+.sws a[href$="/sws/default"]{background:var(--accent);color:var(--on-accent)}

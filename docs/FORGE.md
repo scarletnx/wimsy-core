@@ -58,8 +58,9 @@ clone from outside, and the [status page](./STATUS.md) does not check the forge.
 
 `dist/forge/`: Forgejo's start page (`templates/home.tmpl`: getting started, the bots, the repositories), its
 images (`public/assets/img`: the logo, the favicons, Wimsy, each bot's avatar) and its themes (`public/assets/css`:
-SWS's, each `theme-<id>.css` made by wimsy-dist's `themes/theme.py`). Forgejo offers only those, Sepia to whoever
-has no account or picked none, through `app.ini`:
+SWS's, each `theme-<id>.css` made by wimsy-dist's `themes/theme.py`), with the theme picker at the top of every page
+(`templates/custom`; [Themes](./THEMES.md)). Forgejo offers only those, Sepia to whoever has no account or picked none,
+through `app.ini`:
 
     [ui]
     DEFAULT_THEME = sepia-auto

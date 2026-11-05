@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <metadata>
+    <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cc="http://creativecommons.org/ns#"
+             xmlns:dc="http://purl.org/dc/elements/1.1/">
+      <cc:Work rdf:about="">
+        <dc:title>Wimsy in the Sepia theme's colours</dc:title>
+        <dc:creator><cc:Agent><dc:title>Liz (Wimsy)</dc:title></cc:Agent></dc:creator>
+        <dc:contributor><cc:Agent><dc:title>AO55 (its colours)</dc:title></cc:Agent></dc:contributor>
+        <dc:license rdf:resource="https://spdx.org/licenses/GPL-3.0-or-later.html"/>
+        <dc:source>https://github.com/scarletnx/ScarletNX</dc:source>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <path fill="#45413a" stroke="#dad6be" stroke-width="5.47474" d="M 192.28931,12.793038 A 330.76661,330.76661 0 0 0 161.77932,165.25345 330.76661,330.76661 0 0 0 217.7827,336.65055 244.08293,244.08293 0 0 0 267.29749,179.3252 244.08293,244.08293 0 0 0 192.28931,12.793038 Z"/>
+  <path fill="#6f6b5e" stroke="#dad6be" stroke-width="5.47474" d="M 283.32464,18.471579 A 330.76661,330.76661 0 0 0 211.63417,156.44085 330.76661,330.76661 0 0 0 217.7827,336.65055 244.08293,244.08293 0 0 0 309.08124,199.29137 244.08293,244.08293 0 0 0 283.32464,18.471579 Z"/>
+  <path fill="#8a8676" stroke="#dad6be" stroke-width="3.64433" d="M 3.1326032,310.41929 A 220.1792,220.1792 0 0 0 98.555722,350.50134 220.1792,220.1792 0 0 0 217.7827,336.65055 162.47705,162.47705 0 0 0 121.7011,283.52647 162.47705,162.47705 0 0 0 3.1326032,310.41929 Z"/>
+  <path fill="#8a8676" stroke="#dad6be" stroke-width="3.64433" d="M 80.650839,503.85583 A 220.1792,220.1792 0 0 0 165.61247,444.74858 220.1792,220.1792 0 0 0 217.7827,336.65055 162.47705,162.47705 0 0 0 121.45529,389.32762 162.47705,162.47705 0 0 0 80.650839,503.85583 Z"/>
+  <path fill="#8a6a2a" stroke="#dad6be" stroke-width="5.47474" d="M 508.04553,190.77006 A 330.76661,330.76661 0 0 0 355.34995,220.08038 330.76661,330.76661 0 0 0 217.7827,336.65055 244.08293,244.08293 0 0 0 382.15852,323.1017 244.08293,244.08293 0 0 0 508.04553,190.77006 Z"/>
+  <circle fill="#141416" cx="356.06" cy="269.04" r="23.114985"/>
+  <circle fill="#e6e4dc" cx="358.69" cy="263.16" r="16.677759"/>
+  <circle fill="#141416" cx="424.81" cy="239.22" r="23.114985"/>
+  <circle fill="#e6e4dc" cx="427.44" cy="233.35" r="16.677759"/>
+</svg>

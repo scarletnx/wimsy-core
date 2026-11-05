@@ -30,7 +30,7 @@ The tests, on Linux or FreeBSD: `make -C rei test`, and the rest in [Testing](do
 - [Install](docs/INSTALL.md): the host, the jails, the packages and each service, from nothing; upgrades and removal
 - [ReiWimsy](docs/REIWIMSY.md), [Tracer](docs/TRACER.md), [tracer-mcp](docs/TRACER-MCP.md) and
   [AccordWimsy](docs/ACCORDWIMSY.md): what each does, its settings, its service and what it keeps
-- [The forge](docs/FORGE.md) and [the status page](docs/STATUS.md)
+- [The forge](docs/FORGE.md), [the status page](docs/STATUS.md) and [their themes](docs/THEMES.md)
 - [Security](docs/SECURITY.md): the secrets and where each lives, what each token and jail reaches, what the bots keep
   of people
 - [Build](docs/BUILD.md), [Development](docs/DEVELOPMENT.md) and [Testing](docs/TESTING.md)

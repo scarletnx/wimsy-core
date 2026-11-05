@@ -1,0 +1,2 @@
+:root{color-scheme:light;--font:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--bg:#f7f9fe;--faint:#ccdcf6;--ink:#132a52;--surface:#ecf2fc;--raised:#e2ebfa;--soft:#5a6a86;--accent:#2666cf;--ok:#0a7484;--warn:#866500;--bad:#d30c2e;--rule:#5e74f6;--on-accent:#ffffff;--on-ok:#132a52;--ok-fill:#22d3ee;--on-warn:#132a52;--warn-fill:#e0a800;--on-bad:#ffffff;--bad-fill:#eb0d33}
+.sws a[href$="/sws/fuddles"],.sws a[href$="/sws/light"]{background:var(--accent);color:var(--on-accent)}

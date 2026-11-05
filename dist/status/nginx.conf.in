@@ -1,0 +1,34 @@
+# The status page through nginx in the status jail (docs/THEMES.md): Gatus as it is, on 127.0.0.1:8080, but its
+# custom.css in the reader's theme, by the cookie the Tracer site's nginx keeps for all of scarletnx.dev, and SWS's
+# picker at the top of the page. The jail's cloudflared goes to 127.0.0.1:8090. Goes in nginx.conf's http block;
+# install.sh puts it in the jail as status-sws.conf. A cookie that names no theme reads as Sepia.
+map $cookie_sws_theme $sws_theme {
+	default sepia;
+	sepia sepia;
+	wimsy wimsy;
+	fuddles fuddles;
+	\default default;
+}
+server {
+	listen 127.0.0.1:8090;
+	server_name _;
+	# one address, a file for each theme: never kept by Cloudflare or the browser without asking again
+	location = /css/custom.css {
+		alias /usr/local/www/status-sws/$sws_theme.css;
+		default_type text/css;
+		add_header Cache-Control "private, no-cache" always;
+		add_header Vary Cookie always;
+		add_header X-Content-Type-Options nosniff always;
+	}
+	location / {
+		proxy_pass http://127.0.0.1:8080;
+		proxy_http_version 1.1;
+		proxy_set_header Host $host;
+		# Gatus compresses what it sends, and the picker goes into its page as text: nginx compresses instead
+		proxy_set_header Accept-Encoding "";
+		gzip on;
+		gzip_types text/css application/javascript application/json image/svg+xml;
+		sub_filter_once on;
+		sub_filter '<body>' '<body><nav class="sws" aria-label="Theme"><span>Theme</span><a href="@SWS_URL@/sepia">Sepia</a><a href="@SWS_URL@/wimsy">Wimsy</a><a href="@SWS_URL@/fuddles">Fuddles</a><a href="@SWS_URL@/default">Default</a></nav>';
+	}
+}

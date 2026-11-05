@@ -10,6 +10,17 @@
 #include "store.h"
 
 #define SITE_REPO "https://github.com/scarletnx/ScarletNX" /* where a log's commit is linked to */
+/* the theme picker at the top of every page: links the site's nginx answers by setting the reader's theme or mode in a
+   cookie of all scarletnx.dev and sending them back (dist/freebsd/tracer-nginx.conf, docs/THEMES.md) */
+#define SITE_THEMES                                                                                                    \
+    "<nav class=\"sws\" aria-label=\"Theme\"><span>Theme</span>"                                                       \
+    "<a href=\"/sws/sepia\" referrerpolicy=\"same-origin\">Sepia</a>"                                                  \
+    "<a href=\"/sws/wimsy\" referrerpolicy=\"same-origin\">Wimsy</a>"                                                  \
+    "<a href=\"/sws/fuddles\" referrerpolicy=\"same-origin\">Fuddles</a>"                                              \
+    "<a href=\"/sws/default\" referrerpolicy=\"same-origin\">Default</a><span>Mode</span>"                             \
+    "<a href=\"/sws/auto\" referrerpolicy=\"same-origin\">Auto</a>"                                                    \
+    "<a href=\"/sws/light\" referrerpolicy=\"same-origin\">Light</a>"                                                  \
+    "<a href=\"/sws/dark\" referrerpolicy=\"same-origin\">Dark</a></nav>\n"
 
 /* the pages, each a string owned by the caller */
 char* site_index_html(const StGame* games, int n);

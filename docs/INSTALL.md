@@ -39,7 +39,7 @@ Bastille's and noirjail.sh's; each one's own help says what Bastille and pf do u
 | `gitsync` | AccordWimsy, from cron | isolated: a /30 of `ISOLATED_NET` with NAT | DNS, GitHub on 443 (pf table `github`), `gitscarlet` on 3000 |
 | `gitscarlet` | Forgejo, on 3000 | isolated | DNS only; reached by `gitedge` and `gitsync` on 3000 |
 | `gitedge` | cloudflared, the forge's tunnel | isolated | Cloudflare's edge (7844, TCP and UDP), `gitscarlet` on 3000 |
-| `status` | Gatus and cloudflared, the status page's tunnel | the host's LAN bridge | the addresses it checks, Cloudflare |
+| `status` | Gatus, nginx in front of it, and cloudflared, the status page's tunnel | the host's LAN bridge | the addresses it checks, Cloudflare |
 
 An isolated jail asks `ISOLATED_DNS` for names and reaches no package repository: its packages come from the host's
 (noirjail.sh's `jail pkg` mounts them in). The forge's three jails are made in [Forge](./FORGE.md#the-jails), the

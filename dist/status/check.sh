@@ -8,19 +8,19 @@
 set -eu
 here=$(dirname "$0")
 [ $# -eq 0 ] || { echo "usage: $0 (no arguments: the theme's colours are wimsy-dist's, scripts/check-theme.sh)" >&2; exit 64; }
-cp "$here/gatus.yaml" "$here/gatus.yaml.kept"
-cp "$here/push.sh" "$here/push.sh.kept"
+rendered="gatus.yaml push.sh nginx.conf $(cd "$here" && ls sws/*.css)"
+for f in $rendered; do cp "$here/$f" "$here/$f.kept"; done
 "$here/render.sh"
-for f in gatus.yaml push.sh; do
+for f in $rendered; do
 	if ! cmp -s "$here/$f" "$here/$f.kept"; then
 		diff -u "$here/$f.kept" "$here/$f" >&2 || true
-		rm -f "$here/gatus.yaml.kept" "$here/push.sh.kept"
+		for k in $rendered; do rm -f "$here/$k.kept"; done
 		echo "$f was not its template rendered: it is now, look at the diff" >&2
 		exit 1
 	fi
 done
-rm -f "$here/gatus.yaml.kept" "$here/push.sh.kept"
-if grep -n '@[A-Z_]*@' "$here/gatus.yaml" "$here/push.sh" | grep -v '@PUSH_TOKEN@' >&2; then
+for f in $rendered; do rm -f "$here/$f.kept"; done
+if grep -n '@[A-Z_]*@' "$here/gatus.yaml" "$here/push.sh" "$here/nginx.conf" "$here"/sws/*.css | grep -v '@PUSH_TOKEN@' >&2; then
 	echo "a @NAME@ that neither addresses.conf nor icons/ gives" >&2
 	exit 1
 fi

@@ -1,5 +1,6 @@
 #!/bin/sh
-# Puts git.scarletnx.dev's start page (templates/home.tmpl), its icons
+# Puts git.scarletnx.dev's start page (templates/home.tmpl), SWS's theme picker (templates/custom: the picked theme's
+# stylesheet in each page's head, the picker at its top), its icons
 # (public/assets/img: logo, favicon, apple-touch-icon, wimsy.svg, and bots/: each bot's avatar) and its themes
 # (public/assets/css: theme-<id>.css, SWS's, made by wimsy-dist's themes/theme.py) into
 # Forgejo's custom directory in gitscarlet (FORGEJO_CUSTOM, its rc.d:
@@ -10,9 +11,12 @@ set -e
 here=$(dirname "$0")
 G=/usr/local/bastille/jails/gitscarlet/root/usr/local/etc/forgejo
 [ -d "$G/conf" ] || { echo "no $G/conf: is gitscarlet's root elsewhere?" >&2; exit 1; }
-install -d -o root -g wheel -m 0755 "$G/templates" "$G/public" "$G/public/assets" "$G/public/assets/img" \
+install -d -o root -g wheel -m 0755 "$G/templates" "$G/templates/custom" "$G/public" "$G/public/assets" "$G/public/assets/img" \
     "$G/public/assets/img/bots" "$G/public/assets/css"
 install -o root -g wheel -m 0644 "$here/templates/home.tmpl" "$G/templates/home.tmpl"
+for f in "$here"/templates/custom/*.tmpl; do
+    install -o root -g wheel -m 0644 "$f" "$G/templates/custom/"
+done
 for f in "$here"/public/assets/img/*.png "$here"/public/assets/img/*.svg; do
     install -o root -g wheel -m 0644 "$f" "$G/public/assets/img/"
 done
@@ -22,4 +26,4 @@ done
 for f in "$here"/public/assets/css/theme-*.css; do
     install -o root -g wheel -m 0644 "$f" "$G/public/assets/css/"
 done
-ls -ln "$G/templates" "$G/public/assets/img" "$G/public/assets/img/bots" "$G/public/assets/css"
+ls -ln "$G/templates" "$G/templates/custom" "$G/public/assets/img" "$G/public/assets/img/bots" "$G/public/assets/css"

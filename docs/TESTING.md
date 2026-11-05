@@ -116,18 +116,19 @@ the test makes. It needs util-linux, iproute2, python3, openssl and libcurl's he
 
 ## The themes
 
-`scripts/check-theme.sh` checks the theme files wimsy-dist's `themes/theme.py` makes (Tracer's stylesheet, Forgejo's
-themes, Gatus's colour lines) and that the rules around them take every colour from a theme's role;
+`scripts/check-theme.sh` checks the theme files wimsy-dist's `themes/theme.py` makes (Tracer's stylesheet and its
+blocks, Forgejo's themes, Gatus's colour lines and custom.css in each theme), that the rules around them take every
+colour from a theme's role, and that every picker and nginx map names the same themes ([Themes](./THEMES.md));
 `scripts/test-check-theme.sh` breaks a copy of each and expects the check to fail.
 
 ## The status page
 
     sh dist/status/check.sh
 
-checks the status page without Gatus and ends with `ok`: its theme's colour lines, `gatus.yaml` and `push.sh` rendered
-from their templates, the YAML Gatus reads, a bot with an icon for each pushed endpoint and the reverse, and each endpoint's
-answer now (this one goes to the network). It needs python3 with PyYAML, and runs shellcheck on `push.sh` where it is
-installed. CI does not run it.
+checks the status page without Gatus and ends with `ok`: its theme's colour lines, `gatus.yaml`, `push.sh`, `nginx.conf`
+and each theme's custom.css rendered from their templates, the YAML Gatus reads, a bot with an icon for each pushed
+endpoint and the reverse, and each endpoint's answer now (this one goes to the network). It needs python3 with PyYAML,
+and runs shellcheck on `push.sh` where it is installed. CI does not run it.
 
 ## Before a package
 

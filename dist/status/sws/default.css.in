@@ -1,0 +1,26 @@
+/* A theme of SWS (wimsy-dist's docs/SWS.md), Sepia here and each one in sws/<theme>.css.in: wimsy-dist's
+   themes/theme.py makes these two lines, Gatus's variables ("H S% L%") and the roles the rules below use, and
+   the line that fills the selector's link to the theme. html:root and html:root.dark outrank Gatus's :root and
+   :root.dark. */
+html:root{--background:0.0 0.0% 0.0%;--foreground:0.0 0.0% 86.3%;--card:0.0 0.0% 7.8%;--card-foreground:0.0 0.0% 86.3%;--popover:0.0 0.0% 15.7%;--popover-foreground:0.0 0.0% 86.3%;--primary:60.0 100.0% 50.0%;--primary-foreground:0.0 0.0% 0.0%;--secondary:0.0 0.0% 15.7%;--secondary-foreground:0.0 0.0% 86.3%;--muted:0.0 0.0% 15.7%;--muted-foreground:210.0 11.8% 66.7%;--accent:0.0 0.0% 15.7%;--accent-foreground:0.0 0.0% 86.3%;--destructive:0.0 100.0% 50.0%;--destructive-foreground:0.0 0.0% 0.0%;--border:0.0 0.0% 31.4%;--input:210.0 11.8% 66.7%;--ring:0.0 0.0% 86.3%;--radius:0px;--bg:#000000;--raised:#282828;--faint:#505050;--ink:#dcdcdc;--soft:#a0aab4;--accent:#ffff00;--on-accent:#000000;--ok-fill:#55ff55;--warn-fill:#ffaa00;--bad-fill:#ff0000}
+html:root.dark{--background:0.0 0.0% 0.0%;--foreground:0.0 0.0% 86.3%;--card:0.0 0.0% 7.8%;--card-foreground:0.0 0.0% 86.3%;--popover:0.0 0.0% 15.7%;--popover-foreground:0.0 0.0% 86.3%;--primary:60.0 100.0% 50.0%;--primary-foreground:0.0 0.0% 0.0%;--secondary:0.0 0.0% 15.7%;--secondary-foreground:0.0 0.0% 86.3%;--muted:0.0 0.0% 15.7%;--muted-foreground:210.0 11.8% 66.7%;--accent:0.0 0.0% 15.7%;--accent-foreground:0.0 0.0% 86.3%;--destructive:0.0 100.0% 50.0%;--destructive-foreground:0.0 0.0% 0.0%;--border:0.0 0.0% 31.4%;--input:210.0 11.8% 66.7%;--ring:0.0 0.0% 86.3%;--radius:0px;--bg:#000000;--raised:#282828;--faint:#505050;--ink:#dcdcdc;--soft:#a0aab4;--accent:#ffff00;--on-accent:#000000;--ok-fill:#55ff55;--warn-fill:#ffaa00;--bad-fill:#ff0000}
+/* Gatus paints up, down and degraded with fixed colours: the theme's, and a down bar hatched, so the colour
+   does not say it alone. */
+html .bg-green-400,html .bg-green-500,html .bg-success{background-color:var(--ok-fill)}
+html .bg-yellow-400{background-color:var(--warn-fill)}
+html .bg-red-400,html .bg-red-500{background:repeating-linear-gradient(135deg,var(--bad-fill) 0 3px,var(--bg) 3px 5px);box-shadow:inset 0 0 0 1px var(--bad-fill)}
+html .bg-green-700,html .hover\:bg-green-700:hover,html .bg-red-700,html .hover\:bg-red-700:hover{filter:brightness(.8)}
+html .bg-gray-200,html.dark .dark\:bg-gray-700{background-color:var(--raised)}
+/* The selector the status jail's nginx puts at the top of the page (docs/THEMES.md): plain links */
+.sws{display:flex;flex-wrap:wrap;align-items:center;gap:2px 12px;padding:4px 16px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;background:var(--bg);border-bottom:1px solid var(--faint)}
+.sws span{color:var(--soft);font-weight:600}
+.sws a{display:inline-flex;align-items:center;min-height:28px;padding:0 8px;color:var(--ink);text-decoration:none}
+.sws a:hover{text-decoration:underline}
+.sws a[href$="/sws/default"]{background:var(--accent);color:var(--on-accent)}
+/* The floating refresh and theme control sits over the last card on a phone: room below it. */
+.dashboard-container{padding-bottom:5rem}
+/* Each bot's icon before its name, wherever Gatus writes the name with it as the title; render.sh
+   puts icons/<bot>.png in as data, so the page loads no file from elsewhere. */
+span[title="ReiWimsy"]::before,span[title="AccordWimsy"]::before{content:"";display:inline-block;width:1.5em;height:1.5em;margin-right:.4em;vertical-align:-.4em;background:center/contain no-repeat}
+span[title="ReiWimsy"]::before{background-image:url(data:image/png;base64,@ICON_REIWIMSY@)}
+span[title="AccordWimsy"]::before{background-image:url(data:image/png;base64,@ICON_ACCORDWIMSY@)}
