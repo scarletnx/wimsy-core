@@ -885,8 +885,13 @@ cJSON* cd_nightly(Cards* c, const char* sha) {
     } else if (!run || strcmp(S(jstr(run, "status")), "completed"))
         buf_printf(&b, "Building main at [`%.7s`](%s), committed %s.", sha, commit, date);
     else if (strcmp(S(jstr(run, "conclusion")), "success")) {
-        buf_printf(&b, "Not published: the build of [`%.7s`](%s) failed ([run](%s)).", sha, commit,
+        const char* ended = S(jstr(run, "conclusion"));
+        char* how = !strcmp(ended, "failure")     ? rei_strdup("failed")
+                    : !strcmp(ended, "cancelled") ? rei_strdup("was cancelled")
+                                                  : rei_format("ended as %s", *ended ? ended : "nothing GitHub said");
+        buf_printf(&b, "Not published: the build of [`%.7s`](%s) %s ([run](%s)).", sha, commit, how,
                    S(jstr(run, "html_url")));
+        free(how);
         color = AMBER;
         built = "not published";
     } else if (*previous && older_first && ancestor(c, sha, previous)) {

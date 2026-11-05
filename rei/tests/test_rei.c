@@ -949,6 +949,26 @@ static void fix_cards(void) {
     /* again: nothing to do */
     CHECK(cd_fix(&c, FIX_SELF, 1) == 0);
     CHECK(cd_removes == removes + 2 && cd_edits == edits_before + 2);
+    /* how a build that published nothing ended, in its words: failed, was cancelled, or GitHub's own */
+    {
+        static const char* const ended[][2] = {{"failure", "failed ([run]"},
+                                               {"cancelled", "was cancelled ([run]"},
+                                               {"timed_out", "ended as timed_out ([run]"}};
+        char* head = shas("@c");
+        int k;
+        for (k = 0; k < 3; ++k) {
+            char* run = rei_format("{\"workflow_runs\":[{\"id\":71,\"event\":\"push\",\"status\":\"completed\","
+                                   "\"conclusion\":\"%s\",\"created_at\":\"2026-11-04T22:00:05Z\"}]}",
+                                   ended[k][0]);
+            cJSON* drawn;
+            gh_shas("repos/o/r/actions/workflows/build.yml/runs?head_sha=@c&per_page=100&page=1", run);
+            drawn = cd_nightly(&c, head);
+            HAS(jstr(drawn, "description"), ended[k][1]);
+            cJSON_Delete(drawn);
+            free(run);
+        }
+        free(head);
+    }
     /* the channel not answering: nothing done, said */
     {
         CdDiscord silent = {NULL, c_post, c_edit, c_remove, c_history, NULL};
