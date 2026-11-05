@@ -1,7 +1,8 @@
 name: Tests
 
 # ReiWimsy's tests (no Discord, no network, no Concord), AccordWimsy's (libcurl's headers, no network), Tracer's (SQLite
-# and libarchive, no network) and the docs' check, on each pull request and each push to main
+# and libarchive, no network) and the docs' check, on each pull request and each push to main; and the bots built with
+# Concord, against a fake Discord whose gateway dies under them
 on:
   push:
     branches: [main]
@@ -23,3 +24,27 @@ jobs:
       - run: make -C tracer test
       - run: sh scripts/test-check-docs.sh
       - run: sh scripts/check-docs.sh
+
+  gateway:
+    name: The bots against a fake Discord
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq libcurl4-openssl-dev
+      - name: Concord at the commits dist/freebsd/build.sh pins, with its fixes
+        run: |
+          eval "$(grep -E '^(CONCORD_VERSION|CONCORD_COMMIT|REFLECTC_COMMIT|CONCORD_URL|CONCORD_PATCHES)=' dist/freebsd/build.sh)"
+          git -c advice.detachedHead=false clone -q --depth 1 --branch "v$CONCORD_VERSION" --recurse-submodules \
+            --shallow-submodules "$CONCORD_URL" "$RUNNER_TEMP/concord"
+          got=$(git -C "$RUNNER_TEMP/concord" rev-parse HEAD) sub=$(git -C "$RUNNER_TEMP/concord/reflect-c" rev-parse HEAD)
+          if [ "$got" != "$CONCORD_COMMIT" ] || [ "$sub" != "$REFLECTC_COMMIT" ]; then
+            echo "Concord v$CONCORD_VERSION is at $got with reflect-c at $sub, not $CONCORD_COMMIT and $REFLECTC_COMMIT" >&2
+            exit 1
+          fi
+          for patch in $CONCORD_PATCHES; do git -C "$RUNNER_TEMP/concord" apply "$PWD/dist/freebsd/$patch"; done
+          make -s -C "$RUNNER_TEMP/concord"
+          make -s -C "$RUNNER_TEMP/concord" install PREFIX="$RUNNER_TEMP/concord-prefix" SHAREDIR="$RUNNER_TEMP/concord-prefix/share"
+      - run: make -C rei CONCORD="$RUNNER_TEMP/concord-prefix"
+      # as root: unshare needs it where Ubuntu's AppArmor keeps user namespaces from users
+      - run: sudo sh rei/tests/test_gateway.sh reiwimsy rei/reiwimsy

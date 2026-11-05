@@ -3,6 +3,8 @@
 #
 #   make [CONCORD=prefix]  reiwimsy, linked with Concord v3.0.1 as make install PREFIX=prefix put it, and libcurl
 #   make test              the tests: no Discord, no network, no Concord
+#   make test-gateway      reiwimsy (CONCORD as above) against a fake Discord whose gateway dies under it: Linux, as
+#                          root or with user namespaces (tests/test_gateway.sh)
 #
 # BSD make and GNU make alike.
 
@@ -25,6 +27,9 @@ reiwimsy: $(LOGIC) src/http.o src/main.o
 
 test: tests/test_rei
 	./tests/test_rei
+
+test-gateway: reiwimsy
+	sh tests/test_gateway.sh reiwimsy ./reiwimsy
 
 tests/test_rei: $(LOGIC) tests/test_rei.c
 	$(CC) $(CFLAGS) $(OURS) -o $@ tests/test_rei.c $(LOGIC) -lpthread -lm
@@ -59,4 +64,4 @@ third_party/cjson/cJSON.o: third_party/cjson/cJSON.c third_party/cjson/cJSON.h
 clean:
 	rm -f $(LOGIC) src/http.o src/main.o reiwimsy tests/test_rei
 
-.PHONY: all test clean
+.PHONY: all test test-gateway clean

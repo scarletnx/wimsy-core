@@ -282,7 +282,8 @@ int main(void) {
     cJSON_Delete(saved);
     ev_queue_init(&waiting);
     memset(&config, 0, sizeof config);
-    config.token = (char*)env.token;
+    /* a copy for Concord to own: discord_from_config keeps the pointer it is given, and discord_cleanup frees it */
+    config.token = rei_strdup(env.token);
     config.log.level = LOGMOD_LEVEL_WARN; /* Concord's traces name every event: only what goes wrong is logged */
     client = discord_from_config(&config);
     if (!client) stop("Concord could not start a client with REIWIMSY_TOKEN%s", "");

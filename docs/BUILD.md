@@ -31,6 +31,7 @@ folder of its own:
     gmake -C /tmp/concord && gmake -C /tmp/concord install PREFIX=/opt/concord SHAREDIR=/opt/concord/share
     make -C rei CONCORD=/opt/concord      # rei/reiwimsy
     make -C rei test                      # its tests: no Discord, no network, no Concord
+    make -C rei test-gateway CONCORD=/opt/concord   # reiwimsy against a fake Discord: Linux (docs/TESTING.md)
 
 ## Tracer
 
