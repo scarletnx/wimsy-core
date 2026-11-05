@@ -77,7 +77,7 @@ int tr_game(const cJSON* summary, const char* note, char** key, char** title, ch
    commands" (shaders by the shaders, the rest by the different ones); owned, NULL for nothing */
 char* tr_missed(const cJSON* summary);
 /* what a report keeps of its logs, as a version: a new one summarizes the kept reports again (tr_rescan) */
-#define TR_FACTS "facts 4"
+#define TR_FACTS "facts 5"
 
 /* the reply to m, a message that mentions the bot: an embed (owned), or NULL for a message already handled (the
    gateway sends a message again after a resume). *report is the report it made or updated, 0 for none: the reply,

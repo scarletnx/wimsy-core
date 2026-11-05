@@ -51,7 +51,9 @@ temporary folder:
   camera blanked; text made valid UTF-8;
 - the game a log names (and the older builds' titles, a garbled one, a name in another script); the crash report's
   dumps left out of a log as the log summary leaves them out; the games' names from the list (an update's and an
-  add-on's ID, a report named at once, one named at the next start, a log's name first, a GBA game by its code); each
+  add-on's ID, a report named at once, one named at the next start, a log's name first, a GBA game by its code, a
+  name with é or in Japanese kept to the reply, the pages and the JSON, one the launcher wrote as `?` taken from the
+  list and one kept so named again); each
   console's report; what the runtime missed counted beside the outcome;
 - whole reports: kept with their home folders as `~`, drawn with everything escaped, the same message again, refusals,
   updates (by a reply or `add N`, refused to others, within the limits, taken back with their message, a later log

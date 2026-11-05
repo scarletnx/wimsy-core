@@ -86,9 +86,13 @@ typedef struct {
     const char* data;
     size_t n;
 } Served;
-static Served served[16];
+static Served served[32];
 static int nserved, downloads;
 static void serve(const char* url, const char* data, size_t n) {
+    if (nserved == (int)(sizeof served / sizeof *served)) { /* room for more: a test past it wrote over what follows */
+        fprintf(stderr, "%s: more than %d files served\n", url, nserved);
+        exit(1);
+    }
     served[nserved].url = url;
     served[nserved].data = data;
     served[nserved++].n = n;
@@ -1353,6 +1357,105 @@ static void test_rescan(void) {
 /* the games' names from the list: an update's and an add-on's id find their game, a report its logs don't name is named
    by it at once, one made before the list at the next start, and a log's own name stays first */
 /* what the runtime missed, counted: shaders by the shaders (compute ones too), the rest by the different ones */
+/* names that are not ASCII: a log's own UTF-8 name kept through to the reply, the pages and the JSON; a name that
+   ScarletNX's launcher's Share Log wrote as '?' a byte taken from the list instead, and one kept so repaired */
+static char* named_log(const char* name, const char* id) {
+    return rei_format("[   0.00] ScarletNX - %s\n[   0.00] build: ScarletNX main 1234abc (clang 23.1.3, Windows "
+                      "x86_64)\n[   0.30] game: %s, version 1.0.0\n",
+                      name, id);
+}
+static void test_names(void) {
+    static const char list_text[] = "0100CAFE00000000\tCaf\xc3\xa9 Racer\n"
+                                    "0100F00D00000000\t\xe6\x9c\x88\xe3\x81\xae\xe6\x97\x85 the 1st\n";
+    char *good = named_log("Caf\xc3\xa9 Racer Deluxe", "0100c0de00000000"),
+         *latin = named_log("Caf?? Racer", "0100cafe00000000"),
+         *japanese = named_log("????????? the 1st", "0100f00d00000000");
+    const Titles* was = tracer.titles;
+    Titles list;
+    char *path = at("names.tsv"), *t, *p, *key, *title, *tid;
+    long a, b, c;
+    int named;
+    StReport r;
+    TrMessage m;
+    cJSON* summary = cJSON_Parse("{\"title\":\"Caf?? Racer\",\"title_id\":\"0100CAFE00000000\"}");
+    CHECK(!tr_game(summary, "", &key, &title, &tid, &named) && !named); /* the launcher's '?', not a name */
+    SAME(title, "Caf?? Racer");
+    free(key);
+    free(title);
+    free(tid);
+    cJSON_Delete(summary);
+    serve("https://cdn.discordapp.com/9/good.log", good, strlen(good));
+    serve("https://cdn.discordapp.com/9/latin.log", latin, strlen(latin));
+    serve("https://cdn.discordapp.com/9/japanese.log", japanese, strlen(japanese));
+    CHECK(!site_write(site, "names.tsv", list_text, sizeof list_text - 1));
+    CHECK(!tr_titles_load(&list, path));
+    /* the log's own name, é and all, to the card, the pages and the JSON */
+    tracer.titles = &list;
+    m = message(6500, 140, "<@99>");
+    attach(&m, "good.log", "https://cdn.discordapp.com/9/good.log", 10);
+    t = answer_text(respond(&m));
+    c = st_by_message(tracer.store, 6500);
+    HAS(t, ": Caf\xc3\xa9 Racer Deluxe\"");
+    free(t);
+    tr_message_free(&m);
+    /* a Japanese name the launcher wrote as '?': the list's */
+    m = message(6501, 140, "<@99>");
+    attach(&m, "japanese.log", "https://cdn.discordapp.com/9/japanese.log", 10);
+    t = answer_text(respond(&m));
+    b = st_by_message(tracer.store, 6501);
+    HAS(t, ": \xe6\x9c\x88\xe3\x81\xae\xe6\x97\x85 the 1st\"");
+    LACKS(t, "??");
+    free(t);
+    tr_message_free(&m);
+    {
+        char *rel = rei_format("r/%ld/index.html", b), *json = rei_format("api/r/%ld.json", b);
+        p = page(rel);
+        HAS(p, "\xe6\x9c\x88\xe3\x81\xae\xe6\x97\x85 the 1st");
+        free(p);
+        p = page(json);
+        HAS(p, "\"title\":\"\xe6\x9c\x88\xe3\x81\xae\xe6\x97\x85 the 1st\"");
+        free(p);
+        free(rel);
+        free(json);
+        rel = rei_format("r/%ld/index.html", c);
+        p = page(rel);
+        HAS(p, "Caf\xc3\xa9 Racer Deluxe");
+        free(p);
+        free(rel);
+        p = page("index.html");
+        HAS(p, "Caf\xc3\xa9 Racer Deluxe");
+        free(p);
+    }
+    /* a report kept before this, named by the launcher's '?': named again from the list at the next start */
+    tracer.titles = NULL;
+    m = message(6502, 140, "<@99>");
+    attach(&m, "latin.log", "https://cdn.discordapp.com/9/latin.log", 10);
+    free(answer_text(respond(&m)));
+    tr_message_free(&m);
+    a = st_by_message(tracer.store, 6502);
+    CHECK(st_get(tracer.store, a, &r, NULL, NULL) == 1);
+    SAME(r.title, "Caf?? Racer"); /* no list: what the log said, as a name of no weight */
+    CHECK(!r.named);
+    CHECK(!st_set_game(tracer.store, a, r.key, r.title, r.title_id, 1)); /* as the reports before this kept it */
+    st_report_free(&r);
+    tracer.titles = &list;
+    CHECK(tr_rescan(&tracer, "names again") > 0);
+    CHECK(st_get(tracer.store, a, &r, NULL, NULL) == 1);
+    SAME(r.title, "Caf\xc3\xa9 Racer");
+    st_report_free(&r);
+    CHECK(!site_rebuild(tracer.store, site));
+    p = page("index.html");
+    HAS(p, ">Caf\xc3\xa9 Racer<");
+    LACKS(p, "Caf??");
+    free(p);
+    tracer.titles = was;
+    tr_titles_free(&list);
+    free(path);
+    free(good);
+    free(latin);
+    free(japanese);
+}
+
 static void test_missed(void) {
     cJSON* s = cJSON_Parse(
         "{\"missed\":[{\"kind\":\"shader\",\"what\":\"a jump table\",\"count\":763},{\"kind\":\"shader\","
@@ -2706,6 +2809,7 @@ int main(int argc, char** argv) {
         test_upgrade();
         test_rescan();
         test_titles();
+        test_names();
         test_missed();
         test_limits();
         test_other_guild();
