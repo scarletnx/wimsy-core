@@ -1,12 +1,14 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
    Copyright 2026 the ScarletNX contributors */
-#if defined(__FreeBSD__) /* sys/procctl.h's structures (u_int) and closefrom are BSD's, which _POSIX_C_SOURCE hides */
+#if defined(                                                                                                           \
+    __FreeBSD__) /* procctl's and Capsicum's types (u_int) and closefrom are BSD's: _POSIX_C_SOURCE hides them */
 #undef _POSIX_C_SOURCE
-#elif defined(__linux__) /* closefrom is glibc's too, since 2.34 */
+#elif defined(__linux__) /* closefrom (glibc 2.34) and syscall, glibc's own */
 #define _DEFAULT_SOURCE
 #endif
 #include "worker.h"
 #include <errno.h>
+#include <fcntl.h>
 #include <poll.h>
 #include <signal.h>
 #include <spawn.h>
@@ -18,8 +20,11 @@
 #include <time.h>
 #include <unistd.h>
 #if defined(__linux__)
+#include <linux/landlock.h>
 #include <sys/prctl.h>
+#include <sys/syscall.h>
 #elif defined(__FreeBSD__)
+#include <sys/capsicum.h>
 #include <sys/procctl.h>
 #endif
 
@@ -94,6 +99,85 @@ int wk_untraceable(char** why) {
     return -1;
 }
 
+#if defined(__linux__)
+/* the file system rights of Landlock's ABI abi, all of which the worker gives up but in its folder */
+static unsigned long long fs_rights(int abi) {
+    unsigned long long all = (LANDLOCK_ACCESS_FS_MAKE_SYM << 1) - 1; /* ABI 1: execute to make_sym */
+#ifdef LANDLOCK_ACCESS_FS_REFER
+    if (abi >= 2) all |= LANDLOCK_ACCESS_FS_REFER;
+#endif
+#ifdef LANDLOCK_ACCESS_FS_TRUNCATE
+    if (abi >= 3) all |= LANDLOCK_ACCESS_FS_TRUNCATE;
+#endif
+#ifdef LANDLOCK_ACCESS_FS_IOCTL_DEV
+    if (abi >= 5) all |= LANDLOCK_ACCESS_FS_IOCTL_DEV;
+#endif
+    return all;
+}
+#endif
+
+const char* wk_shut_in(int dirfd, char** why) {
+    *why = NULL;
+#if defined(__FreeBSD__)
+    { /* the folder: its files looked up, made, read, written and removed, nothing above it; then nothing else opened */
+        cap_rights_t rights;
+        cap_rights_init(&rights, CAP_LOOKUP, CAP_CREATE, CAP_READ, CAP_WRITE, CAP_SEEK, CAP_FSTAT, CAP_UNLINKAT);
+        if (cap_rights_limit(dirfd, &rights)) {
+            *why = rei_format("cap_rights_limit on its folder: %s", strerror(errno));
+            return NULL;
+        }
+        if (cap_enter()) {
+            *why = rei_format("cap_enter: %s", strerror(errno));
+            return NULL;
+        }
+        return "capsicum";
+    }
+#elif defined(__linux__)
+    {
+        static char said[32];
+        struct landlock_ruleset_attr attr;
+        struct landlock_path_beneath_attr folder;
+        int abi = (int)syscall(SYS_landlock_create_ruleset, NULL, 0, LANDLOCK_CREATE_RULESET_VERSION), rules;
+        size_t size = sizeof attr;
+        if (abi < 1) {
+            *why = rei_format("Landlock is not in this kernel (%s), and a worker reads nothing without it",
+                              strerror(errno));
+            return NULL;
+        }
+        memset(&attr, 0, sizeof attr);
+        attr.handled_access_fs = fs_rights(abi);
+#ifdef LANDLOCK_ACCESS_NET_CONNECT_TCP
+        if (abi >= 4) attr.handled_access_net = LANDLOCK_ACCESS_NET_BIND_TCP | LANDLOCK_ACCESS_NET_CONNECT_TCP;
+#endif
+#ifdef LANDLOCK_SCOPE_SIGNAL
+        if (abi >= 6) attr.scoped = LANDLOCK_SCOPE_SIGNAL | LANDLOCK_SCOPE_ABSTRACT_UNIX_SOCKET;
+#endif
+        rules = (int)syscall(SYS_landlock_create_ruleset, &attr, size, 0);
+        if (rules < 0) {
+            *why = rei_format("landlock_create_ruleset (ABI %d): %s", abi, strerror(errno));
+            return NULL;
+        }
+        memset(&folder, 0, sizeof folder);
+        folder.parent_fd = dirfd;
+        folder.allowed_access = LANDLOCK_ACCESS_FS_READ_FILE | LANDLOCK_ACCESS_FS_WRITE_FILE |
+                                LANDLOCK_ACCESS_FS_MAKE_REG | LANDLOCK_ACCESS_FS_REMOVE_FILE;
+        if (syscall(SYS_landlock_add_rule, rules, LANDLOCK_RULE_PATH_BENEATH, &folder, 0) ||
+            prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) || syscall(SYS_landlock_restrict_self, rules, 0)) {
+            *why = rei_format("Landlock (ABI %d) on its folder: %s", abi, strerror(errno));
+            close(rules);
+            return NULL;
+        }
+        close(rules);
+        snprintf(said, sizeof said, "landlock %d", abi);
+        return said;
+    }
+#else
+    (void)dirfd;
+    *why = rei_strdup("this system has no way, known here, to shut a worker in its folder: it reads nothing");
+    return NULL;
+#endif
+}
+
 int wk_serve(FILE* in, FILE* out, TrGet get, void* ctx) {
     Buf text = {0};
     char piece[8192];
@@ -104,8 +188,9 @@ int wk_serve(FILE* in, FILE* out, TrGet get, void* ctx) {
     Tracer t;
     Taken k;
     TrMessage m;
-    char* printed;
-    int i;
+    char *printed, *why[TR_FILES], *failed;
+    const char* shut;
+    int i, dirfd;
     while ((got = fread(piece, 1, sizeof piece, in)) && text.len <= QUESTION_MAX) buf_addn(&text, piece, got);
     q = text.len <= QUESTION_MAX ? cJSON_ParseWithLength(text.text ? text.text : "", text.len) : NULL;
     buf_free(&text);
@@ -137,8 +222,32 @@ int wk_serve(FILE* in, FILE* out, TrGet get, void* ctx) {
     }
     m.content = rei_strdup("");
     cJSON_Delete(q);
-    tr_take(&t, &k, &m);
+    if ((dirfd = open(k.dir, O_RDONLY | O_DIRECTORY)) < 0) {
+        rei_log("the worker's folder %s could not be opened: %s", k.dir, strerror(errno));
+        tr_taken_free(&k);
+        tr_message_free(&m);
+        return 1;
+    }
+    /* the downloads first, the network and the CA files still open to it; then it is shut in with what came */
+    tr_download(&t, &k, &m, dirfd, why);
+    if (!(shut = wk_shut_in(dirfd, &failed))) {
+        rei_log("the worker could not shut itself in its folder: %s", failed);
+        for (i = 0; i < m.nfiles; ++i) {
+            char name[16];
+            snprintf(name, sizeof name, "in.%d", i);
+            if (!why[i]) unlinkat(dirfd, name, 0);
+            free(why[i]);
+        }
+        free(failed);
+        close(dirfd);
+        tr_taken_free(&k);
+        tr_message_free(&m);
+        return 1;
+    }
+    tr_read(&k, &m, dirfd, why);
+    close(dirfd);
     a = cJSON_CreateObject();
+    jset(a, "shut_in", shut);
     cJSON_AddNumberToObject(a, "logs", k.logs);
     cJSON_AddNumberToObject(a, "images", k.images);
     cJSON_AddNumberToObject(a, "videos", k.videos);
@@ -179,6 +288,11 @@ static void cleaned(const char* dir) {
         unlink(path);
         free(path);
     }
+    for (i = 0; i < TR_FILES; ++i) { /* the downloads a worker that stopped did not read */
+        char* path = rei_format("%s/in.%d", dir, i);
+        unlink(path);
+        free(path);
+    }
 }
 static char* question(const TrMessage* m, const Taken* k) {
     cJSON *q = cJSON_CreateObject(), *list;
@@ -215,6 +329,11 @@ static int answered(const char* text, size_t n, Taken* k, char** why) {
     int logs = 0, images = 0, videos = 0;
     if (!cJSON_IsObject(a)) {
         *why = rei_strdup("its answer is no JSON object");
+        cJSON_Delete(a);
+        return -1;
+    }
+    if (!jstr(a, "shut_in") || !*jstr(a, "shut_in")) { /* it read what strangers sent with the site in its reach */
+        *why = rei_strdup("its answer does not say it shut itself in its folder before it read the files");
         cJSON_Delete(a);
         return -1;
     }

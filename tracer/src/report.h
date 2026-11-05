@@ -58,6 +58,13 @@ struct Tracer {
    addresses left out and summarized, the screenshots' metadata taken out; each kept one written into k->dir, each
    other named in k->skipped */
 void tr_take(Tracer* t, Taken* k, const TrMessage* m);
+/* tr_take's two halves, which a worker splits by shutting itself in its folder between them (wk_shut_in): m's
+   attachments downloaded through t's get into the folder dirfd (k->dir), attachment i as "in.<i>", or why[i] (owned)
+   says why it is not (not a log or a screenshot, the report full of its kind, not on Discord, over its size, the
+   download failed); then each one read back from there and taken as tr_take takes it, its input removed, the others
+   named in k->skipped (why[] freed) */
+void tr_download(Tracer* t, Taken* k, const TrMessage* m, int dirfd, char* why[TR_FILES]);
+void tr_read(Taken* k, const TrMessage* m, int dirfd, char* why[TR_FILES]);
 /* k's files that were not moved into the site removed, with k->dir, and the rest freed */
 void tr_taken_free(Taken* k);
 

@@ -383,8 +383,10 @@ int main(int argc, char** argv) {
         wk_limit();
         curl_global_init(CURL_GLOBAL_DEFAULT);
         failed = wk_serve(stdin, stdout, tr_fetch, NULL);
-        curl_global_cleanup();
-        return failed;
+        /* _exit: shut in its folder, exit's handlers (libcurl's and OpenSSL's cleanup, a sanitizer's leak check, which
+           reads /proc) could open nothing they need */
+        fflush(NULL);
+        _exit(failed);
     }
     { /* before anything else: its workers, which read what strangers send, never read its tokens */
         char* why;

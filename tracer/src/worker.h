@@ -28,6 +28,12 @@ int wk_take(char* const argv[], int seconds, const TrMessage* m, Taken* k, char*
 int wk_serve(FILE* in, FILE* out, TrGet get, void* ctx);
 /* the worker's limits on itself, before it reads anything: memory, processor time, the size of a file, no core */
 void wk_limit(void);
+/* the worker shut in its folder dirfd once its downloads are in it, before it reads them: it runs as the bot's user, so
+   one that a file took over could otherwise write the site and the database. FreeBSD: Capsicum's capability mode, the
+   folder's descriptor limited to the files in it; Linux: Landlock, files read and written in the folder alone, and
+   no TCP and no signal outside where the kernel has them. Its name for the answer ("capsicum", "landlock 6"), or
+   NULL with why (owned): the worker then reads nothing */
+const char* wk_shut_in(int dirfd, char** why);
 /* the bot's memory and environment, which hold its tokens, kept from its workers: they run as its user, so a worker
    that a file it reads took over could read them with a debugger, /proc/<pid>/environ or mem (Linux) or the
    kern.proc.env sysctl (FreeBSD). Called by the bot, never by a worker. 0, or -1 with why (owned) */
