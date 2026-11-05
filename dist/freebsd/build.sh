@@ -139,7 +139,7 @@ s=$work/stage/tracer/usr/local
 install -d "$s/libexec" "$s/etc/rc.d" "$s/share/tracer" "$s/share/examples/tracer"
 install -m 755 "$work/tracer/tracer" "$work/tracer/tracer-mcp" "$s/libexec/"
 install -m 555 "$here/tracer.rc" "$s/etc/rc.d/tracer"
-install -m 555 "$here/tracer-mcp.rc" "$s/etc/rc.d/tracer-mcp"
+install -m 555 "$here/tracer-mcp.rc" "$s/etc/rc.d/tracer_mcp"
 install -m 644 "$here/tracer.env.sample" "$s/etc/tracer.env.sample"
 install -m 644 "$work/tracer/site/style.css" "$work/tracer/site/site.js" "$work/tracer/site/tracer.svg" \
 	"$s/share/tracer/"

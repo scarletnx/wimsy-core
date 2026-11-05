@@ -354,7 +354,9 @@ int main(int argc, char** argv) {
     tracer.get = tr_fetch;
     { /* the files wait beside the database, never in the site */
         char* db = rei_strdup(env.db);
-        tracer.work = rei_format("%s/work", dirname(db));
+        /* (dirname): FreeBSD's libgen.h makes dirname a C11 _Generic macro, which -std=c99 -Wpedantic refuses; the
+           function itself, which may write into its argument, gets a copy */
+        tracer.work = rei_format("%s/work", (dirname)(db));
         free(db);
         if (mkdir(tracer.work, 0700) && errno != EEXIST)
             stop("%s", rei_format("the work folder %s could not be made: %s", tracer.work, strerror(errno)));
