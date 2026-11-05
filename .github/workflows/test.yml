@@ -51,3 +51,4 @@ jobs:
       - run: sudo sh rei/tests/test_gateway.sh reiwimsy rei/reiwimsy
       - run: sudo sh rei/tests/test_gateway.sh fix-cards rei/reiwimsy
       - run: sudo sh rei/tests/test_gateway.sh tracer tracer/tracer
+      - run: sudo sh rei/tests/test_gateway.sh tracer-all tracer/tracer

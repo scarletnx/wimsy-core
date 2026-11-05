@@ -28,7 +28,7 @@ which gives the same reports to agents, has a page of its own: [tracer-mcp](./TR
 ## Reports
 
 A message that mentions Tracer with a ScarletNX log attached, in a channel `TRACER_CHANNELS` lists (or a thread or a
-forum post of one), becomes a report. Its reply links the report's page, with how the run ended, its signature and
+forum post of one), or in any channel and thread it can read with `TRACER_CHANNELS=all`, becomes a report. Its reply links the report's page, with how the run ended, its signature and
 build, how old that build is ([below](#how-old-a-build-is)), and what was not kept.
 
 ### The worker
@@ -200,7 +200,7 @@ fill in; an empty value stops the service):
 |---|---|---|
 | `TRACER_TOKEN` | none: needed | the Discord bot's token |
 | `TRACER_URL` | none: needed | the site's address, which the replies link: `https://`, or `http://localhost:8080` to try it on one machine |
-| `TRACER_CHANNELS` | none: no report is taken | `id,id`: the channels it answers in, with their threads and a forum's posts; the start's log line says them |
+| `TRACER_CHANNELS` | none: no report is taken | `id,id`: the channels it answers in, with their threads and a forum's posts; or `all`: every channel and thread it can read; the start's log line says them, or `all`; any other word stops it, naming the value |
 | `TRACER_ADMINS` | none | `id,id`: people who delete, add to and approve any report beside the server's owner and administrators |
 | `TRACER_DB` | `/var/db/tracer/tracer.db` | the database; the service sets it from `tracer_db` |
 | `TRACER_SITE` | `/var/db/tracer-site` | the site's folder; the service sets it from `tracer_site` |
