@@ -841,7 +841,7 @@ static int ancestor(Cards* c, const char* sha, const char* newer) {
 }
 cJSON* cd_nightly(Cards* c, const char* sha) {
     char *url = rei_format(SERVER "/%s", c->gh->repo), *commit = rei_format("%s/commit/%s", url, sha), tail[16],
-         previous[41] = "", date[11] = "", *link, *title, *footer;
+         previous[41] = "", oldest[41] = "", date[11] = "", *link, *title, *footer;
     cJSON *head, *run, *jobs, *fields = cJSON_CreateArray(), *e;
     const cJSON *r, *own = NULL, *older_first = NULL;
     const char* built = "";
@@ -874,6 +874,12 @@ cJSON* cd_nightly(Cards* c, const char* sha) {
             break;
         }
     }
+    /* the commit of the oldest nightly kept: a commit before it may have had one, gone since */
+    cJSON_ArrayForEach(r, c->nightlies) if (prefix(S(jstr(r, "tag_name")), "nightly-")) {
+        char from[41];
+        commit_in(jstr(r, "body"), from);
+        if (*from) snprintf(oldest, sizeof oldest, "%s", from);
+    }
     run = build_of(c, sha);
     jobs = jobs_of(c, run);
     link = rei_strdup(commit);
@@ -894,6 +900,13 @@ cJSON* cd_nightly(Cards* c, const char* sha) {
         free(how);
         color = AMBER;
         built = "not published";
+    } else if (*oldest && ancestor(c, sha, oldest)) {
+        buf_printf(&b,
+                   "Built from main at [`%.7s`](%s), committed %s; no nightly of it is kept now: %s keeps the newest "
+                   "%d.",
+                   sha, commit, date, c->gh->nightly, CD_KEEP);
+        color = CLOSED;
+        built = "no nightly kept";
     } else if (*previous && older_first && ancestor(c, sha, previous)) {
         buf_printf(&b, "Not published: [%s](%s), of a newer commit, came first.", S(jstr(older_first, "name")),
                    S(jstr(older_first, "html_url")));

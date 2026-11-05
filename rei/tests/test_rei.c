@@ -967,6 +967,23 @@ static void fix_cards(void) {
             cJSON_Delete(drawn);
             free(run);
         }
+        /* built, and older than the oldest nightly kept: none of it is kept now, which is all the card can know */
+        gh_shas("repos/o/r/actions/workflows/build.yml/runs?head_sha=@c&per_page=100&page=1",
+                "{\"workflow_runs\":[{\"id\":71,\"event\":\"push\",\"status\":\"completed\",\"conclusion\":"
+                "\"success\",\"created_at\":\"2026-11-04T22:00:05Z\"}]}");
+        gh_shas(
+            "repos/o/nightly/releases?per_page=100&page=1",
+            "[{\"tag_name\":\"nightly-2026-11-04-eeeeeee\",\"name\":\"Nightly 2026-11-04 (eeeeeee)\",\"html_url\":"
+            "\"https://n/e\",\"published_at\":\"2026-11-04T23:20:00Z\",\"body\":\"from /commits/@e\",\"assets\":[]}]");
+        gh_shas("repos/o/r/compare/@c...@e", "{\"status\":\"ahead\",\"commits\":[]}");
+        gh_shas("repos/o/r/compare/@e...@c", "{\"status\":\"behind\",\"commits\":[]}");
+        cJSON_Delete(c.nightlies);
+        c.nightlies = NULL;
+        {
+            cJSON* drawn = cd_nightly(&c, head);
+            HAS(jstr(drawn, "description"), "; no nightly of it is kept now: o/nightly keeps the newest 30.");
+            cJSON_Delete(drawn);
+        }
         free(head);
     }
     /* the channel not answering: nothing done, said */
