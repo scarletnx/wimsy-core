@@ -8,10 +8,10 @@
 #
 #   sh rei/tests/test_gateway.sh reiwimsy|tracer BINARY
 #
-# Linux, no network: the bot runs in a user, mount and network namespace of its own (unshare -rnm; a machine that
-# keeps them from users runs it as root), whose /etc/hosts sends Discord and GitHub to fake_discord.py on 127.0.0.1 and
-# whose CA bundle (libcurl's, curl-config --ca) holds only the CA this script makes. Needs unshare and ip (util-linux,
-# iproute2), python3, openssl and curl-config.
+# Linux, no network: the bot runs in a mount and network namespace of its own, and in a user namespace too when not run
+# by root (a machine that keeps those from users runs the test as root), whose /etc/hosts sends Discord and GitHub to
+# fake_discord.py on 127.0.0.1 and whose CA bundle (libcurl's, curl-config --ca) holds only the CA this script makes.
+# Needs unshare and ip (util-linux, iproute2), python3, openssl and curl-config.
 set -eu
 program=${1:-} binary=${2:-}
 case "$program" in
@@ -53,7 +53,10 @@ else
 		TRACER_ASSETS="$top/tracer/site"
 fi
 
-unshare -rnm sh -c '
+# root keeps the real one: in a user namespace of its own, its root would lose its rights over the files of the
+# checkout's owner (the namespace maps no other user)
+if [ "$(id -u)" = 0 ]; then namespaces=-nm; else namespaces=-rnm; fi
+unshare $namespaces sh -c '
 	tmp=$1 ca=$2 here=$3 drop_after=$4 binary=$5
 	shift 5
 	ip link set lo up
