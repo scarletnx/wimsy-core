@@ -22,8 +22,8 @@ jobs:
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq libcurl4-openssl-dev libsqlite3-dev libarchive-dev zlib1g-dev
       - run: make -C accordwimsy test
       - run: make -C tracer test
-      - run: sh scripts/test-check-docs.sh
-      - run: sh scripts/check-docs.sh
+      - run: python3 scripts/test-check-docs.py
+      - run: python3 scripts/check-docs.py
 
   gateway:
     name: The bots against a fake Discord

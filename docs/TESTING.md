@@ -16,7 +16,7 @@ What CI runs on each pull request and each push to main (`.github/workflows/test
 Discord:
 
     make -C rei test && make -C accordwimsy test && make -C tracer test &&
-        sh scripts/test-check-docs.sh && sh scripts/check-docs.sh
+        python3 scripts/test-check-docs.py && python3 scripts/check-docs.py
 
 On FreeBSD, `make -C tracer test CXXRT=-lc++` ([Build](./BUILD.md#tracer)). The libraries each needs:
 [Build](./BUILD.md).
@@ -72,8 +72,20 @@ temporary folder:
 
 ## The docs
 
-`scripts/check-docs.sh`: no date in `README.md` and `docs/*.md` outside code, as a doc says what is and the commit
-message says when; `scripts/test-check-docs.sh` holds the check to dates in text, in code and none.
+`scripts/check-docs.py` holds `README.md` and `docs/` to the checkout, each failure a line naming its file and line:
+
+- no date in the text (a doc says what is; when it came to be goes in the commit message);
+- every relative link names a file that is there, and its anchor a heading of it, as GitHub makes one;
+- a document over 100 lines with 3 or more sections has an `## Index` of them, and every index lists its sections as
+  they are (`python3 scripts/check-docs.py --index` writes them);
+- `docs/README.md` links every document of `docs/`;
+- each key a program reads has a row in its document's `| Key | Default |` table, with the default the code gives it,
+  and each variable of its rc script a row in a `| Variable | Default |` table, with the script's default; no row names
+  a key or a variable that is not there, and an env file's sample names only keys its program reads;
+- each script of `scripts/` and `dist/` is named by its path in a document.
+
+`scripts/test-check-docs.py` runs it on documents and sources made in a temporary folder, each rule failing where it
+should and passing where it should.
 
 ## The bots against a fake Discord
 

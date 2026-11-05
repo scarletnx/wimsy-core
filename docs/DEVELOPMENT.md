@@ -20,7 +20,7 @@ CI runs. Building: [Build](./BUILD.md); the tests: [Testing](./TESTING.md).
 | `accordwimsy/tests/` | `test_aw.c` |
 | `dist/freebsd/` | the packages: `build.sh`, each one's rc script, env sample, plist, description and post-install script, AccordWimsy's cron line and log rotation, Tracer's nginx config, Concord's fix |
 | `dist/status/`, `dist/forge/` | the [status page](./STATUS.md) and the [forge](./FORGE.md)'s start page |
-| `scripts/` | `install.sh`, `make-titles.py`, `sync-logscan.sh`, `check-docs.sh` and its test |
+| `scripts/` | `install.sh`, `make-titles.py`, `sync-logscan.sh`, `check-docs.py` and its test |
 
 Tracer builds ReiWimsy's `util.c`, `http.c` and `rest.c` again as its own, and AccordWimsy builds ReiWimsy's cJSON: a
 change there is a change to all of them, and every program's tests run it.
@@ -53,7 +53,7 @@ change there is a change to all of them, and every program's tests run it.
 `.github/workflows/test.yml`, on each pull request and each push to main, on Ubuntu:
 
 - **The bots' tests**: `make -C rei test`, AccordWimsy's and Tracer's with libcurl's, SQLite's, libarchive's and zlib's
-  headers, `sh scripts/test-check-docs.sh` and `sh scripts/check-docs.sh`.
+  headers, `python3 scripts/test-check-docs.py` and `python3 scripts/check-docs.py`.
 - **The bots against a fake Discord**: Concord at the commits `build.sh` pins, with its fixes; `reiwimsy` and `tracer`
   built with it; `rei/tests/test_gateway.sh` for ReiWimsy, its `--fix-cards` and Tracer, as root.
 
