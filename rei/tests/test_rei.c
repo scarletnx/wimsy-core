@@ -434,6 +434,7 @@ static double slept;
 static void no_sleep(double s) { slept += s; }
 static void rest_tests(void) {
     Dc d;
+    SAME(REI_AGENT, "DiscordBot (https://github.com/scarletnx/wimsy-core, 1) reiwimsy");
     u64 ids[4];
     int webhook[4], mine[4];
     cJSON* e = cJSON_Parse("{\"description\":\"x\"}");

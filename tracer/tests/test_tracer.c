@@ -2668,6 +2668,7 @@ int main(int argc, char** argv) {
     tracer.administers = fake_administers;
     tracer.admins = NULL;
     CHECK(tracer.store != NULL);
+    SAME(REI_AGENT, "DiscordBot (https://github.com/scarletnx/wimsy-core, 1) tracer");
     test_message();
     test_command();
     test_kind_and_text();

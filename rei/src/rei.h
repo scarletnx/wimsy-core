@@ -11,6 +11,8 @@
 #ifndef REI_NAME
 #define REI_NAME "reiwimsy"
 #endif
+/* the User-Agent of each request, as Discord asks of a bot: DiscordBot (its repository, its version), and the program */
+#define REI_AGENT "DiscordBot (https://github.com/scarletnx/wimsy-core, 1) " REI_NAME
 
 typedef uint64_t u64;
 

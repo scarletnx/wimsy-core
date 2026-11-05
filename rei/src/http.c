@@ -7,8 +7,6 @@
 #include <string.h>
 #include <strings.h>
 
-#define AGENT "DiscordBot (https://github.com/scarletnx/discord-bots, 1) " REI_NAME
-
 static size_t body_of(char* data, size_t size, size_t n, void* to) {
     buf_addn(to, data, size * n);
     return size * n;
@@ -58,7 +56,7 @@ void rh_fetch(void* ctx, const char* method, const char* url, const char* body, 
     curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, method);
     if (body) curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, AGENT);
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, REI_AGENT);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, body_of);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &got);
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_of);
