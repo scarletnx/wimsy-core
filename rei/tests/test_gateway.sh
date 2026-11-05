@@ -8,12 +8,17 @@
 # 1, which daemon(8) starts it again from, saying that Concord's GET gateway/bot failed and what Discord answers it
 # now. zombie (ReiWimsy) and tracer-zombie: a heartbeat a second, the first connection stalled in the middle of a frame
 # and its heartbeats unanswered, the next ones ACKing 0.3 s after each heartbeat (fake_discord.py's zombie): the bot
-# leaves the first as a zombie, identifies on the second and keeps it until the drop, two ACKs on. fix-cards: reiwimsy --fix-cards on a nightly channel with two cards saying "Building" (fake_discord.py's
-# cards): the dry run changes nothing, --apply deletes the one of a commit inside a push and redraws the push's head
-# with its failed build, and a second --apply finds nothing to do. Tracer answers only in its channel 6 there, and a
+# leaves the first as a zombie, identifies on the second and keeps it until the drop, two ACKs on. unready (ReiWimsy)
+# and tracer-unready: a heartbeat a second, the first connection's unanswered, each later one closed with no CLOSE
+# frame once the bot identifies: its session never ready again, the bot has to end with 1 on its own, saying so, three
+# heartbeat intervals on. fix-cards: reiwimsy --fix-cards on a nightly channel with two cards saying "Building"
+# (fake_discord.py's cards): the dry run changes nothing, --apply deletes the one of a commit inside a push and redraws
+# the push's head with its failed build, and a second --apply finds nothing to do. Tracer answers only in its channel 6 there, and a
 # mention in channel 7 goes unanswered; tracer-all is the same with TRACER_CHANNELS=all, which answers that one too.
 #
-#   sh rei/tests/test_gateway.sh reiwimsy|tracer|tracer-all|zombie|tracer-zombie|fix-cards BINARY
+#   sh rei/tests/test_gateway.sh PROGRAM BINARY
+#
+# PROGRAM: reiwimsy, tracer, tracer-all, zombie, tracer-zombie, unready, tracer-unready or fix-cards.
 #
 # Linux, no network: the bot runs in a mount and network namespace of its own, and in a user namespace too when not run
 # by root (a machine that keeps those from users runs the test as root), whose /etc/hosts sends Discord and GitHub to
@@ -26,9 +31,12 @@ reiwimsy) drop_after=github bot=reiwimsy ;;
 tracer | tracer-all) drop_after=replies bot=tracer ;;
 zombie) drop_after=zombie bot=reiwimsy ;;
 tracer-zombie) drop_after=zombie bot=tracer ;;
+unready) drop_after=unready bot=reiwimsy ;;
+tracer-unready) drop_after=unready bot=tracer ;;
 fix-cards) drop_after=cards bot=reiwimsy ;;
 *)
-	echo "usage: sh test_gateway.sh reiwimsy|tracer|tracer-all|zombie|tracer-zombie|fix-cards BINARY" \
+	echo "usage: sh test_gateway.sh reiwimsy|tracer|tracer-all|zombie|tracer-zombie|unready|tracer-unready|fix-cards" \
+		"BINARY" \
 		"(program \"$program\")" >&2
 	exit 2
 	;;
@@ -60,7 +68,7 @@ mkdir "$tmp/site"
 if [ "$program" = reiwimsy ]; then
 	set -- REIWIMSY_TOKEN=$token REIWIMSY_REPO=owner/repo GITHUB_TOKEN=fake REIWIMSY_CARDS_NIGHTLY=1 \
 		REIWIMSY_STATE="$tmp/state.json"
-elif [ "$program" = zombie ]; then
+elif [ "$program" = zombie ] || [ "$program" = unready ]; then
 	set -- REIWIMSY_TOKEN=$token REIWIMSY_REPO=owner/repo REIWIMSY_STATE="$tmp/state.json"
 elif [ "$program" = fix-cards ]; then
 	set -- REIWIMSY_TOKEN=$token REIWIMSY_REPO=owner/repo GITHUB_TOKEN=fake REIWIMSY_CARDS_NIGHTLY=5
@@ -141,6 +149,9 @@ status=$(cat "$tmp/status")
 # the line Concord's failed GET gateway/bot ends with, Discord asked again: the fake closes the connection unanswered
 said="^$bot: the gateway stopped: Concord's GET gateway/bot failed, .*; asked again, Discord answers 0: GET "
 said="${said}https://discord.com/api/v10/gateway/bot: "
+# unready's: the watch's line, the session not ready for three of the fake's heartbeat intervals, a second each
+watched="^$bot: the gateway stopped: its session was last seen ready [0-9.]* s ago, longer than the 3.0 s (3 heartbeat "
+watched="${watched}intervals of 1.00 s) a connection may take to bring READY or RESUMED$"
 failed=
 if [ "$drop_after" = zombie ]; then
 	if ! grep -q '^gateway: connection 1: heartbeat, unanswered$' "$tmp/fake.log"; then
@@ -153,6 +164,12 @@ went unread"
 	elif grep -q '^gateway: connection 3$' "$tmp/fake.log"; then
 		failed="it left its second connection right after READY, before the ACK of the heartbeat READY sent could come"
 	fi
+elif [ "$drop_after" = unready ]; then
+	if ! grep -q '^gateway: connection 2: IDENTIFY, closed with no CLOSE frame$' "$tmp/fake.log"; then
+		failed="it never identified on a second connection"
+	elif [ "$status" = 1 ] && ! grep -q "$watched" "$tmp/bot.log"; then
+		failed="it ended without saying its session had not been ready for 3 heartbeat intervals"
+	fi
 fi
 if [ -n "$failed" ]; then
 	:
@@ -162,6 +179,8 @@ elif [ "$status" != 1 ]; then
 	13[0-9] | 14[0-9]) failed="it ended on signal $((status - 128)), not with 1" ;;
 	*) failed="it ended with $status, not 1" ;;
 	esac
+elif [ "$drop_after" = unready ]; then
+	:
 elif ! grep -q 'gateway: closed with 1001' "$tmp/fake.log"; then
 	failed="the fake gateway never closed under it"
 elif ! grep -q "$said" "$tmp/bot.log"; then
@@ -195,4 +214,5 @@ fi
 [ "$program" = tracer ] && echo "tracer: the mention in channel 7, which TRACER_CHANNELS=6 leaves out, went unanswered"
 [ "$program" = tracer-all ] && echo "tracer-all: TRACER_CHANNELS=all answered the mention in channel 7 with its help"
 [ "$drop_after" = zombie ] && echo "$program: left the connection stalled mid-frame, identified on the next, kept it"
+[ "$drop_after" = unready ] && said=$watched
 echo "$program: ended with 1 when its gateway stopped: $(grep "$said" "$tmp/bot.log")"

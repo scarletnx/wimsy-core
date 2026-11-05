@@ -16,6 +16,9 @@ MESSAGE_CREATE, then nothing, its heartbeats unanswered: a connection that stall
 bot has to take for a zombie and leave. Each later one ACKs each heartbeat 0.3 s after it, as Discord's round trip, and
 its second ACK is DROP_AFTER. Each connection, its READY, heartbeats and ACKs are lines, numbered by connection.
 
+unready: a heartbeat every second, the first connection's unanswered; each later one is closed, with no CLOSE frame,
+once the bot sends IDENTIFY. Nothing is dropped: the bot has to end on its own, its session never ready again.
+
 replies: once READY is sent, a mention asking for help in channel 7 (which Tracer answers only with
 TRACER_CHANNELS=all), then someone's reply that mentions the bot and brings no file, to message 50 of channel 6, which
 has a ScarletNX log and no mention (the REST API gives it; the CDN, its log); once the bot has answered it, another
@@ -37,8 +40,8 @@ import sys
 import time
 
 CERT, KEY, DROP_AFTER = sys.argv[1], sys.argv[2], sys.argv[3]
-if DROP_AFTER not in ("github", "ready", "replies", "cards", "zombie"):
-    sys.exit(f"fake_discord.py: DROP_AFTER is {DROP_AFTER!r}, not github, ready, replies, cards or zombie")
+if DROP_AFTER not in ("github", "ready", "replies", "cards", "zombie", "unready"):
+    sys.exit(f"fake_discord.py: DROP_AFTER is {DROP_AFTER!r}, not github, ready, replies, cards, zombie or unready")
 ME = {"id": "100", "username": "FakeBot", "discriminator": "0", "bot": True}
 cue = asyncio.Event()  # what the drop waits for
 posted = asyncio.Queue()  # each message a bot posts, its JSON
@@ -267,9 +270,10 @@ async def gateway(reader, writer, headers):
         if acks == 2:
             cue.set()
 
-    if DROP_AFTER == "zombie":
+    beating = DROP_AFTER in ("zombie", "unready")  # a heartbeat a second, each connection numbered
+    if beating:
         say(f"gateway: connection {n}")
-    send({"op": 10, "d": {"heartbeat_interval": 1000 if DROP_AFTER == "zombie" else 41250}, "s": None, "t": None})
+    send({"op": 10, "d": {"heartbeat_interval": 1000 if beating else 41250}, "s": None, "t": None})
     dropping = asyncio.ensure_future(drop())
     replying = None
     try:
@@ -280,12 +284,15 @@ async def gateway(reader, writer, headers):
             if opcode != 1:
                 continue
             op = json.loads(data).get("op")
+            if op == 2 and DROP_AFTER == "unready" and n > 1:
+                say(f"gateway: connection {n}: IDENTIFY, closed with no CLOSE frame")
+                break
             if op == 2:
                 ready = {"v": 10, "user": ME, "guilds": [], "session_id": "fake", "shard": [0, 1]}
                 ready["resume_gateway_url"] = "wss://gateway.discord.gg"
                 ready["application"] = {"id": ME["id"], "flags": 0}
                 send({"op": 0, "t": "READY", "s": 1, "d": ready})
-                say(f"gateway: connection {n}: READY" if DROP_AFTER == "zombie" else "gateway: READY")
+                say(f"gateway: connection {n}: READY" if beating else "gateway: READY")
                 if DROP_AFTER == "zombie" and n == 1:
                     start = json.dumps({"op": 0, "t": "MESSAGE_CREATE", "s": 2, "d": {"content": "x" * 60000}})
                     writer.write(frame(1, start[:1000].encode(), 60000))
@@ -294,7 +301,7 @@ async def gateway(reader, writer, headers):
                     cue.set()
                 elif DROP_AFTER == "replies" and not replying:
                     replying = asyncio.ensure_future(replies())
-            elif op == 1 and DROP_AFTER == "zombie":
+            elif op == 1 and beating:
                 say(f"gateway: connection {n}: heartbeat" + (", unanswered" if n == 1 else ""))
                 if n > 1:
                     asyncio.ensure_future(ack())

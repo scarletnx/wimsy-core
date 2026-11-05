@@ -22,8 +22,9 @@ LOGIC = src/util.o src/refs.o src/github.o src/look.o src/link.o src/cards.o src
 
 all: reiwimsy
 
-reiwimsy: $(LOGIC) src/http.o src/main.o
-	$(CC) $(CFLAGS) -o $@ $(LOGIC) src/http.o src/main.o $(CONCORD)/lib/libdiscord.a $(CURL_LIBS) -lpthread -lm
+reiwimsy: $(LOGIC) src/http.o src/watch.o src/main.o
+	$(CC) $(CFLAGS) -o $@ $(LOGIC) src/http.o src/watch.o src/main.o $(CONCORD)/lib/libdiscord.a $(CURL_LIBS) \
+		-lpthread -lm
 
 test: tests/test_rei
 	./tests/test_rei
@@ -31,6 +32,7 @@ test: tests/test_rei
 test-gateway: reiwimsy
 	sh tests/test_gateway.sh reiwimsy ./reiwimsy
 	sh tests/test_gateway.sh zombie ./reiwimsy
+	sh tests/test_gateway.sh unready ./reiwimsy
 	sh tests/test_gateway.sh fix-cards ./reiwimsy
 
 tests/test_rei: $(LOGIC) tests/test_rei.c
@@ -57,13 +59,15 @@ src/event.o: src/event.c src/event.h src/rei.h
 src/http.o: src/http.c src/http.h src/github.h src/rei.h
 	$(CC) $(CFLAGS) $(OURS) $(CURL_CFLAGS) -c -o $@ src/http.c
 # Concord's headers are not ours: their warnings are theirs
-src/main.o: src/main.c src/cards.h src/event.h src/http.h src/link.h src/rest.h src/state.h src/rei.h
+src/main.o: src/main.c src/cards.h src/event.h src/http.h src/link.h src/rest.h src/state.h src/watch.h src/rei.h
 	$(CC) $(CFLAGS) $(OURS) $(CURL_CFLAGS) -isystem $(CONCORD)/include/concord -c -o $@ src/main.c
+src/watch.o: src/watch.c src/watch.h src/rei.h
+	$(CC) $(CFLAGS) $(OURS) $(CURL_CFLAGS) -isystem $(CONCORD)/include/concord -c -o $@ src/watch.c
 # cJSON as its project builds it
 third_party/cjson/cJSON.o: third_party/cjson/cJSON.c third_party/cjson/cJSON.h
 	$(CC) $(CFLAGS) -std=c89 -c -o $@ third_party/cjson/cJSON.c
 
 clean:
-	rm -f $(LOGIC) src/http.o src/main.o reiwimsy tests/test_rei
+	rm -f $(LOGIC) src/http.o src/watch.o src/main.o reiwimsy tests/test_rei
 
 .PHONY: all test test-gateway clean

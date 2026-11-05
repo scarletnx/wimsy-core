@@ -9,7 +9,7 @@ CI runs. Building: [Build](./BUILD.md); the tests: [Testing](./TESTING.md).
 
 | Folder | What it holds |
 |---|---|
-| `rei/src/` | ReiWimsy: `main.c` (its settings, the gateway and its threads), `event.c` (the gateway's events, from their JSON), `refs.c` (what a message asks for), `link.c` (the replies), `cards.c` (the cards), `look.c` (how an issue or a pull request reads), `github.c` (GitHub's REST and GraphQL APIs), `rest.c` (Discord's REST API), `http.c` (libcurl), `state.c` (the state file), `util.c` (strings, cJSON's lookups, the log, the clock) |
+| `rei/src/` | ReiWimsy: `main.c` (its settings, the gateway and its threads), `event.c` (the gateway's events, from their JSON), `watch.c` (the gateway's watch), `refs.c` (what a message asks for), `link.c` (the replies), `cards.c` (the cards), `look.c` (how an issue or a pull request reads), `github.c` (GitHub's REST and GraphQL APIs), `rest.c` (Discord's REST API), `http.c` (libcurl), `state.c` (the state file), `util.c` (strings, cJSON's lookups, the log, the clock) |
 | `rei/tests/` | `test_rei.c`; `test_gateway.sh` and `fake_discord.py`, the bots against a fake Discord |
 | `rei/third_party/cjson/` | cJSON 1.7.19, as its release has it, and the files' `SHA256SUMS` |
 | `tracer/src/` | Tracer: `main.c` (its settings, the gateway), `message.c` (what a message asks), `report.c` (what it does with one), `files.c` (logs, pictures and videos), `worker.c` (the worker that reads them), `fetch.c` (the downloads), `store.c` (the SQLite database), `site.c` (the pages), `issues.c`, `age.c`, `titles.c`, `channels.c`; `mcp.c` and `mcp_main.c`, tracer-mcp |

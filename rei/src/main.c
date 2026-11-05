@@ -32,6 +32,7 @@ edits the replies whose items changed every LK_REFRESH. The cards need GITHUB_TO
 #include "link.h"
 #include "rest.h"
 #include "state.h"
+#include "watch.h"
 
 #define ROUND    30
 #define CHANNELS 64
@@ -312,6 +313,7 @@ int main(int argc, char** argv) {
     discord_add_intents(client, DISCORD_GATEWAY_GUILDS | DISCORD_GATEWAY_GUILD_MESSAGES |
                                     DISCORD_GATEWAY_DIRECT_MESSAGES | DISCORD_GATEWAY_MESSAGE_CONTENT);
     discord_set_event_scheduler(client, scheduler);
+    wd_start(client, end);
     code = discord_run(client);
     if (code == CCORD_DISCORD_BAD_AUTH) { /* what Concord's discord_run returns for any failure of GET gateway/bot */
         char* now = dc_said(&dc, "gateway/bot");
