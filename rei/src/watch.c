@@ -71,10 +71,12 @@ void wd_start(struct discord* client, void (*end)(void)) {
     if (!discord_timer_interval(client, look, NULL, NULL, 1000, 1000, -1)) {
         rei_log("the gateway's watch did not start: Concord made no timer for it");
         end();
+        return;
     }
     if ((code = pthread_create(&thread, NULL, guard, NULL))) {
-        rei_log("the gateway's watch did not start: its thread did not: %s", strerror(code));
+        rei_log("the gateway's watch did not start: no thread for it: %s", strerror(code));
         end();
+        return;
     }
     pthread_detach(thread);
 }

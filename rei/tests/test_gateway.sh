@@ -13,8 +13,9 @@
 # frame once the bot identifies: its session never ready again, the bot has to end with 1 on its own, saying so, three
 # heartbeat intervals on. fix-cards: reiwimsy --fix-cards on a nightly channel with two cards saying "Building"
 # (fake_discord.py's cards): the dry run changes nothing, --apply deletes the one of a commit inside a push and redraws
-# the push's head with its failed build, and a second --apply finds nothing to do. Tracer answers only in its channel 6 there, and a
-# mention in channel 7 goes unanswered; tracer-all is the same with TRACER_CHANNELS=all, which answers that one too.
+# the push's head with its failed build, and a second --apply finds nothing to do. Tracer answers only in its channel 6
+# there, and a mention in channel 7 goes unanswered; tracer-all is the same with TRACER_CHANNELS=all, which answers
+# that one too.
 #
 #   sh rei/tests/test_gateway.sh PROGRAM BINARY
 #
@@ -35,9 +36,8 @@ unready) drop_after=unready bot=reiwimsy ;;
 tracer-unready) drop_after=unready bot=tracer ;;
 fix-cards) drop_after=cards bot=reiwimsy ;;
 *)
-	echo "usage: sh test_gateway.sh reiwimsy|tracer|tracer-all|zombie|tracer-zombie|unready|tracer-unready|fix-cards" \
-		"BINARY" \
-		"(program \"$program\")" >&2
+	echo "usage: sh test_gateway.sh PROGRAM BINARY, PROGRAM one of reiwimsy, tracer, tracer-all, zombie," \
+		"tracer-zombie, unready, tracer-unready, fix-cards (program \"$program\")" >&2
 	exit 2
 	;;
 esac
@@ -210,7 +210,8 @@ if [ -n "$failed" ]; then
 	tail -n 15 "$tmp/bot.log" >&2
 	exit 1
 fi
-[ "$drop_after" = replies ] && echo "$program: a reply alone made report #1 of the message it replies to, and a second was told so"
+[ "$drop_after" = replies ] &&
+	echo "$program: a reply alone made report #1 of the message it replies to, and a second was told so"
 [ "$program" = tracer ] && echo "tracer: the mention in channel 7, which TRACER_CHANNELS=6 leaves out, went unanswered"
 [ "$program" = tracer-all ] && echo "tracer-all: TRACER_CHANNELS=all answered the mention in channel 7 with its help"
 [ "$drop_after" = zombie ] && echo "$program: left the connection stalled mid-frame, identified on the next, kept it"
