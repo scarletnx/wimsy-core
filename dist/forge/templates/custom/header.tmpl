@@ -15,6 +15,14 @@ theme's roles. */}}
 <link rel="stylesheet" href="{{AssetUrlPrefix}}/css/theme-{{$id}}.css?v={{AssetVersion}}">
 {{- end -}}
 {{- end }}
+{{- /* the navbar's logo in the theme's Wimsy (Sepia's when none is picked): Forgejo draws it as an <img> of its own, so it
+is hidden and the picked one drawn behind it, its link and label as they are */ -}}
+{{- $logo := "sepia" -}}
+{{- with .Context -}}
+{{- $c := .GetSiteCookie "sws_theme" -}}
+{{- if or (eq $c "wimsy") (eq $c "fuddles") (eq $c "default") -}}{{- $logo = $c -}}{{- end -}}
+{{- end }}
+<style>#navbar-logo img { visibility: hidden } #navbar-logo { background: url({{AssetUrlPrefix}}/img/sws/logo-{{$logo}}.svg) center / 30px 30px no-repeat }</style>
 <style>
 /* the picker (extra_links.tmpl) at the navbar's right, beside Sign In: last in the left menu, which takes the room
    between; on a phone in the bar itself, beside the menu's button, as Forgejo's collapsed menu opens only by script */

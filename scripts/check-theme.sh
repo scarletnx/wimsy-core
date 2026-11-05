@@ -95,6 +95,9 @@ for path, needs in (("dist/freebsd/tracer-nginx.conf", ("'style.css?sws=$sws_css
     for need in needs:
         if need not in text:
             bad.append(f"{path}: no sub_filter to {need}: each pick needs a link of its own")
+# the status page's logo, the reader's theme's Wimsy in place of the one Gatus writes into its page as JSON
+if "sub_filter '@WIMSY_URL_JSON@' '@SWS_URL_JSON@\\/logo-$sws_theme.svg';" not in pathlib.Path("dist/status/nginx.conf.in").read_text():
+    bad.append("dist/status/nginx.conf.in: no sub_filter from @WIMSY_URL_JSON@ to the theme's Wimsy")
 status = sorted(f.name[:-len(".css.in")] for f in pathlib.Path("dist/status/sws").glob("*.css.in"))
 if status != themes:
     bad.append(f"dist/status/sws has {status}, the themes are {themes}")

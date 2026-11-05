@@ -30,17 +30,18 @@ python3 -I - "$here/gatus.yaml" "$here/push.sh" "$here/icons" <<'EOF'
 import os, re, sys, yaml
 c = yaml.safe_load(open(sys.argv[1]))
 assert set(c) == {"metrics", "storage", "web", "ui", "endpoints", "external-endpoints"}, sorted(c)
-bots = [e["name"] for e in c["external-endpoints"]]
+bots = [e["name"] for e in c["external-endpoints"] if e["group"] == "Bots"]
 icons = sorted(f[:-4] for f in os.listdir(sys.argv[3]) if f.endswith(".png"))
 assert sorted(b.lower() for b in bots) == icons, (bots, icons)
 css = c["ui"]["custom-css"]
 assert css.count("html:root{--background:") == 1 and css.count("html:root.dark{--background:") == 1, "the theme's lines"
 push = open(sys.argv[2]).read()
 for e in c["external-endpoints"]:
-    assert e["group"] == "Bots" and e["token"] == "@PUSH_TOKEN@" and e["heartbeat"]["interval"] == "5m", e
-    assert f'span[title="{e["name"]}"]::before{{background-image:url(data:image/png;base64,' in css, e["name"]
-    key = "bots_" + re.sub(r"[ /_,.#+&]", "-", e["name"]).lower()
-    assert re.search(rf"^\s*(bot|push) {key} ", push, re.M), ("push.sh never pushes", key)
+    assert e["group"] in ("Bots", "Web") and e["token"] == "@PUSH_TOKEN@" and e["heartbeat"]["interval"] == "5m", e
+    if e["group"] == "Bots":
+        assert f'span[title="{e["name"]}"]::before{{background-image:url(data:image/png;base64,' in css, e["name"]
+    key = e["group"].lower() + "_" + re.sub(r"[ /_,.#+&]", "-", e["name"]).lower()
+    assert re.search(rf"^\s*(bot|push|site) {key} ", push, re.M), ("push.sh never pushes", key)
 print(len(bots), "bots:", ", ".join(bots))
 assert set(c["ui"]["favicon"]) == {"default", "size16x16", "size32x32"}, c["ui"]["favicon"]
 for e in c["endpoints"]:
@@ -56,8 +57,6 @@ trap 'rm -f "$body"' EXIT
 for u in "$WIMSY_URL" "$WIMSY_ICONS/wimsy.ico" "$WIMSY_ICONS/hicolor/16x16/apps/wimsy.png" "$WIMSY_ICONS/hicolor/32x32/apps/wimsy.png"; do
 	s=$(curl -sS -o /dev/null -w '%{http_code}' "$u"); echo "$u: $s (200)"; [ "$s" = 200 ]
 done
-s=$(curl -sS -o /dev/null -w '%{http_code}' "$SITE_URL/")
-echo "scarletnx.dev: $s (302)"; [ "$s" = 302 ]
 s=$(got "$PAGES_URL/" "$body"); echo "Site: $s (200)"; [ "$s" = 200 ]
 grep -q 'ScarletNX is a static recompiler' "$body"
 s=$(got "$NIGHTLY_API" "$body"); echo "Nightly release: $s (200), $(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1]))["tag_name"])' "$body")"

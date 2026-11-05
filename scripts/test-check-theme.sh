@@ -58,6 +58,7 @@ case_ "Tracer's nginx not mapping a theme fails" dist/freebsd/tracer-nginx.conf 
 case_ "the status nginx not mapping a theme fails" dist/status/nginx.conf.in '/^\twimsy wimsy;$/d' 1
 case_ "Tracer's pages without a link of their own per pick fail" dist/freebsd/tracer-nginx.conf "/tracer.svg?sws=/d" 1
 case_ "the status page without a link of its own per pick fails" dist/status/nginx.conf.in "/custom.css?sws=/d" 1
+case_ "the status page's logo not the theme's fails" dist/status/nginx.conf.in "/@WIMSY_URL_JSON@/d" 1
 case_ "a status theme with a hex of its own fails" dist/status/sws/fuddles.css.in 's/var(--warn-fill)}/#ffaa00}/' 1
 case_ "a status theme gone fails" dist/status/sws/wimsy.css.in rm 1
 case_ "a Forgejo theme not made by theme.py fails" dist/forge/public/assets/css/theme-default.css '1s/.*/:root{}/' 1
