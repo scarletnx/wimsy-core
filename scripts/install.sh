@@ -16,7 +16,7 @@ set -eu
 jail=$1
 shift
 if ! jls -j "$jail" jid > /dev/null 2>&1; then
-	echo "$jail is not running: start it (bastille start $jail), or make it (docs/SETUP.md)" >&2
+	echo "$jail is not running: start it (bastille start $jail), or make it (docs/INSTALL.md)" >&2
 	exit 1
 fi
 root=$(jls -j "$jail" path)
