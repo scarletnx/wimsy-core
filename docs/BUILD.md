@@ -39,6 +39,7 @@ Concord as ReiWimsy has it (above), then:
 
     make -C tracer CONCORD=/opt/concord   # tracer/tracer and tracer/tracer-mcp; CXXRT=-lc++ on FreeBSD
     make -C tracer test                   # its tests: no Discord, no network, no Concord, no libcurl
+    make -C tracer test-gateway CONCORD=/opt/concord   # tracer against a fake Discord: Linux (docs/TESTING.md)
 
 It builds ReiWimsy's `util.c`, `http.c` and `rest.c` again as its own (`REI_NAME` names it in the log and the user
 agent), and ScarletNX's log summary from `tracer/third_party/logscan`, whose demangler is the C++ runtime's.

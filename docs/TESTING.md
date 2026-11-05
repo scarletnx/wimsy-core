@@ -43,14 +43,15 @@ And in a job of its own, on each pull request and each push to main, the bots bu
 `dist/freebsd/build.sh` pins it, against a fake Discord (`rei/tests/test_gateway.sh` and `rei/tests/fake_discord.py`):
 
     make -C rei test-gateway CONCORD=/opt/concord
+    make -C tracer test-gateway CONCORD=/opt/concord
 
 ReiWimsy comes up, its rounds wait inside a GitHub request held open, then the gateway closes and Discord's
 `GET /gateway/bot` gets no answer: Concord's `discord_run` returns, and the bot has to end with status 1 (daemon(8)
-starts it again), not on a signal, saying that Concord's `GET gateway/bot` failed and what Discord answers it now. Linux
-only, with no network: the bot runs in a user, mount and network namespace of its own (`unshare -rnm`, as root where
-the system keeps user namespaces from users), whose `/etc/hosts` sends Discord and GitHub to the fake and whose CA
-bundle, libcurl's (`curl-config --ca`), holds only the CA the test makes. It needs util-linux, iproute2, python3,
-openssl and libcurl's headers.
+starts it again), not on a signal, saying that Concord's `GET gateway/bot` failed and what Discord answers it now.
+Tracer the same, its gateway closed once it is up. Linux only, with no network: the bot runs in a user, mount and
+network namespace of its own (`unshare -rnm`, as root where the system keeps user namespaces from users), whose
+`/etc/hosts` sends Discord and GitHub to the fake and whose CA bundle, libcurl's (`curl-config --ca`), holds only the CA
+the test makes. It needs util-linux, iproute2, python3, openssl and libcurl's headers.
 
 Beside them:
 

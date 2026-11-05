@@ -169,4 +169,5 @@ A `TRACER_` key it does not know stops it, naming the key; so does an id that is
 
 It runs as the service `tracer` (`dist/freebsd/tracer.rc`): daemon(8) runs `/usr/local/libexec/tracer` as the user
 `tracer` and starts it again when it stops, its output in syslog (tag `tracer`, `/var/log/messages`). Installing it:
-[Install](./INSTALL.md#tracer).
+[Install](./INSTALL.md#tracer). Its last line, when its gateway stops, says why as ReiWimsy's does
+([ReiWimsy](./REIWIMSY.md)).
