@@ -23,8 +23,8 @@ the database) into the site. A report keeps:
   and GPU, how the run ended and where, the service commands and what else the runtime missed, the last lines. A file
   that is no ScarletNX log is named in the reply and not kept.
 - Its screenshots (PNG, JPEG, WebP, GIF or PPM, read from their bytes; 8 at most, 25 MiB each) lose their metadata:
-  EXIF and its place and camera, XMP, PNG's text and time, JPEG's comments, and what follows a JPEG's end (a phone's
-  motion photo video, a maker's trailer). A PPM, the frames ScarletNX's runtimes save (P6, 8 bits a channel), is kept
+  EXIF and its place and camera, XMP, PNG's text and time, JPEG's and GIF's comments, a GIF's applications' data but
+  its loop, and what follows a JPEG's or a GIF's end (a phone's motion photo video, a maker's trailer). A PPM, the frames ScarletNX's runtimes save (P6, 8 bits a channel), is kept
   as a PNG, which a browser shows.
 - Its videos (MP4 or WebM, read from their bytes; 2 at most, 100 MiB each) are played on the report's page. An MP4's
   place, time and camera (its udta and meta boxes whole, where a phone keeps them under its own keys, XMP's uuid box,

@@ -19,7 +19,7 @@ What CI runs on each pull request and each push to main. No network and no Disco
   the program's lock and usage.
 - Tracer (`tracer/tests/test_tracer.c`, no Concord, no libcurl), through a fake download into a database and a site in a
   temporary folder: the events and what a message asks, which files are logs and screenshots, the logs unpacked from a
-  `.gz` and a `.zip`, the screenshots' metadata taken out (PNG, JPEG, WebP) and broken ones refused, text made valid
+  `.gz` and a `.zip`, the screenshots' metadata taken out (PNG, JPEG, WebP, GIF) and broken ones refused, text made valid
   UTF-8, the game a log names (and the older builds' titles, a garbled one, a name in another script), the crash
   report's dumps left out of a log as the log summary leaves them out, and whole reports: kept with their home folders
   as `~`, drawn with everything escaped, the same message again, refusals, updates (by a reply or `add N`, refused to

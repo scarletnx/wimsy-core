@@ -149,6 +149,53 @@ static size_t strip_webp(unsigned char* d, size_t n) {
     return out;
 }
 
+/* a GIF's data sub-blocks from at (a size byte, that many bytes, until a size of 0): the offset after them, or 0 when
+   they run past n */
+static size_t gif_blocks(const unsigned char* d, size_t n, size_t at) {
+    while (at < n && d[at]) at += 1 + (size_t)d[at];
+    return at < n ? at + 1 : 0;
+}
+/* a GIF's comments and its applications' extensions dropped, but the loop's (NETSCAPE2.0, ANIMEXTS1.0), and what
+   follows its trailer: what an editor writes there (XMP, a comment) is not the picture. Cut short after an image, it
+   is kept as far as its whole blocks go, with a trailer where there is room, as a browser shows it */
+static size_t strip_gif(unsigned char* d, size_t n) {
+    size_t i = 13, out, end;
+    int imaged = 0;
+    if (n < 13) return 0;
+    if (d[10] & 0x80) i += (size_t)3 << ((d[10] & 7) + 1); /* the global colour table */
+    if (i > n) return 0;
+    out = i;
+    for (;;) {
+        int keep = 1;
+        end = 0;
+        if (i < n && d[i] == 0x3b) break; /* the trailer */
+        if (i < n && d[i] == 0x2c) {      /* an image: its descriptor, its local colour table, its LZW size, its data */
+            end = i + 10;
+            if (end <= n && (d[i + 9] & 0x80)) end += (size_t)3 << ((d[i + 9] & 7) + 1);
+            end = end < n ? gif_blocks(d, n, end + 1) : 0;
+            imaged |= end != 0;
+        } else if (i < n && d[i] == 0x21) { /* an extension: its label, its blocks */
+            end = n - i >= 2 ? gif_blocks(d, n, i + 2) : 0;
+            if (end && d[i + 1] == 0xfe)
+                keep = 0;
+            else if (end && d[i + 1] == 0xff)
+                keep = end - i >= 14 && d[i + 2] == 11 &&
+                       (!memcmp(d + i + 3, "NETSCAPE2.0", 11) || !memcmp(d + i + 3, "ANIMEXTS1.0", 11));
+        }
+        if (!end) { /* cut short, or no block of a GIF's */
+            if (!imaged) return 0;
+            break;
+        }
+        if (keep) {
+            memmove(d + out, d + i, end - i);
+            out += end - i;
+        }
+        i = end;
+    }
+    if (out < n) d[out++] = 0x3b; /* the trailer's place, or what was dropped's */
+    return out;
+}
+
 size_t tr_strip_image(char* data, size_t n) {
     const char* ext = tr_image_ext(data, n);
     unsigned char* d = (unsigned char*)data;
@@ -156,7 +203,7 @@ size_t tr_strip_image(char* data, size_t n) {
     if (!strcmp(ext, "png")) return strip_png(d, n);
     if (!strcmp(ext, "jpg")) return strip_jpeg(d, n);
     if (!strcmp(ext, "webp")) return strip_webp(d, n);
-    return n;
+    return strip_gif(d, n);
 }
 
 const char* tr_video_ext(const char* data, size_t n) {

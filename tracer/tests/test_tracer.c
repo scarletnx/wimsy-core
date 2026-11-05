@@ -438,7 +438,50 @@ static void test_images(void) {
         CHECK(tr_ppm_png("GIF89a...", 9, &out));
         buf_free(&out);
     }
-    CHECK(tr_strip_image("GIF89a...", 9) == 9);
+    { /* a GIF keeps its picture and its loop, not a comment, an editor's XMP or what follows its end */
+        static const char head[] = "GIF89a\1\0\1\0\x80\0\0" /* 1x1, a global table of 2 colours */
+                                   "\0\0\0\xff\xff\xff";
+        static const char loop[] = "\x21\xff\x0bNETSCAPE2.0\x03\x01\0\0\0";
+        static const char note[] = "\x21\xfe\x05where\0";
+        static const char xmp[] = "\x21\xff\x0bXMP DataXMP\x04GPS!\0";
+        static const char frame[] = "\x21\xf9\x04\0\0\0\0\0"                    /* its control */
+                                    "\x2c\0\0\0\0\1\0\1\0\0\x02\x02\x44\x01\0"; /* the image */
+        char gif[256], want[256];
+        size_t gn = 0, gw = 0;
+#define PUT(to, at, part)                                                                                              \
+    do {                                                                                                               \
+        memcpy(to + at, part, sizeof part - 1);                                                                        \
+        at += sizeof part - 1;                                                                                         \
+    } while (0)
+        PUT(gif, gn, head);
+        PUT(gif, gn, loop);
+        PUT(gif, gn, note);
+        PUT(gif, gn, xmp);
+        PUT(gif, gn, frame);
+        PUT(gif, gn,
+            "\x3b"
+            "MOTION");
+        PUT(want, gw, head);
+        PUT(want, gw, loop);
+        PUT(want, gw, frame);
+        PUT(want, gw, "\x3b");
+#undef PUT
+        CHECK(tr_strip_image(gif, gn) == gw && !memcmp(gif, want, gw));
+        CHECK(!found(gif, gw, "where") && !found(gif, gw, "GPS") && !found(gif, gw, "MOTION"));
+        CHECK(!tr_strip_image("GIF89a...", 9)); /* its screen cut short */
+        memcpy(gif, want, gw);
+        CHECK(tr_strip_image(gif, gw - 1) == gw - 1 && !memcmp(gif, want, gw - 1)); /* no trailer: as it is */
+        memcpy(gif, want, gw - 1);
+        memcpy(gif + gw - 1, "\x21\xfe\x05wh", 5); /* a comment cut short after the image: what came before */
+        CHECK(tr_strip_image(gif, gw + 4) == gw && !memcmp(gif, want, gw));
+        memcpy(gif, want, gw);
+        CHECK(!tr_strip_image(gif, gw - 3)); /* its only image cut short */
+        memcpy(gif, want, gw);
+        CHECK(!tr_strip_image(gif, sizeof head - 1 + sizeof loop - 3)); /* a block cut short before any image */
+        memcpy(gif, want, gw);
+        gif[sizeof head - 1] = 0x42; /* no block of a GIF's */
+        CHECK(!tr_strip_image(gif, gw));
+    }
     CHECK(!tr_image_ext("<svg>", 5));
 }
 
