@@ -21,8 +21,9 @@ CONCORD_COMMIT=d7f224b70c9dd0b1aa4997f025d1322641611977
 REFLECTC_COMMIT=cad2211cd2b912813f38c0c0c7a34160cc67ca97
 CONCORD_URL=https://github.com/Cogmasters/concord.git
 # a heartbeat that cannot be sent (a connection gone without a CLOSE) leaves Concord's gateway retrying it every
-# millisecond, never reconnecting
-CONCORD_PATCHES=concord-heartbeat-send.patch
+# millisecond, never reconnecting; a zombie's heartbeat timer, left firing every millisecond, takes the next
+# connection's first pulse for unanswered a millisecond after READY and reconnects again
+CONCORD_PATCHES="concord-heartbeat-send.patch concord-heartbeat-early-tick.patch"
 CONCORD_TESTS=unit-gateway-lifecycle
 
 WWW=https://github.com/scarletnx/wimsy-core

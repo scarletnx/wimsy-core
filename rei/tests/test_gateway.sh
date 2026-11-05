@@ -6,12 +6,14 @@
 # once it has answered two replies that mention it and bring no file (the first makes a report of the message they
 # reply to, with that message's log; the second is told that it is that report already). Each has to end with status
 # 1, which daemon(8) starts it again from, saying that Concord's GET gateway/bot failed and what Discord answers it
-# now. fix-cards: reiwimsy --fix-cards on a nightly channel with two cards saying "Building" (fake_discord.py's
+# now. zombie (ReiWimsy) and tracer-zombie: a heartbeat a second, the first connection's heartbeats unanswered, the
+# next ones ACKing 0.3 s after each heartbeat (fake_discord.py's zombie): the bot leaves the first as a zombie,
+# identifies on the second and keeps it until the drop, two ACKs on. fix-cards: reiwimsy --fix-cards on a nightly channel with two cards saying "Building" (fake_discord.py's
 # cards): the dry run changes nothing, --apply deletes the one of a commit inside a push and redraws the push's head
 # with its failed build, and a second --apply finds nothing to do. Tracer answers only in its channel 6 there, and a
 # mention in channel 7 goes unanswered; tracer-all is the same with TRACER_CHANNELS=all, which answers that one too.
 #
-#   sh rei/tests/test_gateway.sh reiwimsy|tracer|tracer-all|fix-cards BINARY
+#   sh rei/tests/test_gateway.sh reiwimsy|tracer|tracer-all|zombie|tracer-zombie|fix-cards BINARY
 #
 # Linux, no network: the bot runs in a mount and network namespace of its own, and in a user namespace too when not run
 # by root (a machine that keeps those from users runs the test as root), whose /etc/hosts sends Discord and GitHub to
@@ -20,11 +22,14 @@
 set -eu
 program=${1:-} binary=${2:-}
 case "$program" in
-reiwimsy) drop_after=github ;;
-tracer | tracer-all) drop_after=replies ;;
-fix-cards) drop_after=cards ;;
+reiwimsy) drop_after=github bot=reiwimsy ;;
+tracer | tracer-all) drop_after=replies bot=tracer ;;
+zombie) drop_after=zombie bot=reiwimsy ;;
+tracer-zombie) drop_after=zombie bot=tracer ;;
+fix-cards) drop_after=cards bot=reiwimsy ;;
 *)
-	echo "usage: sh test_gateway.sh reiwimsy|tracer|tracer-all|fix-cards BINARY (program \"$program\")" >&2
+	echo "usage: sh test_gateway.sh reiwimsy|tracer|tracer-all|zombie|tracer-zombie|fix-cards BINARY" \
+		"(program \"$program\")" >&2
 	exit 2
 	;;
 esac
@@ -55,6 +60,8 @@ mkdir "$tmp/site"
 if [ "$program" = reiwimsy ]; then
 	set -- REIWIMSY_TOKEN=$token REIWIMSY_REPO=owner/repo GITHUB_TOKEN=fake REIWIMSY_CARDS_NIGHTLY=1 \
 		REIWIMSY_STATE="$tmp/state.json"
+elif [ "$program" = zombie ]; then
+	set -- REIWIMSY_TOKEN=$token REIWIMSY_REPO=owner/repo REIWIMSY_STATE="$tmp/state.json"
 elif [ "$program" = fix-cards ]; then
 	set -- REIWIMSY_TOKEN=$token REIWIMSY_REPO=owner/repo GITHUB_TOKEN=fake REIWIMSY_CARDS_NIGHTLY=5
 else
@@ -132,12 +139,23 @@ if [ "$program" = fix-cards ]; then
 fi
 status=$(cat "$tmp/status")
 # the line Concord's failed GET gateway/bot ends with, Discord asked again: the fake closes the connection unanswered
-bot=$program
-[ "$program" = tracer-all ] && bot=tracer
 said="^$bot: the gateway stopped: Concord's GET gateway/bot failed, .*; asked again, Discord answers 0: GET "
 said="${said}https://discord.com/api/v10/gateway/bot: "
 failed=
-if [ "$status" != 1 ]; then
+if [ "$drop_after" = zombie ]; then
+	if ! grep -q '^gateway: connection 1: heartbeat, unanswered$' "$tmp/fake.log"; then
+		failed="it sent no heartbeat on its first connection"
+	elif ! grep -q '^gateway: connection 2$' "$tmp/fake.log"; then
+		failed="it never left its first connection, its heartbeats unanswered"
+	elif ! grep -q '^gateway: connection 2: READY$' "$tmp/fake.log"; then
+		failed="it never identified on its second connection"
+	elif grep -q '^gateway: connection 3$' "$tmp/fake.log"; then
+		failed="it left its second connection right after READY, before the ACK of the heartbeat READY sent could come"
+	fi
+fi
+if [ -n "$failed" ]; then
+	:
+elif [ "$status" != 1 ]; then
 	case "$status" in
 	124) failed="it was still running after 60 s" ;;
 	13[0-9] | 14[0-9]) failed="it ended on signal $((status - 128)), not with 1" ;;
@@ -147,7 +165,7 @@ elif ! grep -q 'gateway: closed with 1001' "$tmp/fake.log"; then
 	failed="the fake gateway never closed under it"
 elif ! grep -q "$said" "$tmp/bot.log"; then
 	failed="it never said its GET gateway/bot failed and what Discord answers it now"
-elif [ "$bot" = tracer ]; then
+elif [ "$drop_after" = replies ]; then
 	# the first reply: a report of message 50, its log downloaded and kept with its home folder as ~; the second: told
 	# that message is that report already. The mention in channel 7: its help, with all; nothing, with channel 6 alone
 	if [ "$program" = tracer-all ] &&
@@ -166,12 +184,14 @@ elif [ "$bot" = tracer ]; then
 	fi
 fi
 if [ -n "$failed" ]; then
-	echo "test_gateway.sh: $program, its gateway closed: $failed. The fake's steps, then the end of its log:" >&2
+	echo "test_gateway.sh: $program, its gateway closed: $failed (status $status). The fake's steps, then the end of" \
+		"its log:" >&2
 	cat "$tmp/fake.log" >&2
 	tail -n 15 "$tmp/bot.log" >&2
 	exit 1
 fi
-[ "$bot" = tracer ] && echo "$program: a reply alone made report #1 of the message it replies to, and a second was told so"
+[ "$drop_after" = replies ] && echo "$program: a reply alone made report #1 of the message it replies to, and a second was told so"
 [ "$program" = tracer ] && echo "tracer: the mention in channel 7, which TRACER_CHANNELS=6 leaves out, went unanswered"
 [ "$program" = tracer-all ] && echo "tracer-all: TRACER_CHANNELS=all answered the mention in channel 7 with its help"
+[ "$drop_after" = zombie ] && echo "$program: left the zombie connection, identified on the next and kept it"
 echo "$program: ended with 1 when its gateway stopped: $(grep "$said" "$tmp/bot.log")"

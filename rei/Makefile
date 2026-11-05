@@ -30,6 +30,7 @@ test: tests/test_rei
 
 test-gateway: reiwimsy
 	sh tests/test_gateway.sh reiwimsy ./reiwimsy
+	sh tests/test_gateway.sh zombie ./reiwimsy
 	sh tests/test_gateway.sh fix-cards ./reiwimsy
 
 tests/test_rei: $(LOGIC) tests/test_rei.c

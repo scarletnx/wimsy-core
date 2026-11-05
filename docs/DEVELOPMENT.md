@@ -18,7 +18,7 @@ CI runs. Building: [Build](./BUILD.md); the tests: [Testing](./TESTING.md).
 | `tracer/tests/` | `test_tracer.c` |
 | `accordwimsy/src/` | AccordWimsy: `main.c`, `config.c` (the env file), `sync.c` (a pass), `git.c` (the bare mirrors), `http.c`, `util.c` |
 | `accordwimsy/tests/` | `test_aw.c` |
-| `dist/freebsd/` | the packages: `build.sh`, each one's rc script, env sample, plist, description and post-install script, AccordWimsy's cron line and log rotation, Tracer's nginx config, Concord's fix |
+| `dist/freebsd/` | the packages: `build.sh`, each one's rc script, env sample, plist, description and post-install script, AccordWimsy's cron line and log rotation, Tracer's nginx config, Concord's fixes |
 | `dist/status/`, `dist/forge/` | the [status page](./STATUS.md) and the [forge](./FORGE.md)'s start page |
 | `scripts/` | `install.sh`, `make-titles.py`, `sync-logscan.sh`, `check-docs.py`, and the tests of the first and the last |
 
@@ -43,7 +43,7 @@ change there is a change to all of them, and every program's tests run it.
 
 | Piece | Where | How it is updated |
 |---|---|---|
-| Concord 3.0.1, with `concord-heartbeat-send.patch` | cloned at build time by `dist/freebsd/build.sh` and CI | `CONCORD_VERSION`, `CONCORD_COMMIT` and `REFLECTC_COMMIT` in `build.sh` (CI reads them there); a fix is a patch in `dist/freebsd/` named in `CONCORD_PATCHES` |
+| Concord 3.0.1, with the fixes `CONCORD_PATCHES` names | cloned at build time by `dist/freebsd/build.sh` and CI | `CONCORD_VERSION`, `CONCORD_COMMIT` and `REFLECTC_COMMIT` in `build.sh` (CI reads them there); a fix is a patch in `dist/freebsd/` named in `CONCORD_PATCHES` |
 | cJSON 1.7.19 | `rei/third_party/cjson` | a release's `cJSON.c`, `cJSON.h` and `LICENSE`, and `SHA256SUMS` made again (`sha256sum cJSON.c cJSON.h LICENSE`) |
 | ScarletNX's log summary | `tracer/third_party/logscan` | `sh scripts/sync-logscan.sh SCARLETNX` from a checkout of ScarletNX: its files and commit copied, then Tracer's tests run. A summary that changed is a new version of it (`TR_LOGSCAN`, the files' checksum), and the bot's next start summarizes the kept logs again |
 | The games' names | where Tracer runs, never here | `python3 scripts/make-titles.py --out FILE` downloads titledb's and libretro-database's lists from their main branches (`--from DIR` reads them from a folder), and the bot's next start names the reports again |
@@ -54,8 +54,9 @@ change there is a change to all of them, and every program's tests run it.
 
 - **The bots' tests**: `make -C rei test`, AccordWimsy's and Tracer's with libcurl's, SQLite's, libarchive's and zlib's
   headers, `sh scripts/test-install.sh`, `python3 scripts/test-check-docs.py` and `python3 scripts/check-docs.py`.
-- **The bots against a fake Discord**: Concord at the commits `build.sh` pins, with its fixes; `reiwimsy` and `tracer`
-  built with it; `rei/tests/test_gateway.sh` for ReiWimsy, its `--fix-cards` and Tracer, as root.
+- **The bots against a fake Discord**: Concord at the commits `build.sh` pins, with its fixes, and its tests
+  `CONCORD_TESTS` names; `reiwimsy` and `tracer` built with it; `rei/tests/test_gateway.sh` for ReiWimsy, its
+  `--fix-cards` and Tracer, as root.
 
 What each covers: [Testing](./TESTING.md). The FreeBSD packages are built by hand on the jails' host
 ([Build](./BUILD.md#the-freebsd-packages)).
