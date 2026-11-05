@@ -6,6 +6,10 @@
 # The ReiWimsy Discord bot, run by daemon(8) as the reiwimsy user, started again when it stops; its output in syslog.
 # Its tokens and channels are in reiwimsy_env_file (root's, mode 600), which rc.subr exports to it; what it keeps of
 # its replies and its cards, in reiwimsy_state (its own folder, which only it reads).
+#
+#   service reiwimsy fixcards         says what reiwimsy --fix-cards would do of the nightly channel's cards that still
+#                                     say "Building", as the reiwimsy user, with the env file; changes nothing
+#   service reiwimsy fixcards apply   does it (beside the running bot: the fix keeps no state)
 
 . /etc/rc.subr
 
@@ -21,6 +25,9 @@ pidfile=/var/run/${name}.pid
 command=/usr/sbin/daemon
 command_args="-f -r -R 30 -S -T ${name} -u ${name} -P ${pidfile} /usr/local/libexec/${name}"
 start_precmd="${name}_precmd"
+extra_commands="fixcards"
+fixcards_cmd="${name}_fixcards"
+fixcards_precmd="${name}_precmd"
 
 reiwimsy_precmd()
 {
@@ -32,4 +39,17 @@ reiwimsy_precmd()
 	export REIWIMSY_STATE="${reiwimsy_state}"
 }
 
-run_rc_command "$1"
+reiwimsy_fixcards()
+{
+	case "$*" in
+	'') _apply= ;;
+	apply) _apply=--apply ;;
+	*)
+		echo "fixcards takes apply or nothing (a dry run), not: $*"
+		return 1
+		;;
+	esac
+	su -m reiwimsy -c "/usr/local/libexec/${name} --fix-cards ${_apply}"
+}
+
+run_rc_command "$@"

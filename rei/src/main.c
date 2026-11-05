@@ -4,7 +4,11 @@
 
     REIWIMSY_TOKEN=... REIWIMSY_REPO=OWNER/NAME [REIWIMSY_NIGHTLY=OWNER/NAME] [REIWIMSY_CHANNELS=id,id]
     [GITHUB_TOKEN=...] [REIWIMSY_CARDS_PRS=id] [REIWIMSY_CARDS_ISSUES=id] [REIWIMSY_CARDS_NIGHTLY=id]
-    [REIWIMSY_STATE=file] reiwimsy
+    [REIWIMSY_STATE=file] reiwimsy [--fix-cards [--apply]]
+
+--fix-cards, with the same settings, looks through the nightly channel for the cards the rounds made before a push had
+one card of its own, those still saying "Building" (cards.h, cd_fix), says what it would do of each, and exits;
+--apply does it. No gateway and no state file: it may run beside the bot.
 
 Concord's gateway brings the events, read here from their JSON (event.h), never decoded by Concord; a person's message
 waits for the thread that answers them, one at a time. A thread of its own draws the cards every ROUND seconds and
@@ -153,6 +157,9 @@ static int card_remove(void* ctx, u64 channel, u64 message) { return dc_remove(c
 static int card_history(void* ctx, u64 channel, u64 before, u64* ids, int* webhook, int* mine, int max) {
     return dc_history(ctx, channel, before, ids, webhook, mine, max);
 }
+static cJSON* card_messages(void* ctx, u64 channel, u64 before, int max) {
+    return dc_messages(ctx, channel, before, max);
+}
 static int reply_edit(void* ctx, u64 channel, u64 message, const cJSON* embed) {
     (void)ctx;
     return dc_edit(&dc, channel, message, embed);
@@ -255,12 +262,15 @@ static enum discord_event_scheduler scheduler(struct discord* client, const char
     return DISCORD_EVENT_IGNORE;
 }
 
-int main(void) {
+int main(int argc, char** argv) {
     struct discord* client;
     struct discord_config config;
     CdDiscord cdd;
     cJSON* saved;
     CCORDcode code;
+    int fix = argc > 1 && !strcmp(argv[1], "--fix-cards"), apply = fix && argc > 2 && !strcmp(argv[2], "--apply");
+    if (1 + fix + apply < argc)
+        stop("%s: not an option of reiwimsy, which takes none, or --fix-cards [--apply]", argv[1 + fix + apply]);
     read_env();
     curl_global_init(CURL_GLOBAL_DEFAULT);
     if (env.github) snprintf(github_auth.authorization, sizeof github_auth.authorization, "Bearer %s", env.github);
@@ -280,7 +290,13 @@ int main(void) {
     cdd.edit = card_edit;
     cdd.remove = card_remove;
     cdd.history = card_history;
+    cdd.messages = card_messages;
     cd_init(&cards, &cards_gh, cdd, env.prs, env.issues, env.nightlies);
+    if (fix) { /* drawn as the rounds draw, with the icons above, and none of the rest: no state, no gateway */
+        u64 self = dc_self(&dc);
+        if (!self) stop("--fix-cards: Discord did not give the bot's own user id (GET users/@me)%s", "");
+        return cd_fix(&cards, self, apply) ? 1 : 0;
+    }
     saved = rei_load(env.state);
     lk_load(&replies, cJSON_GetObjectItemCaseSensitive(saved, "link"));
     cd_load(&cards, cJSON_GetObjectItemCaseSensitive(saved, "cards"));

@@ -4,11 +4,16 @@
 test_gateway.sh, which runs a bot in a network namespace whose /etc/hosts sends discord.com, gateway.discord.gg and
 api.github.com here.
 
-    python3 -I fake_discord.py CERT KEY DROP_AFTER
+    python3 -I fake_discord.py CERT KEY DROP_AFTER|cards
 
 The gateway sends HELLO, answers IDENTIFY with READY and each heartbeat with its ACK. Half a second after DROP_AFTER
 (github: the first GitHub request, which is held open, never answered; ready: READY) it closes with 1001, as Discord
-going away, and from then on GET /gateway/bot gets its connection closed with no answer. Each step is a line on stderr.
+going away, and from then on GET /gateway/bot gets its connection closed with no answer.
+
+cards, for reiwimsy --fix-cards: the nightly channel 5 holds two of the bot's cards saying "Building" from five hours
+ago, a commit inside a push (B) and that push's head (C), whose build failed; one of its cards saying something else,
+and someone else's. GitHub answers what drawing C asks; Discord's channel listing, PATCH and DELETE work on that
+channel. Each step is a line on stderr.
 """
 
 import asyncio
@@ -18,10 +23,11 @@ import json
 import ssl
 import struct
 import sys
+import time
 
 CERT, KEY, DROP_AFTER = sys.argv[1], sys.argv[2], sys.argv[3]
-if DROP_AFTER not in ("github", "ready"):
-    sys.exit(f"fake_discord.py: DROP_AFTER is {DROP_AFTER!r}, not github or ready")
+if DROP_AFTER not in ("github", "ready", "cards"):
+    sys.exit(f"fake_discord.py: DROP_AFTER is {DROP_AFTER!r}, not github, ready or cards")
 ME = {"id": "100", "username": "FakeBot", "discriminator": "0", "bot": True}
 cue = asyncio.Event()  # what the drop waits for
 broken = False
@@ -35,14 +41,98 @@ async def request_of(reader):
     head = (await reader.readuntil(b"\r\n\r\n")).decode("latin-1").split("\r\n")
     method, target, _ = head[0].split(" ", 2)
     headers = {k.strip().lower(): v.strip() for k, v in (h.split(":", 1) for h in head[1:] if ":" in h)}
+    body = b""
     if int(headers.get("content-length", "0")):
-        await reader.readexactly(int(headers["content-length"]))
-    return method, target, headers
+        body = await reader.readexactly(int(headers["content-length"]))
+    return method, target, headers, body
 
 
-def answer(writer, obj):
+def answer(writer, obj, status="200 OK"):
     data = json.dumps(obj).encode()
-    writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n" % len(data) + data)
+    writer.write(
+        b"HTTP/1.1 %s\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n" % (status.encode(), len(data))
+        + data
+    )
+
+
+# ---- the cards scenario ----
+NOW = time.time()
+B, C, A = "b" * 40, "c" * 40, "a" * 40
+
+
+def iso(when):
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(when))
+
+
+def posted_id(when, n):
+    return str(((int(when * 1000) - 1420070400000) << 22) + n)
+
+
+def building(sha):
+    return {
+        "title": f"Nightly 2026-11-04 ({sha[:7]})",
+        "description": f"Building main at [`{sha[:7]}`]"
+        f"(https://github.com/owner/repo/commit/{sha}), committed 2026-11-04.",
+    }
+
+
+# the channel, newest first
+channel = [
+    {"id": posted_id(NOW - 5 * 3600 + 80, 0), "author": {"id": "999"}, "embeds": [building("2" * 40)]},
+    {"id": posted_id(NOW - 5 * 3600 + 70, 0), "author": ME, "embeds": [{"description": "Built from main at x."}]},
+    {"id": posted_id(NOW - 5 * 3600 + 62, 0), "author": ME, "embeds": [building(C)]},
+    {"id": posted_id(NOW - 5 * 3600 + 60, 0), "author": ME, "embeds": [building(B)]},
+]
+GITHUB = {
+    "/repos/owner/repo/commits/main": {"sha": A},
+    "/repos/owner/repo/actions/workflows/build.yml/runs?branch=main&event=push&per_page=100&page=1": {
+        "workflow_runs": [
+            {"head_sha": A, "created_at": iso(NOW - 3600)},
+            {"head_sha": C, "created_at": iso(NOW - 5 * 3600)},
+        ]
+    },
+    f"/repos/owner/repo/commits/{C}": {"commit": {"committer": {"date": "2026-11-04T22:00:00Z"}}},
+    f"/repos/owner/repo/actions/workflows/build.yml/runs?head_sha={C}&per_page=100&page=1": {
+        "workflow_runs": [
+            {
+                "id": 71,
+                "event": "push",
+                "status": "completed",
+                "conclusion": "failure",
+                "created_at": iso(NOW - 5 * 3600),
+                "html_url": "https://r/71",
+            }
+        ]
+    },
+    "/repos/owner/repo/actions/runs/71/jobs?per_page=100&page=1": {"jobs": []},
+    "/repos/owner/nightly/releases?per_page=100&page=1": [],
+}
+
+
+def cards_discord(writer, method, target, body):
+    """the nightly channel's listing, its PATCH and DELETE; True when target was one of them"""
+    path, _, query = target.partition("?")
+    if path == "/api/v10/channels/5/messages" and method == "GET":
+        args = dict(kv.split("=", 1) for kv in query.split("&") if "=" in kv)
+        before = int(args.get("before", "0")) or 1 << 64
+        answer(writer, [m for m in channel if int(m["id"]) < before][: int(args.get("limit", "50"))])
+        return True
+    if path.startswith("/api/v10/channels/5/messages/"):
+        mid = path.rsplit("/", 1)[1]
+        held = [m for m in channel if m["id"] == mid]
+        if not held:
+            answer(writer, {"message": "Unknown Message", "code": 10008}, "404 Not Found")
+        elif method == "DELETE":
+            channel.remove(held[0])
+            writer.write(b"HTTP/1.1 204 No Content\r\n\r\n")
+        elif method == "PATCH":
+            held[0]["embeds"] = json.loads(body)["embeds"]
+            answer(writer, held[0])
+        else:
+            return False
+        say(f"discord: {method} message {mid[-4:]}, of {held[0]['embeds'][0]['description'][:30] if held else 'none'}")
+        return True
+    return False
 
 
 def frame(opcode, payload):
@@ -113,11 +203,19 @@ async def gateway(reader, writer, headers):
 async def serve(reader, writer):
     try:
         while True:
-            method, target, headers = await request_of(reader)
+            method, target, headers, body = await request_of(reader)
             host = headers.get("host", "").split(":")[0]
             if host == "gateway.discord.gg":
                 return await gateway(reader, writer, headers)
-            if host == "api.github.com":
+            if DROP_AFTER == "cards" and host == "api.github.com":
+                if target in GITHUB:
+                    answer(writer, GITHUB[target])
+                else:
+                    say(f"github: {method} {target}: no answer here, 404")
+                    answer(writer, {"message": "Not Found"}, "404 Not Found")
+            elif DROP_AFTER == "cards" and cards_discord(writer, method, target, body):
+                pass
+            elif host == "api.github.com":
                 say(f"github: {method} {target} held")
                 if DROP_AFTER == "github":
                     cue.set()

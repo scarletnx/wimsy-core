@@ -49,4 +49,5 @@ jobs:
       - run: make -C tracer CONCORD="$RUNNER_TEMP/concord-prefix"
       # as root: unshare needs it where Ubuntu's AppArmor keeps user namespaces from users
       - run: sudo sh rei/tests/test_gateway.sh reiwimsy rei/reiwimsy
+      - run: sudo sh rei/tests/test_gateway.sh fix-cards rei/reiwimsy
       - run: sudo sh rei/tests/test_gateway.sh tracer tracer/tracer
