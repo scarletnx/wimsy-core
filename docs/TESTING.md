@@ -39,6 +39,21 @@ What CI runs on each pull request and each push to main. No network and no Disco
 - The docs (`scripts/check-docs.sh`): no date in `README.md` and `docs/*.md` outside code, as a doc says what is and
   the commit message says when; `scripts/test-check-docs.sh` holds the check to dates in text, in code and none.
 
+And in a job of its own, on each pull request and each push to main, the bots built with Concord as
+`dist/freebsd/build.sh` pins it, against a fake Discord (`rei/tests/test_gateway.sh` and `rei/tests/fake_discord.py`):
+
+    make -C rei test-gateway CONCORD=/opt/concord
+    make -C tracer test-gateway CONCORD=/opt/concord
+
+ReiWimsy comes up, its rounds wait inside a GitHub request held open, then the gateway closes and Discord's
+`GET /gateway/bot` gets no answer: Concord's `discord_run` returns, and the bot has to end with status 1 (daemon(8)
+starts it again), not on a signal, saying that Concord's `GET gateway/bot` failed and what Discord answers it now.
+Tracer the same, its gateway closed once it is up. Linux only, with no network: the bot runs in a mount and network
+namespace of its own, and a user namespace when the test is not run by root (as root where the system keeps user
+namespaces from users), whose `/etc/hosts` sends Discord and GitHub to the fake and whose CA bundle, libcurl's
+(`curl-config --ca`), holds only the CA the test makes. It needs util-linux, iproute2, python3, openssl and libcurl's
+headers.
+
 Beside them:
 
 - `dist/freebsd/build.sh` runs the programs' tests, and Concord's `unit-gateway-lifecycle`, before it packages.

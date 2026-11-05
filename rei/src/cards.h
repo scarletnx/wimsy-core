@@ -10,8 +10,8 @@
    deletes the cards a webhook posted there before (the GitHub Actions ones), and a message of ours no card keeps,
    and posts one for each open pull request or issue.
    Each round (cd_round) asks GitHub what changed since the last: the issues and pull requests updated, the builds that
-   run, the nightly releases, main's head. A card that could not be drawn whole (GitHub did not answer) waits for the
-   next round, as it was */
+   run, the nightly releases, main's head and the pushes that moved it. A card that could not be drawn whole (GitHub did
+   not answer) waits for the next round, as it was */
 #ifndef REI_CARDS_H
 #define REI_CARDS_H
 #include "github.h"
@@ -20,6 +20,7 @@
 #define CD_KEEP    30   /* the nightlies scarletnx/nightly keeps */
 #define CD_RUNS    20   /* the newest builds a round looks at */
 #define CD_HISTORY 1000 /* a channel's messages the first round looks through */
+#define CD_PUSHES  10   /* the pushes to main a round makes nightlies' cards for, at most */
 
 /* Discord, as the cards use it */
 typedef struct {

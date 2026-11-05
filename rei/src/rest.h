@@ -30,4 +30,7 @@ int dc_remove(Dc* d, u64 channel, u64 message);
 /* up to max (100 at most) messages of channel older than before (0: from the newest), newest first: their ids, whether a
    webhook sent each, whether this bot did. Their count, or -1 */
 int dc_history(Dc* d, u64 channel, u64 before, u64* ids, int* webhook, int* mine, int max);
+/* Discord's answer to GET path now, for a log line: "200" (a 2xx), else the status and the body, or why no answer came
+   ("401: {...}", "0: GET ...: Timeout was reached"); owned */
+char* dc_said(Dc* d, const char* path);
 #endif

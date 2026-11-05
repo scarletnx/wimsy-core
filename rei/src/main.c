@@ -51,11 +51,17 @@ static const char* const KNOWN[] = {"REIWIMSY_TOKEN",        "REIWIMSY_REPO",   
                                     "REIWIMSY_CHANNELS",     "REIWIMSY_STATE",        "REIWIMSY_CARDS_PRS",
                                     "REIWIMSY_CARDS_ISSUES", "REIWIMSY_CARDS_NIGHTLY"};
 
+/* the bot's end, with 1, from which daemon(8) starts it again. _exit, not exit: the threads of the rounds and the
+   answers may be inside their requests, which libcurl's cleanup and exit's handlers (OpenSSL's) must not run under */
+static void end(void) {
+    fflush(NULL);
+    _exit(1);
+}
 static void stop(const char* fmt, const char* value) {
     fputs("reiwimsy: ", stderr);
     fprintf(stderr, fmt, value);
     fputc('\n', stderr);
-    exit(1);
+    end();
 }
 /* name's value; NULL when it is unset or empty */
 static const char* setting(const char* name) {
@@ -282,7 +288,8 @@ int main(void) {
     cJSON_Delete(saved);
     ev_queue_init(&waiting);
     memset(&config, 0, sizeof config);
-    config.token = (char*)env.token;
+    /* a copy for Concord to own: discord_from_config keeps the pointer it is given, and discord_cleanup frees it */
+    config.token = rei_strdup(env.token);
     config.log.level = LOGMOD_LEVEL_WARN; /* Concord's traces name every event: only what goes wrong is logged */
     client = discord_from_config(&config);
     if (!client) stop("Concord could not start a client with REIWIMSY_TOKEN%s", "");
@@ -290,9 +297,14 @@ int main(void) {
                                     DISCORD_GATEWAY_DIRECT_MESSAGES | DISCORD_GATEWAY_MESSAGE_CONTENT);
     discord_set_event_scheduler(client, scheduler);
     code = discord_run(client);
-    rei_log("the gateway stopped: %s", discord_strerror(code, client));
-    discord_cleanup(client);
-    ccord_global_cleanup();
-    curl_global_cleanup();
-    return 1; /* daemon(8) starts it again */
+    if (code == CCORD_DISCORD_BAD_AUTH) { /* what Concord's discord_run returns for any failure of GET gateway/bot */
+        char* now = dc_said(&dc, "gateway/bot");
+        rei_log("the gateway stopped: Concord's GET gateway/bot failed, which it calls \"%s\" whatever the failure, a "
+                "timeout too; asked again, Discord answers %s",
+                discord_strerror(code, client), now);
+        free(now);
+    } else
+        rei_log("the gateway stopped: %s", discord_strerror(code, client));
+    end();
+    return 1;
 }

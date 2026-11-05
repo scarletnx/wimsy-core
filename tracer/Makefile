@@ -4,6 +4,8 @@
 #   make [CONCORD=prefix]  tracer, linked with Concord v3.0.1 as make install PREFIX=prefix put it, libcurl, SQLite
 #                          and libarchive; and tracer-mcp, its MCP server, with libmicrohttpd
 #   make test              the tests: no Discord, no network, no Concord, no libcurl
+#   make test-gateway      tracer (CONCORD as above) against a fake Discord whose gateway dies under it: Linux, as
+#                          root or with user namespaces (../rei/tests/test_gateway.sh)
 #
 # BSD make and GNU make alike. ReiWimsy's common pieces (rei/src: the strings, the log, Discord's REST API) are built
 # here again as Tracer's. The log summary is ScarletNX's (third_party/logscan, scripts/sync-logscan.sh), its demangler
@@ -43,6 +45,9 @@ tracer-mcp: src/mcp.o src/mcp_main.o src/rei_util.o third_party/cjson.o
 
 test: tests/test_tracer
 	./tests/test_tracer
+
+test-gateway: tracer
+	sh $(REI)/tests/test_gateway.sh tracer ./tracer
 
 tests/test_tracer: $(LOGIC) tests/test_tracer.c
 	$(CC) $(CFLAGS) $(OURS) $(SQLITE_CFLAGS) -o $@ tests/test_tracer.c $(LOGIC) $(LIBS)
@@ -95,4 +100,4 @@ third_party/demangle.o: third_party/logscan/common/utilities/demangle.c
 clean:
 	rm -f $(LOGIC) src/rei_http.o src/rei_rest.o src/fetch.o src/main.o src/mcp_main.o tracer tracer-mcp tests/test_tracer
 
-.PHONY: all test clean
+.PHONY: all test test-gateway clean

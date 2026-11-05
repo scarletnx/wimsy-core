@@ -177,3 +177,11 @@ int dc_history(Dc* d, u64 channel, u64 before, u64* ids, int* webhook, int* mine
     free(path);
     return n;
 }
+char* dc_said(Dc* d, const char* path) {
+    RgAnswer a = {0};
+    int status = ask(d, "GET", path, NULL, &a);
+    const char* why = a.error ? a.error : a.body ? a.body : "nothing";
+    char* said = status >= 200 && status < 300 ? rei_format("%d", status) : rei_format("%d: %.200s", status, why);
+    answer_free(&a);
+    return said;
+}

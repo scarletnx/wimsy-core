@@ -106,6 +106,10 @@ static void fake(void* ctx, const char* method, const char* url, const char* bod
                 return;
             }
             out->status = fixtures[i].status;
+            if (!out->status) { /* no answer: the body is why, as http.c says it */
+                out->error = rei_strdup(fixtures[i].body);
+                return;
+            }
             out->body = rei_strdup(fixtures[i].body);
             if (fixtures[i].etag) out->etag = rei_strdup(fixtures[i].etag);
             return;
@@ -457,6 +461,20 @@ static void rest_tests(void) {
     CHECK(dc_history(&d, 7, 0, ids, webhook, mine, 4) == 3);
     CHECK(ids[0] == 9 && webhook[0] && !mine[0] && ids[1] == 8 && !webhook[1] && mine[1] && !webhook[2] && !mine[2]);
     CHECK(dc_history(&d, 8, 0, ids, webhook, mine, 4) == -1);
+    { /* what Discord answers now, for the gateway's end: the status, and past a 2xx the body or why none came */
+        char* said;
+        answer("GET", DC_API "gateway/bot", 200, "{\"url\":\"wss://gateway.discord.gg\"}");
+        SAME(said = dc_said(&d, "gateway/bot"), "200");
+        free(said);
+        answer("GET", DC_API "gateway/bot", 401, "{\"message\": \"401: Unauthorized\", \"code\": 0}");
+        SAME(said = dc_said(&d, "gateway/bot"), "401: {\"message\": \"401: Unauthorized\", \"code\": 0}");
+        free(said);
+        answer("GET", DC_API "gateway/bot", 0,
+               "GET https://discord.com/api/v10/gateway/bot: Connection timed out after 30001 milliseconds");
+        SAME(said = dc_said(&d, "gateway/bot"),
+             "0: GET https://discord.com/api/v10/gateway/bot: Connection timed out after 30001 milliseconds");
+        free(said);
+    }
     cJSON_Delete(e);
     forget();
 }
@@ -732,6 +750,110 @@ static void cards_tests(void) {
         cJSON_Delete(saved);
         free(old);
     }
+    cd_free(&c);
+    rg_free(&g);
+    forget();
+}
+
+/* s with each @x written out as the commit of 40 x's; owned */
+static char* shas(const char* s) {
+    Buf b = {0};
+    int i;
+    for (; *s; ++s)
+        if (*s == '@' && s[1])
+            for (++s, i = 0; i < 40; ++i) buf_addn(&b, s, 1);
+        else
+            buf_addn(&b, s, 1);
+    return buf_take(&b);
+}
+static void gh_shas(const char* path, const char* body) {
+    char *p = shas(path), *b = shas(body);
+    gh(p, b);
+    free(p);
+    free(b);
+}
+/* main moved by pushes of several commits each: a nightly's card for each push's head, the oldest first, none for the
+   commits inside a push, which no build runs for; the head now has one before GitHub's activity lists its push */
+static void nightly_pushes(void) {
+    Cards c;
+    CdDiscord dc = {NULL, c_post, c_edit, c_remove, c_history};
+    int before;
+    char x;
+    forget();
+    rg_init(&g, "o/r", NULL, fake, NULL);
+    cd_init(&c, &g, dc, 0, 0, 3);
+    cards_fixtures("open", "null"); /* main at @a, the first round learns it */
+    now_is += 30;
+    cd_round(&c);
+    CHECK(c.head[0] == 'a' && strlen(c.head) == 40);
+    for (x = 'b'; x <= 'g'; ++x) { /* each commit as cd_nightly asks for it, with no build yet */
+        char *commit = rei_format("repos/o/r/commits/@%c", x),
+             *runs = rei_format("repos/o/r/actions/workflows/build.yml/runs?head_sha=@%c&per_page=100&page=1", x);
+        gh_shas(commit, "{\"commit\":{\"committer\":{\"date\":\"2026-11-04T20:56:45Z\"}}}");
+        gh_shas(runs, "{\"workflow_runs\":[]}");
+        free(commit);
+        free(runs);
+    }
+    /* two pushes since: @a to @c (@b, @c), then @c to @e (@d, @e) */
+    gh_shas("repos/o/r/commits/main", "{\"sha\":\"@e\"}");
+    gh_shas("repos/o/r/activity?ref=refs/heads/main&per_page=10",
+            "[{\"after\":\"@e\",\"before\":\"@c\"},{\"after\":\"@c\",\"before\":\"@a\"},"
+            "{\"after\":\"@a\",\"before\":\"@9\"}]");
+    gh_shas("repos/o/r/compare/@a...@e", "{\"commits\":[{\"sha\":\"@b\",\"parents\":[{\"sha\":\"@a\"}]},"
+                                         "{\"sha\":\"@c\",\"parents\":[{\"sha\":\"@b\"}]},"
+                                         "{\"sha\":\"@d\",\"parents\":[{\"sha\":\"@c\"}]},"
+                                         "{\"sha\":\"@e\",\"parents\":[{\"sha\":\"@d\"}]}]}");
+    before = nsent;
+    now_is += 30;
+    cd_round(&c);
+    CHECK(nsent == before + 2 && c.ncards == 2);
+    HAS(sent[before].description, "\"title\":\"Nightly 2026-11-04 (ccccccc)\"");
+    HAS(sent[before + 1].description, "\"title\":\"Nightly 2026-11-04 (eeeeeee)\"");
+    HAS(sent[before + 1].description, "Building main at");
+    /* main at @g, the activity a push behind (@e to @f only): @f's card, then @g's */
+    gh_shas("repos/o/r/commits/main", "{\"sha\":\"@g\"}");
+    gh_shas("repos/o/r/activity?ref=refs/heads/main&per_page=10",
+            "[{\"after\":\"@f\",\"before\":\"@e\"},{\"after\":\"@e\",\"before\":\"@c\"}]");
+    before = nsent;
+    now_is += 30;
+    cd_round(&c);
+    CHECK(nsent == before + 2 && c.ncards == 4);
+    HAS(sent[before].description, "(fffffff)");
+    HAS(sent[before + 1].description, "(ggggggg)");
+    cd_free(&c);
+    rg_free(&g);
+    forget();
+}
+
+/* more nightlies' cards than are kept, the newest first in the array as forgotten cards' places leave them: the oldest
+   messages go, the newest stay */
+static void nightly_sweep(void) {
+    Cards c;
+    CdDiscord dc = {NULL, c_post, c_edit, c_remove, c_history};
+    Buf state = {0};
+    cJSON* saved;
+    int i, newest = 0, oldest = 0, most = 2 * CD_KEEP + 1;
+    forget();
+    rg_init(&g, "o/r", NULL, fake, NULL);
+    cd_init(&c, &g, dc, 0, 0, 3);
+    buf_add(&state, "{\"cards\":[");
+    for (i = most; i >= 1; --i)
+        buf_printf(&state, "%s{\"key\":\"nightly-%040d\",\"message\":\"%d\",\"drawn\":\"x\",\"dirty\":false}",
+                   i == most ? "" : ",", i, 1000 + i);
+    buf_add(&state, "],\"head\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}");
+    saved = cJSON_Parse(state.text);
+    cd_load(&c, saved);
+    CHECK(c.ncards == most && c.cards[0].message == (u64)(1000 + most));
+    cards_fixtures("open", "null");
+    now_is += 30;
+    cd_round(&c);
+    for (i = 0; i < c.ncards; ++i) {
+        newest |= c.cards[i].message == (u64)(1000 + most);
+        oldest |= c.cards[i].message == 1001;
+    }
+    CHECK(c.ncards == 2 * CD_KEEP && newest && !oldest);
+    cJSON_Delete(saved);
+    buf_free(&state);
     cd_free(&c);
     rg_free(&g);
     forget();
@@ -1204,6 +1326,8 @@ int main(void) {
     github_tests();
     rest_tests();
     cards_tests();
+    nightly_pushes();
+    nightly_sweep();
     pr_card();
     state_tests();
     event_tests();
