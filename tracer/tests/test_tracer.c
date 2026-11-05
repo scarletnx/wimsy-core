@@ -3,7 +3,11 @@
 /* Tracer without Discord or the network: what a message asks, which files are logs and screenshots, the screenshots'
    metadata taken out, the logs unpacked, the game a log names, and whole reports kept, drawn, refused and deleted
    through a fake download into a database and a site of a temporary folder */
+#if defined(__FreeBSD__) /* sys/procctl.h's structures are of BSD types (u_int), which _POSIX_C_SOURCE hides */
+#undef _POSIX_C_SOURCE
+#else
 #define _POSIX_C_SOURCE 200809L
+#endif
 #include <archive.h>
 #include <archive_entry.h>
 #include <sqlite3.h>
@@ -13,9 +17,13 @@
 #include <dirent.h>
 #include <signal.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 #include <zlib.h>
+#if defined(__FreeBSD__)
+#include <sys/procctl.h>
+#endif
 
 #include "common/utilities/demangle.h"
 #include "common/utilities/logscan.h"
@@ -1588,6 +1596,16 @@ static int as_worker(const char* how) {
     if (!strcmp(how, "--env"))
         printf("{\"logs\":0,\"images\":0,\"files\":[],\"skipped\":\"TRACER_TOKEN %s, HOME %s\"}",
                getenv("TRACER_TOKEN") ? "seen" : "none", getenv("HOME") ? "seen" : "none");
+#if defined(__linux__)
+    if (!strcmp(how, "--peek")) { /* a worker taken over: the bot's environment, where its tokens are, read */
+        char* path = rei_format("/proc/%ld/environ", (long)getppid());
+        FILE* f = fopen(path, "rb");
+        int c = f ? fgetc(f) : EOF;
+        printf("{\"logs\":0,\"images\":0,\"files\":[],\"skipped\":\"%s\"}", c != EOF ? "read" : "kept");
+        if (f) fclose(f);
+        free(path);
+    }
+#endif
     if (!strcmp(how, "--lie")) /* a worker taken over: a file of the host as a report's */
         printf("{\"logs\":0,\"images\":1,\"files\":[{\"n\":1,\"kind\":\"image\",\"name\":\"x.png\","
                "\"path\":\"1.png\",\"taken\":\"/etc/passwd\"}]}");
@@ -1715,6 +1733,60 @@ static void test_worker(const char* self_path) {
     worker_argv[1] = "--report";
     tracer.take = NULL;
     CHECK(waiting_files() == 0);
+}
+
+/* the bot kept from its workers' debugging: in a process of its own, as nothing gives that back (and LeakSanitizer
+   needs it). Linux: a worker reads its parent's /proc environ before, and not after; FreeBSD: tracing disabled */
+static void test_untraceable(const char* self_path) {
+#if defined(__linux__)
+    int kept;
+    if (!geteuid()) { /* root reads every process's */
+        fputs("tracer: the bot kept from its workers: not tried as root, whom nothing keeps out\n", stderr);
+        return;
+    }
+    for (kept = 0; kept < 2; ++kept) {
+        int status = -1;
+        pid_t pid;
+        fflush(NULL);
+        if (!(pid = fork())) {
+            TrMessage m = message(7004, 134, "<@99>");
+            Taken k;
+            char* why = NULL;
+            int read, said;
+            if (kept && wk_untraceable(&why)) _exit(3);
+            memset(&k, 0, sizeof k);
+            k.dir = rei_format("%s/work/take.XXXXXX", site);
+            if (!mkdtemp(k.dir)) _exit(4);
+            worker_argv[0] = (char*)self_path;
+            worker_argv[1] = "--peek";
+            if (wk_take(worker_argv, 20, &m, &k, &why)) _exit(5);
+            read = k.skipped.text && !strcmp(k.skipped.text, "read");
+            said = read || (k.skipped.text && !strcmp(k.skipped.text, "kept"));
+            tr_taken_free(&k);
+            _exit(read ? 1 : said ? 0 : 6);
+        }
+        CHECK(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status));
+        if (WEXITSTATUS(status) != !kept)
+            fprintf(stderr, "  a worker %s its bot's environment (%d)\n",
+                    kept ? "read, after wk_untraceable," : "could not read, before wk_untraceable,",
+                    WEXITSTATUS(status));
+        CHECK(WIFEXITED(status) && WEXITSTATUS(status) == !kept);
+    }
+#elif defined(__FreeBSD__)
+    int status = -1;
+    pid_t pid;
+    (void)self_path;
+    fflush(NULL);
+    if (!(pid = fork())) {
+        char* why;
+        int traced = 0;
+        if (wk_untraceable(&why)) _exit(3);
+        _exit(procctl(P_PID, getpid(), PROC_TRACE_STATUS, &traced) ? 4 : traced == -1 ? 0 : 1);
+    }
+    CHECK(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#else
+    (void)self_path;
+#endif
 }
 
 /* ---- the issues ---- */
@@ -2155,6 +2227,7 @@ int main(int argc, char** argv) {
         test_other_guild();
         test_mcp_grep();
         test_worker(argv[0]);
+        test_untraceable(argv[0]);
         test_issues();
         test_age();
     }

@@ -33,7 +33,8 @@ What CI runs on each pull request and each push to main. No network and no Disco
   report's build is, through a fake GitHub (behind main, the plurals, a commit asked once an hour, -dirty and a commit
   the repository lacks, no line at main or the newest nightly, GitHub silent or refusing, no token, no git); the
   worker (the test program run as one: a report through it, its environment without the token, one that crashes, one
-  that never answers, one gone before it reads, one that names a host file); and the MCP server over that site: its
+  that never answers, one gone before it reads, one that names a host file, one that reads the bot's environment
+  before the bot keeps it from its user's debuggers and not after); and the MCP server over that site: its
   handshake and protocol versions, notifications, broken and unknown requests, and each tool's filters, limits and
   errors.
 - The docs (`scripts/check-docs.sh`): no date in `README.md` and `docs/*.md` outside code, as a doc says what is and

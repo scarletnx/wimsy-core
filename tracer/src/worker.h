@@ -28,4 +28,8 @@ int wk_take(char* const argv[], int seconds, const TrMessage* m, Taken* k, char*
 int wk_serve(FILE* in, FILE* out, TrGet get, void* ctx);
 /* the worker's limits on itself, before it reads anything: memory, processor time, the size of a file, no core */
 void wk_limit(void);
+/* the bot's memory and environment, which hold its tokens, kept from its workers: they run as its user, so a worker
+   that a file it reads took over could read them with a debugger, /proc/<pid>/environ or mem (Linux) or the
+   kern.proc.env sysctl (FreeBSD). Called by the bot, never by a worker. 0, or -1 with why (owned) */
+int wk_untraceable(char** why);
 #endif

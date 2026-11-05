@@ -1,5 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
    Copyright 2026 the ScarletNX contributors */
+#if defined(__FreeBSD__) /* sys/procctl.h's structures are of BSD types (u_int), which _POSIX_C_SOURCE hides */
+#undef _POSIX_C_SOURCE
+#endif
 #include "worker.h"
 #include <errno.h>
 #include <poll.h>
@@ -12,6 +15,11 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+#if defined(__linux__)
+#include <sys/prctl.h>
+#elif defined(__FreeBSD__)
+#include <sys/procctl.h>
+#endif
 
 #define QUESTION_MAX  (1 << 20) /* the bytes of a question at most */
 #define NAME_MAX_KEPT 200       /* the bytes of a file's name kept from an answer */
@@ -58,6 +66,23 @@ void wk_limit(void) {
     top = getrlimit(RLIMIT_NOFILE, &r) || r.rlim_cur == RLIM_INFINITY || r.rlim_cur > (1 << 20) ? (1 << 20)
                                                                                                 : (long)r.rlim_cur;
     for (fd = 3; fd < top; ++fd) close((int)fd);
+}
+
+int wk_untraceable(char** why) {
+    *why = NULL;
+#if defined(__linux__) /* not dumpable: /proc/<pid>/environ and mem become root's, and ptrace refuses its user */
+    if (!prctl(PR_SET_DUMPABLE, 0, 0, 0, 0)) return 0;
+    *why = rei_format("prctl(PR_SET_DUMPABLE, 0): %s", strerror(errno));
+#elif defined(__FreeBSD__) /* ptrace, the debugging sysctls (kern.proc.env among them) and core dumps refused */
+    {
+        int off = PROC_TRACE_CTL_DISABLE;
+        if (!procctl(P_PID, getpid(), PROC_TRACE_CTL, &off)) return 0;
+        *why = rei_format("procctl(PROC_TRACE_CTL, PROC_TRACE_CTL_DISABLE): %s", strerror(errno));
+    }
+#else
+    *why = rei_strdup("this system has no call, known here, that keeps a process from debuggers of its own user");
+#endif
+    return -1;
 }
 
 int wk_serve(FILE* in, FILE* out, TrGet get, void* ctx) {
