@@ -12,8 +12,14 @@ environment, within 1 GiB of memory, 120 s of processor, 600 s in all and 128 Mi
 or stalls its reader costs that report alone. A worker runs as the bot's user, and the bot keeps its own memory and
 environment, where its tokens are, from debuggers of that user (not dumpable on Linux, `PROC_TRACE_CTL` on FreeBSD:
 no ptrace, no `/proc/<pid>/environ` or `kern.proc.env`), so that a worker a file took over cannot read them; it does not
-start without that. The worker's answer is checked before any of its files moves from the work folder (`work/` beside
-the database) into the site. A report keeps:
+start without that. A worker downloads the files into its own folder in the work folder (`work/` beside the
+database), then shuts itself in that folder before it reads any of them: on FreeBSD Capsicum's capability mode, the
+folder's descriptor allowed to look up, make, read, write and remove its files and nothing else; on Linux Landlock,
+files read and written in that folder alone, and no TCP and no signal outside it where the kernel's Landlock has them
+(ABI 4 and 6). A worker a file took over can then write neither the site nor the database, nor read any other file.
+One that cannot shut itself in reads nothing, and the bot takes no answer that does not say it was shut in (the
+system's name for it). The worker's answer is checked before any of its files moves from the work folder into the
+site. A report keeps:
 
 - Its logs (`.log`, `.txt`, or one packed in a `.gz` or a `.zip`; 3 at most, 64 MiB each) are downloaded from Discord,
   each home folder in them written as `~` (`/home/<user>`, `C:\Users\<user>`, Android's app folders), the crash report's

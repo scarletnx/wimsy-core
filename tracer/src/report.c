@@ -3,6 +3,7 @@
 #include "report.h"
 #include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -298,23 +299,32 @@ void tr_taken_free(Taken* k) {
     buf_free(&k->skipped);
     memset(k, 0, sizeof *k);
 }
-/* n bytes of data written into k->dir as the next file's: 0, or -1 said in the log */
-static int stash(Taken* k, const char* data, size_t n) {
-    char* path = rei_format("%s/%d", k->dir, k->n);
-    FILE* f = fopen(path, "wb");
-    int ok = f && fwrite(data, 1, n, f) == n;
-    if (f) ok = !fclose(f) && ok;
+/* n bytes of data written into the folder dirfd (k->dir) as the next file's, by its name alone, as a worker shut in
+   its folder opens nothing else: 0, or -1 said in the log */
+static int stash(Taken* k, int dirfd, const char* data, size_t n) {
+    char name[16];
+    int fd, ok;
+    size_t done = 0;
+    snprintf(name, sizeof name, "%d", k->n);
+    fd = openat(dirfd, name, O_WRONLY | O_CREAT | O_EXCL, 0644);
+    ok = fd >= 0;
+    while (ok && done < n) {
+        ssize_t w = write(fd, data + done, n - done);
+        if (w < 0 && errno == EINTR) continue;
+        ok = w > 0;
+        if (ok) done += (size_t)w;
+    }
+    if (fd >= 0) ok = !close(fd) && ok;
     if (!ok) {
-        rei_log("%s could not be written: %s", path, strerror(errno));
-        unlink(path);
-        free(path);
+        rei_log("%s/%s could not be written: %s", k->dir, name, strerror(errno));
+        unlinkat(dirfd, name, 0);
         return -1;
     }
-    k->taken[k->n] = path;
+    k->taken[k->n] = rei_format("%s/%s", k->dir, name);
     return 0;
 }
 
-static void take_log(Taken* k, const TrAttachment* a, Buf* got) {
+static void take_log(Taken* k, int dirfd, const TrAttachment* a, Buf* got) {
     Buf text = {0};
     char *why = NULL, *tilded, *shown, *summary;
     size_t n;
@@ -346,7 +356,7 @@ static void take_log(Taken* k, const TrAttachment* a, Buf* got) {
         free(shown);
         return;
     }
-    if (stash(k, shown, n)) {
+    if (stash(k, dirfd, shown, n)) {
         skip(k, a->name, "it could not be written down");
         cJSON_Delete(parsed);
         free(summary);
@@ -369,7 +379,7 @@ static void take_log(Taken* k, const TrAttachment* a, Buf* got) {
     ++k->logs;
 }
 
-static void take_image(Taken* k, const TrAttachment* a, Buf* got) {
+static void take_image(Taken* k, int dirfd, const TrAttachment* a, Buf* got) {
     const char* ext = tr_image_ext(got->text, got->len);
     size_t n;
     if (ext && !strcmp(ext, "ppm")) { /* a frame ScarletNX saved, as a PNG a browser shows */
@@ -388,7 +398,7 @@ static void take_image(Taken* k, const TrAttachment* a, Buf* got) {
         skip(k, a->name, "not a PNG, JPEG, WebP, GIF or PPM image");
         return;
     }
-    if (stash(k, got->text, n)) {
+    if (stash(k, dirfd, got->text, n)) {
         skip(k, a->name, "it could not be written down");
         return;
     }
@@ -403,7 +413,7 @@ static void take_image(Taken* k, const TrAttachment* a, Buf* got) {
 }
 
 /* an MP4 or a WebM, an MP4's place and camera blanked */
-static void take_video(Taken* k, const TrAttachment* a, Buf* got) {
+static void take_video(Taken* k, int dirfd, const TrAttachment* a, Buf* got) {
     const char* ext = tr_video_ext(got->text, got->len);
     size_t n = ext ? tr_strip_video(got->text, got->len) : 0;
     StFile* f;
@@ -411,7 +421,7 @@ static void take_video(Taken* k, const TrAttachment* a, Buf* got) {
         skip(k, a->name, "not an MP4 or WebM video");
         return;
     }
-    if (stash(k, got->text, n)) {
+    if (stash(k, dirfd, got->text, n)) {
         skip(k, a->name, "it could not be written down");
         return;
     }
@@ -432,54 +442,110 @@ static char* kept(const Taken* k, const char* more) {
                       k->videos ? (k->videos == 1 ? ", 1 video" : ", 2 videos") : "", more);
 }
 
-void tr_take(Tracer* t, Taken* k, const TrMessage* m) {
+/* attachment a's kind and the bytes it may have at most */
+static TrKind kind_of(const TrAttachment* a, size_t* max) {
+    TrKind kind = tr_kind(a->name, a->type);
+    *max = kind == TR_LOG ? TR_LOG_MAX : kind == TR_VIDEO ? TR_VIDEO_MAX : TR_IMAGE_MAX;
+    return kind;
+}
+/* why the report has no room left for one more of kind, given what it had and what this message kept; NULL for room */
+static const char* full(const Taken* k, TrKind kind) {
+    if (kind == TR_LOG && k->logs_had + k->logs >= TR_LOGS) return "a report keeps 3 logs";
+    if (kind == TR_VIDEO && k->videos_had + k->videos >= TR_VIDEOS) return "a report keeps 2 videos";
+    if (kind == TR_IMAGE && k->images_had + k->images >= TR_IMAGES) return "a report keeps 8 screenshots";
+    return NULL;
+}
+
+void tr_download(Tracer* t, Taken* k, const TrMessage* m, int dirfd, char* why[TR_FILES]) {
     int i;
     for (i = 0; i < m->nfiles; ++i) {
         const TrAttachment* a = &m->files[i];
-        TrKind kind = tr_kind(a->name, a->type);
-        size_t max = kind == TR_LOG ? TR_LOG_MAX : kind == TR_VIDEO ? TR_VIDEO_MAX : TR_IMAGE_MAX;
+        size_t max;
+        TrKind kind = kind_of(a, &max);
         Buf got = {0};
-        char* why = NULL;
-        if (kind == TR_OTHER) {
-            skip(k, a->name, "not a log or a screenshot");
-            continue;
+        char *failed = NULL, name[16];
+        int fd, ok;
+        size_t done = 0;
+        why[i] = NULL;
+        if (kind == TR_OTHER)
+            why[i] = rei_strdup("not a log or a screenshot");
+        else if (full(k, kind)) /* full before this message: nothing of that kind is downloaded */
+            why[i] = rei_strdup(full(k, kind));
+        else if (!from_discord(a->url))
+            why[i] = rei_strdup("not a file on Discord");
+        else if (a->size > (double)max)
+            why[i] = rei_format("over %zu MiB", max >> 20);
+        else if (t->get(t->ctx, a->url, max, &got, &failed)) {
+            rei_log("a download failed: %s", failed ? failed : "no reason given");
+            why[i] = rei_strdup("the download failed");
         }
-        if (kind == TR_LOG && k->logs_had + k->logs >= TR_LOGS) {
-            skip(k, a->name, "a report keeps 3 logs");
-            continue;
+        free(failed);
+        if (why[i]) continue;
+        snprintf(name, sizeof name, "in.%d", i);
+        fd = openat(dirfd, name, O_WRONLY | O_CREAT | O_EXCL, 0600);
+        ok = fd >= 0;
+        while (ok && done < got.len) {
+            ssize_t w = write(fd, got.text + done, got.len - done);
+            if (w < 0 && errno == EINTR) continue;
+            ok = w > 0;
+            if (ok) done += (size_t)w;
         }
-        if (kind == TR_VIDEO && k->videos_had + k->videos >= TR_VIDEOS) {
-            skip(k, a->name, "a report keeps 2 videos");
-            continue;
+        if (fd >= 0) ok = !close(fd) && ok;
+        if (!ok) {
+            rei_log("%s/%s could not be written: %s", k->dir, name, strerror(errno));
+            unlinkat(dirfd, name, 0);
+            why[i] = rei_strdup("it could not be written down");
         }
-        if (kind == TR_IMAGE && k->images_had + k->images >= TR_IMAGES) {
-            skip(k, a->name, "a report keeps 8 screenshots");
-            continue;
-        }
-        if (!from_discord(a->url)) {
-            skip(k, a->name, "not a file on Discord");
-            continue;
-        }
-        if (a->size > (double)max) {
-            why = rei_format("over %zu MiB", max >> 20);
-            skip(k, a->name, why);
-            free(why);
-            continue;
-        }
-        if (t->get(t->ctx, a->url, max, &got, &why)) {
-            rei_log("a download failed: %s", why ? why : "no reason given");
-            skip(k, a->name, "the download failed");
-            free(why);
-            continue;
-        }
-        if (kind == TR_LOG)
-            take_log(k, a, &got);
-        else if (kind == TR_VIDEO)
-            take_video(k, a, &got);
-        else
-            take_image(k, a, &got);
         buf_free(&got);
     }
+}
+
+void tr_read(Taken* k, const TrMessage* m, int dirfd, char* why[TR_FILES]) {
+    int i;
+    for (i = 0; i < m->nfiles; ++i) {
+        const TrAttachment* a = &m->files[i];
+        size_t max;
+        TrKind kind = kind_of(a, &max);
+        const char* no = why[i] ? why[i] : full(k, kind);
+        char name[16], piece[65536];
+        Buf got = {0};
+        ssize_t r = 0;
+        int fd, downloaded = !why[i];
+        snprintf(name, sizeof name, "in.%d", i);
+        fd = no ? -1 : openat(dirfd, name, O_RDONLY);
+        while (fd >= 0 && got.len <= max && (r = read(fd, piece, sizeof piece)) != 0) {
+            if (r < 0 && errno == EINTR) continue;
+            if (r < 0) break;
+            buf_addn(&got, piece, (size_t)r);
+        }
+        if (fd >= 0) close(fd);
+        if (downloaded) unlinkat(dirfd, name, 0);
+        if (!no && (fd < 0 || r < 0 || got.len > max)) no = "it could not be read back";
+        if (no)
+            skip(k, a->name, no);
+        else if (kind == TR_LOG)
+            take_log(k, dirfd, a, &got);
+        else if (kind == TR_VIDEO)
+            take_video(k, dirfd, a, &got);
+        else
+            take_image(k, dirfd, a, &got);
+        buf_free(&got);
+        free(why[i]);
+        why[i] = NULL;
+    }
+}
+
+void tr_take(Tracer* t, Taken* k, const TrMessage* m) {
+    char* why[TR_FILES];
+    int dirfd = open(k->dir, O_RDONLY | O_DIRECTORY), i;
+    if (dirfd < 0) {
+        rei_log("%s could not be opened: %s", k->dir, strerror(errno));
+        for (i = 0; i < m->nfiles; ++i) skip(k, m->files[i].name, "it could not be written down");
+        return;
+    }
+    tr_download(t, k, m, dirfd, why);
+    tr_read(k, m, dirfd, why);
+    close(dirfd);
 }
 
 /* m's files taken into k, its folder made in t->work: 0, or -1 said in the log (k freed by the caller). A message

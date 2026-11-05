@@ -1940,21 +1940,25 @@ static void serve_file(const char* url, const char* data, size_t n) {
 /* the test program run as a worker that answers what it is told: the files, a crash, a wait, its environment, a lie */
 static int as_worker(const char* how) {
     if (!strcmp(how, "--report")) {
+        int failed;
         wk_limit();
-        return wk_serve(stdin, stdout, served_get, NULL);
+        failed = wk_serve(stdin, stdout, served_get, NULL);
+        fflush(NULL); /* as main.c's worker ends: shut in, its exit handlers would open nothing they need */
+        _exit(failed);
     }
     if (!strcmp(how, "--crash")) kill(getpid(), SIGKILL);
     if (!strcmp(how, "--hang")) sleep(30);
     if (!strcmp(how, "--gone")) return 0; /* gone before it reads its question */
     if (!strcmp(how, "--env"))
-        printf("{\"logs\":0,\"images\":0,\"files\":[],\"skipped\":\"TRACER_TOKEN %s, HOME %s\"}",
+        printf("{\"shut_in\":\"test\",\"logs\":0,\"images\":0,\"files\":[],\"skipped\":\"TRACER_TOKEN %s, HOME %s\"}",
                getenv("TRACER_TOKEN") ? "seen" : "none", getenv("HOME") ? "seen" : "none");
 #if defined(__linux__)
     if (!strcmp(how, "--peek")) { /* a worker taken over: the bot's environment, where its tokens are, read */
         char* path = rei_format("/proc/%ld/environ", (long)getppid());
         FILE* f = fopen(path, "rb");
         int c = f ? fgetc(f) : EOF;
-        printf("{\"logs\":0,\"images\":0,\"files\":[],\"skipped\":\"%s\"}", c != EOF ? "read" : "kept");
+        printf("{\"shut_in\":\"test\",\"logs\":0,\"images\":0,\"files\":[],\"skipped\":\"%s\"}",
+               c != EOF ? "read" : "kept");
         if (f) fclose(f);
         free(path);
     }
@@ -1962,12 +1966,56 @@ static int as_worker(const char* how) {
     if (!strcmp(how, "--fds")) { /* the bot's files, which the bot left open at a high descriptor: closed by wk_limit */
         int was = fcntl(900, F_GETFD) != -1;
         wk_limit();
-        printf("{\"logs\":0,\"images\":0,\"files\":[],\"skipped\":\"%s, %s\"}", was ? "open" : "none",
-               fcntl(900, F_GETFD) != -1 ? "open" : "closed");
+        printf("{\"shut_in\":\"test\",\"logs\":0,\"images\":0,\"files\":[],\"skipped\":\"%s, %s\"}",
+               was ? "open" : "none", fcntl(900, F_GETFD) != -1 ? "open" : "closed");
+    }
+    if (!strcmp(how, "--unshut")) /* a worker that read the files without shutting itself in */
+        printf("{\"logs\":0,\"images\":0,\"files\":[],\"skipped\":\"\"}");
+    if (!strcmp(how, "--escape")) { /* a worker taken over once shut in: what it can still open */
+        Buf q = {0};
+        char piece[4096], *why = NULL, *site_file, *new_file, *db;
+        size_t got;
+        cJSON* question;
+        const char *shut, *dir, *site_dir = getenv("WORKER_TEST_SITE");
+        int dirfd, inside, site_kept, made_kept, db_kept, passwd_kept, fd;
+        while ((got = fread(piece, 1, sizeof piece, stdin))) buf_addn(&q, piece, got);
+        question = cJSON_ParseWithLength(q.text ? q.text : "", q.len);
+        dir = jstr(question, "dir");
+        dirfd = dir ? open(dir, O_RDONLY | O_DIRECTORY) : -1;
+        site_file = rei_format("%s/index.html", site_dir ? site_dir : ".");
+        new_file = rei_format("%s/planted.js", site_dir ? site_dir : ".");
+        db = rei_format("%s/tracer.db", site_dir ? site_dir : ".");
+        if (dirfd < 0 || !(shut = wk_shut_in(dirfd, &why))) {
+            printf("{\"logs\":0,\"images\":0,\"files\":[],\"skipped\":\"not shut in: %s\"}", why ? why : "no folder");
+            return 0;
+        }
+        fd = openat(dirfd, "inside", O_WRONLY | O_CREAT | O_EXCL, 0600);
+        inside = fd >= 0 && write(fd, "x", 1) == 1;
+        if (fd >= 0) close(fd);
+        unlinkat(dirfd, "inside", 0);
+        fd = open(site_file, O_WRONLY | O_APPEND);
+        site_kept = fd < 0;
+        if (fd >= 0) close(fd);
+        fd = open(new_file, O_WRONLY | O_CREAT | O_EXCL, 0644);
+        made_kept = fd < 0;
+        if (fd >= 0) close(fd);
+        fd = open(db, O_RDWR);
+        db_kept = fd < 0;
+        if (fd >= 0) close(fd);
+        fd = open("/etc/passwd", O_RDONLY);
+        passwd_kept = fd < 0;
+        if (fd >= 0) close(fd);
+        printf("{\"shut_in\":\"%s\",\"logs\":0,\"images\":0,\"files\":[],\"skipped\":\"inside %s, site page %s, "
+               "new site file %s, database %s, /etc/passwd %s\"}",
+               shut, inside ? "written" : "refused", site_kept ? "refused" : "written", made_kept ? "refused" : "made",
+               db_kept ? "refused" : "opened", passwd_kept ? "refused" : "read");
+        fflush(NULL); /* shut in: exit's handlers would open nothing they need */
+        _exit(0);
     }
     if (!strcmp(how, "--lie")) /* a worker taken over: a file of the host as a report's */
-        printf("{\"logs\":0,\"images\":1,\"files\":[{\"n\":1,\"kind\":\"image\",\"name\":\"x.png\","
-               "\"path\":\"1.png\",\"taken\":\"/etc/passwd\"}]}");
+        printf(
+            "{\"shut_in\":\"test\",\"logs\":0,\"images\":1,\"files\":[{\"n\":1,\"kind\":\"image\",\"name\":\"x.png\","
+            "\"path\":\"1.png\",\"taken\":\"/etc/passwd\"}]}");
     return 0;
 }
 static char* worker_argv[3];
@@ -2091,6 +2139,26 @@ static void test_worker(const char* self_path) {
         buf_free(&k.skipped);
         close(900);
         close(keep);
+    }
+    worker_argv[1] = "--unshut"; /* a worker that read the files with the site and the database in its reach */
+    CHECK(wk_take(worker_argv, 20, &m, &k, &why) == -1);
+    SAME(why, "its answer does not say it shut itself in its folder before it read the files");
+    free(why);
+    { /* once shut in, a worker taken over writes in its folder alone: not the site, not the database */
+        char *planted = at("planted.js"), *index = at("index.html"), *db = at("tracer.db");
+        CHECK(exists(index) && exists(db)); /* what it is kept from is there */
+        free(index);
+        free(db);
+        worker_argv[1] = "--escape";
+        CHECK(!wk_take(worker_argv, 20, &m, &k, &why));
+        HAS(k.skipped.text, "inside written, site page refused, new site file refused, database refused, /etc/passwd "
+                            "refused");
+        if (why) fprintf(stderr, "  %s\n", why);
+        free(why);
+        why = NULL;
+        CHECK(!exists(planted));
+        buf_free(&k.skipped);
+        free(planted);
     }
     worker_argv[1] = "--lie";
     CHECK(wk_take(worker_argv, 20, &m, &k, &why) == -1);
@@ -2570,6 +2638,7 @@ int main(int argc, char** argv) {
         char* files = rei_format("%s/served", site);
         CHECK(!mkdir(files, 0700));
         setenv("WORKER_TEST_SERVED", files, 1);
+        setenv("WORKER_TEST_SITE", site, 1);
         free(files);
     }
     tracer.url = "https://reports.example";
