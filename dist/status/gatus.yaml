@@ -25,10 +25,25 @@ ui:
   dashboard-heading: "Status"
   dashboard-subheading: "ScarletNX's site, nightly release, Discord and bots."
   custom-css: |
-    /* Wimsy's colours: colours.py makes these two lines from ScarletNX's dist/wimsy.svg. html:root
-       and html:root.dark outrank Gatus's :root and :root.dark. */
-    html:root{--primary:186.2 85.0% 30.6%;--primary-foreground:0.0 0.0% 100.0%;--ring:186.2 85.0% 30.6%}
-    html:root.dark{--primary:182.3 85.0% 58.2%;--primary-foreground:0.0 0.0% 0.0%;--ring:182.3 85.0% 58.2%}
+    /* A theme of SWS (wimsy-dist's docs/SWS.md), Sepia here and each one in sws/<theme>.css.in: wimsy-dist's
+       themes/theme.py makes these two lines, Gatus's variables ("H S% L%") and the roles the rules below use, and
+       the line that fills the selector's link to the theme. html:root and html:root.dark outrank Gatus's :root and
+       :root.dark. */
+    html:root{--background:51.4 27.5% 80.0%;--foreground:38.2 8.7% 24.9%;--card:50.8 21.7% 76.5%;--card-foreground:38.2 8.7% 24.9%;--popover:50.8 18.8% 72.9%;--popover-foreground:38.2 8.7% 24.9%;--primary:38.2 8.7% 24.9%;--primary-foreground:51.4 27.5% 80.0%;--secondary:50.8 18.8% 72.9%;--secondary-foreground:38.2 8.7% 24.9%;--muted:50.8 18.8% 72.9%;--muted-foreground:45.0 7.8% 30.2%;--accent:50.8 18.8% 72.9%;--accent-foreground:38.2 8.7% 24.9%;--destructive:6.8 46.9% 40.6%;--destructive-foreground:51.4 27.5% 80.0%;--border:50.0 13.8% 65.9%;--input:45.9 8.3% 40.2%;--ring:38.2 8.7% 24.9%;--radius:0px;--bg:#dad6be;--raised:#c7c3ad;--faint:#b4b09c;--ink:#45413a;--soft:#535047;--accent:#45413a;--on-accent:#dad6be;--ok-fill:#43653a;--warn-fill:#d9b24a;--bad-fill:#984237}
+    html:root.dark{--background:240.0 4.8% 8.2%;--foreground:48.0 16.7% 88.2%;--card:240.0 3.2% 12.2%;--card-foreground:48.0 16.7% 88.2%;--popover:240.0 2.4% 16.5%;--popover-foreground:48.0 16.7% 88.2%;--primary:48.0 16.7% 88.2%;--primary-foreground:240.0 4.8% 8.2%;--secondary:240.0 2.4% 16.5%;--secondary-foreground:48.0 16.7% 88.2%;--muted:240.0 2.4% 16.5%;--muted-foreground:51.4 3.1% 55.5%;--accent:240.0 2.4% 16.5%;--accent-foreground:48.0 16.7% 88.2%;--destructive:4.7 62.7% 55.9%;--destructive-foreground:240.0 4.8% 8.2%;--border:240.0 1.6% 24.7%;--input:45.0 3.4% 54.1%;--ring:48.0 16.7% 88.2%;--radius:0px;--bg:#141416;--raised:#29292b;--faint:#3e3e40;--ink:#e6e4dc;--soft:#91908a;--accent:#e6e4dc;--on-accent:#141416;--ok-fill:#5b8a4f;--warn-fill:#d9b24a;--bad-fill:#d55348}
+    /* Gatus paints up, down and degraded with fixed colours: the theme's, and a down bar hatched, so the colour
+       does not say it alone. */
+    html .bg-green-400,html .bg-green-500,html .bg-success{background-color:var(--ok-fill)}
+    html .bg-yellow-400{background-color:var(--warn-fill)}
+    html .bg-red-400,html .bg-red-500{background:repeating-linear-gradient(135deg,var(--bad-fill) 0 3px,var(--bg) 3px 5px);box-shadow:inset 0 0 0 1px var(--bad-fill)}
+    html .bg-green-700,html .hover\:bg-green-700:hover,html .bg-red-700,html .hover\:bg-red-700:hover{filter:brightness(.8)}
+    html .bg-gray-200,html.dark .dark\:bg-gray-700{background-color:var(--raised)}
+    /* The selector the status jail's nginx puts at the top of the page (docs/THEMES.md): plain links */
+    .sws{display:flex;flex-wrap:wrap;align-items:center;gap:2px 12px;padding:4px 16px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;background:var(--bg);border-bottom:1px solid var(--faint)}
+    .sws span{color:var(--soft);font-weight:600}
+    .sws a{display:inline-flex;align-items:center;min-height:28px;padding:0 8px;color:var(--ink);text-decoration:none}
+    .sws a:hover{text-decoration:underline}
+    .sws a[href$="/sws/sepia"]{background:var(--accent);color:var(--on-accent)}
     /* The floating refresh and theme control sits over the last card on a phone: room below it. */
     .dashboard-container{padding-bottom:5rem}
     /* Each bot's icon before its name, wherever Gatus writes the name with it as the title; render.sh

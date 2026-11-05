@@ -1,0 +1,23 @@
+{{/* SWS's theme picker (docs/THEMES.md), in every page's head after Forgejo's theme: the theme and mode the reader
+picked, from the cookies the Tracer site's nginx keeps for all of scarletnx.dev, over the account's theme or the
+default; a cookie that names no theme or mode reads as none. Then the picker's look, in the theme's roles. */}}
+{{- with .Context -}}
+{{- $t := .GetSiteCookie "sws_theme" -}}
+{{- $m := .GetSiteCookie "sws_mode" -}}
+{{- if not (or (eq $m "light") (eq $m "dark")) -}}{{- $m = "auto" -}}{{- end -}}
+{{- $id := "" -}}
+{{- if eq $t "default" -}}{{- $id = "default" -}}
+{{- else if or (eq $t "sepia") (eq $t "wimsy") (eq $t "fuddles") -}}{{- $id = printf "%s-%s" $t $m -}}
+{{- else if ne $m "auto" -}}{{- $id = printf "sepia-%s" $m -}}
+{{- end -}}
+{{- if $id }}
+<link rel="stylesheet" href="{{AssetUrlPrefix}}/css/theme-{{$id}}.css?v={{AssetVersion}}">
+{{- end -}}
+{{- end }}
+<style>
+.sws{display:flex;flex-wrap:wrap;align-items:center;gap:2px 12px;padding:4px 16px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;background:var(--bg);border-bottom:1px solid var(--faint)}
+.sws span{color:var(--soft);font-weight:600}
+.sws a{display:inline-flex;align-items:center;min-height:28px;padding:0 8px;color:var(--ink);text-decoration:none}
+.sws a:hover{text-decoration:underline}
+.sws a[aria-current]{background:var(--accent);color:var(--on-accent)}
+</style>

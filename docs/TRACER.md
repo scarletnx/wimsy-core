@@ -187,9 +187,10 @@ Static files, drawn again where a report changes them, and all of them at each s
 | `style.css`, `site.js`, `tracer.svg` | copied from `TRACER_ASSETS` at each start |
 
 The lists filter in the browser (`site.js`: by words, outcome, branch, GPU; kept in the address's `#`) and work
-without it. Everything a log or a message says is escaped. In the Phosphor palette: cyan, blue, purple and rose on
-navy, light as well as dark. A web server serves the folder as it is: `dist/freebsd/tracer-nginx.conf`, which also
-sends `/mcp` to [tracer-mcp](./TRACER-MCP.md).
+without it. Everything a log or a message says is escaped. Its look is SWS's: Sepia until the reader picks another
+theme at the top of the page, which the web server keeps for them ([Themes](./THEMES.md)). A web server serves the
+folder as it is, `style.css` and `tracer.svg` as the reader picked: `dist/freebsd/tracer-nginx.conf`, which also sends
+`/mcp` to [tracer-mcp](./TRACER-MCP.md).
 
 ## Settings
 

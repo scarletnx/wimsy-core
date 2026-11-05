@@ -9,6 +9,7 @@
 * [Tracer](#tracer)
 * [The docs](#the-docs)
 * [The bots against a fake Discord](#the-bots-against-a-fake-discord)
+* [The themes](#the-themes)
 * [The status page](#the-status-page)
 * [Before a package](#before-a-package)
 
@@ -16,7 +17,8 @@ What CI runs on each pull request and each push to main (`.github/workflows/test
 Discord:
 
     make -C rei test && make -C accordwimsy test && make -C tracer test &&
-        python3 scripts/test-check-docs.py && python3 scripts/check-docs.py
+        python3 scripts/test-check-docs.py && python3 scripts/check-docs.py && sh scripts/test-check-theme.sh &&
+        sh scripts/check-theme.sh
 
 On FreeBSD, `make -C tracer test CXXRT=-lc++` ([Build](./BUILD.md#tracer)). The libraries each needs:
 [Build](./BUILD.md).
@@ -112,14 +114,21 @@ the test makes. It needs util-linux, iproute2, python3, openssl and libcurl's he
 
     sh rei/tests/test_gateway.sh reiwimsy|tracer|fix-cards BINARY
 
+## The themes
+
+`scripts/check-theme.sh` checks the theme files wimsy-dist's `themes/theme.py` makes (Tracer's stylesheet and its
+blocks, Forgejo's themes, Gatus's colour lines and custom.css in each theme), that the rules around them take every
+colour from a theme's role, and that every picker and nginx map names the same themes ([Themes](./THEMES.md));
+`scripts/test-check-theme.sh` breaks a copy of each and expects the check to fail.
+
 ## The status page
 
-    sh dist/status/check.sh <ScarletNX's dist/wimsy.svg>
+    sh dist/status/check.sh
 
-checks the status page without Gatus and ends with `ok`: Wimsy's colours, `gatus.yaml` and `push.sh` rendered from
-their templates, the YAML Gatus reads, a bot with an icon for each pushed endpoint and the reverse, and each endpoint's
-answer now (this one goes to the network). It needs python3 with PyYAML, and runs shellcheck on `push.sh` where it is
-installed. CI does not run it.
+checks the status page without Gatus and ends with `ok`: its theme's colour lines, `gatus.yaml`, `push.sh`, `nginx.conf`
+and each theme's custom.css rendered from their templates, the YAML Gatus reads, a bot with an icon for each pushed
+endpoint and the reverse, and each endpoint's answer now (this one goes to the network). It needs python3 with PyYAML,
+and runs shellcheck on `push.sh` where it is installed. CI does not run it.
 
 ## Before a package
 

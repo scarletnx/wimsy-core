@@ -143,6 +143,9 @@ install -m 555 "$here/tracer-mcp.rc" "$s/etc/rc.d/tracer_mcp"
 install -m 644 "$here/tracer.env.sample" "$s/etc/tracer.env.sample"
 install -m 644 "$work/tracer/site/style.css" "$work/tracer/site/site.js" "$work/tracer/site/tracer.svg" \
 	"$s/share/tracer/"
+# the stylesheet in each theme and each theme's Wimsy, which the site's nginx gives by the reader's pick
+sh "$top/scripts/tracer-themes.sh" "$s/share/tracer/sws" "$top"
+chmod 644 "$s/share/tracer/sws/"*
 install -m 644 "$here/tracer-nginx.conf" "$s/share/examples/tracer/nginx.conf"
 # libarchive is base's
 tdeps=$(deps curl ca_root_nss sqlite3 libmicrohttpd)

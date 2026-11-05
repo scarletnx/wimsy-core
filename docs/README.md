@@ -24,6 +24,7 @@ its settings and its service.
 
 - [The forge](./FORGE.md): its three jails, the guard, Forgejo's settings, the start page and AccordWimsy's jail
 - [The status page](./STATUS.md): what it checks, its files, putting it up and changing it
+- [Themes](./THEMES.md): SWS's themes on the three sites, where each piece lives, the picker, adding a theme
 
 ## Development
 

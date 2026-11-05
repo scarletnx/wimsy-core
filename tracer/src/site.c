@@ -81,7 +81,7 @@ static void head(Buf* b, const char* root, const char* title, const char* descri
     esc(b, description);
     buf_printf(b,
                "\">\n<link rel=\"stylesheet\" href=\"%sstyle.css\">\n<link rel=\"icon\" href=\"%stracer.svg\">\n"
-               "<script src=\"%ssite.js\" defer></script>\n</head>\n<body>\n<header class=\"top\">\n"
+               "<script src=\"%ssite.js\" defer></script>\n</head>\n<body>\n" SITE_THEMES "<header class=\"top\">\n"
                "<a class=\"brand\" href=\"%sindex.html\"><img src=\"%stracer.svg\" alt=\"\" width=\"36\" height=\"36\">"
                "<span>Tracer</span></a>\n<nav><a href=\"%sindex.html\">Games</a><a href=\"%sall.html\">All reports</a>"
                "</nav>\n</header>\n<main>\n",

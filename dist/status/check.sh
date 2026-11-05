@@ -1,27 +1,26 @@
 #!/bin/sh
-# What can be checked without running Gatus: the colours are Wimsy's (colours.py), gatus.yaml and
+# What can be checked without running Gatus: the theme's two colour lines are there, gatus.yaml and
 # push.sh are their templates rendered (render.sh) and leave no @NAME@ but @PUSH_TOKEN@ (install.sh's),
 # gatus.yaml is YAML with the keys Gatus reads, a bot with an icon for each external endpoint and the
 # reverse, push.sh pushes to each of them, the logo and icons it links to are there, and every
 # endpoint answers now as its conditions expect (curl; the Discord one by its code).
-# Usage: check.sh WIMSY_SVG
+# Usage: check.sh
 set -eu
 here=$(dirname "$0")
-[ $# -eq 1 ] || { echo "usage: $0 WIMSY_SVG (ScarletNX's dist/wimsy.svg)" >&2; exit 64; }
-python3 -I "$here/colours.py" "$1" --check
-cp "$here/gatus.yaml" "$here/gatus.yaml.kept"
-cp "$here/push.sh" "$here/push.sh.kept"
+[ $# -eq 0 ] || { echo "usage: $0 (no arguments: the theme's colours are wimsy-dist's, scripts/check-theme.sh)" >&2; exit 64; }
+rendered="gatus.yaml push.sh nginx.conf $(cd "$here" && ls sws/*.css)"
+for f in $rendered; do cp "$here/$f" "$here/$f.kept"; done
 "$here/render.sh"
-for f in gatus.yaml push.sh; do
+for f in $rendered; do
 	if ! cmp -s "$here/$f" "$here/$f.kept"; then
 		diff -u "$here/$f.kept" "$here/$f" >&2 || true
-		rm -f "$here/gatus.yaml.kept" "$here/push.sh.kept"
+		for k in $rendered; do rm -f "$here/$k.kept"; done
 		echo "$f was not its template rendered: it is now, look at the diff" >&2
 		exit 1
 	fi
 done
-rm -f "$here/gatus.yaml.kept" "$here/push.sh.kept"
-if grep -n '@[A-Z_]*@' "$here/gatus.yaml" "$here/push.sh" | grep -v '@PUSH_TOKEN@' >&2; then
+for f in $rendered; do rm -f "$here/$f.kept"; done
+if grep -n '@[A-Z_]*@' "$here/gatus.yaml" "$here/push.sh" "$here/nginx.conf" "$here"/sws/*.css | grep -v '@PUSH_TOKEN@' >&2; then
 	echo "a @NAME@ that neither addresses.conf nor icons/ gives" >&2
 	exit 1
 fi
@@ -35,6 +34,7 @@ bots = [e["name"] for e in c["external-endpoints"]]
 icons = sorted(f[:-4] for f in os.listdir(sys.argv[3]) if f.endswith(".png"))
 assert sorted(b.lower() for b in bots) == icons, (bots, icons)
 css = c["ui"]["custom-css"]
+assert css.count("html:root{--background:") == 1 and css.count("html:root.dark{--background:") == 1, "the theme's lines"
 push = open(sys.argv[2]).read()
 for e in c["external-endpoints"]:
     assert e["group"] == "Bots" and e["token"] == "@PUSH_TOKEN@" and e["heartbeat"]["interval"] == "5m", e

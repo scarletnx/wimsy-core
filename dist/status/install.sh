@@ -6,7 +6,10 @@
 #   - gatus.yaml into the jail with that token in it (root:www, 0640), and the directory its database
 #     lives in (www's, 0750); gatus enabled and started again;
 #   - push.sh into /usr/local/libexec/status-scarletnx and its cron line, every minute, into
-#     /usr/local/etc/cron.d/status-scarletnx; one push now, its words shown.
+#     /usr/local/etc/cron.d/status-scarletnx; one push now, its words shown;
+#   - nginx.conf into the jail as /usr/local/etc/nginx/status-sws.conf, which the jail's nginx.conf includes in its
+#     http block, and sws/<theme>.css into /usr/local/www/status-sws: the page in the reader's theme; nginx
+#     enabled and reloaded, or started (docs/THEMES.md).
 # Then its service status and the end of its log.
 # Usage: install.sh [jail]   (default: status)
 set -eu
@@ -18,6 +21,14 @@ header=$etc/push-header
 if [ ! -x "$r/usr/local/bin/gatus" ]; then
 	echo "no gatus in $j: noirjail.sh jail pkg --name $j gatus" >&2
 	exit 69
+fi
+if [ ! -x "$r/usr/local/sbin/nginx" ]; then
+	echo "no nginx in $j: noirjail.sh jail pkg --name $j nginx" >&2
+	exit 69
+fi
+if ! grep -q '^[[:space:]]*include[[:space:]]*status-sws.conf;' "$r/usr/local/etc/nginx/nginx.conf"; then
+	echo "$r/usr/local/etc/nginx/nginx.conf has no \"include status-sws.conf;\" in its http block: add it, then again" >&2
+	exit 78
 fi
 
 install -d -o root -g wheel -m 0700 "$etc"
@@ -57,8 +68,17 @@ install -o root -g wheel -m 0755 "$here/push.sh" /usr/local/libexec/status-scarl
 printf '%s\n' "# status.scarletnx.dev: each bot's state, pushed to its Gatus (status-scarletnx/install.sh)" \
 	"* * * * * root /usr/local/libexec/status-scarletnx/push.sh >> /var/log/status-scarletnx-push.log 2>&1" \
 	> /usr/local/etc/cron.d/status-scarletnx
+install -o root -g wheel -m 0644 "$here/nginx.conf" "$r/usr/local/etc/nginx/status-sws.conf"
+install -d -o root -g wheel -m 0755 "$r/usr/local/www/status-sws"
+install -o root -g wheel -m 0644 "$here"/sws/*.css "$r/usr/local/www/status-sws/"
+sysrc -j "$j" nginx_enable=YES
+service -j "$j" nginx configtest
+if service -j "$j" nginx status > /dev/null 2>&1; then service -j "$j" nginx reload; else
+	service -j "$j" nginx start < /dev/null >> "$r/var/log/gatus-rc.log" 2>&1
+fi
 sleep 5
 service -j "$j" gatus status
+service -j "$j" nginx status
 echo "push.sh now (nothing said is every push taken):"
 /usr/local/libexec/status-scarletnx/push.sh
 tail -n 15 "$r/var/log/gatus.log"
