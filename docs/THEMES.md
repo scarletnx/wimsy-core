@@ -60,7 +60,8 @@ that is none of those reads as Sepia and Auto. Default has no light, so it ignor
   draws the theme's behind it, and `home.tmpl` links the theme's.
 - **Status page**: Gatus reads no cookie. In the status jail nginx stands in front of it (127.0.0.1:8090 to Gatus's
   8080): it gives `/css/custom.css` from `/usr/local/www/status-sws/<theme>.css`, the page linking it as
-  `custom.css?sws=<theme>` for the same reason, and puts the picker right after the
+  `custom.css?sws=<theme>` for the same reason, gives the page's logo as the theme's Wimsy (Gatus writes the logo's
+  address into the page as JSON: `@WIMSY_URL_JSON@`, which `render.sh` makes), and puts the picker right after the
   page's `<body>` (nginx's `sub_filter`), each theme with its Wimsy from the Tracer site. The page has no mode links:
   Gatus's own button switches light and dark.
 

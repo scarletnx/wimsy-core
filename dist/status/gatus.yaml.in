@@ -1,6 +1,6 @@
 # Public status of ScarletNX, at @STATUS_URL@: Gatus in the jail status on its host (it watches nothing that
-# host runs), its port reached only through the jail's own Cloudflare tunnel. The forge (git.scarletnx.dev) is
-# left out until the operator says how a checker gets past its challenge.
+# host runs), its port reached only through the jail's own Cloudflare tunnel. Cloudflare's challenge stops Gatus on
+# the forge's and Tracer's names, so the host pushes their state, as it does the bots'.
 metrics: false
 storage:
   type: sqlite
@@ -55,16 +55,6 @@ ui:
     span[title="Tracer"]::before{background-image:url(data:image/png;base64,@ICON_TRACER@)}
 
 endpoints:
-  # scarletnx.dev sends everyone to the GitHub Pages site: the redirect itself is what is checked.
-  - name: scarletnx.dev
-    group: Web
-    url: "@SITE_URL@/"
-    interval: 5m
-    client:
-      ignore-redirect: true
-    conditions:
-      - "[STATUS] == 302"
-
   - name: Site
     group: Web
     url: "@PAGES_URL@/"
@@ -97,6 +87,18 @@ endpoints:
 # down, so a push.sh that stops shows too. install.sh writes the token in from a root-only file of
 # the host's: it is never in this repository.
 external-endpoints:
+  - name: git.scarletnx.dev
+    group: Web
+    token: "@PUSH_TOKEN@"
+    heartbeat:
+      interval: 5m
+
+  - name: issues.scarletnx.dev
+    group: Web
+    token: "@PUSH_TOKEN@"
+    heartbeat:
+      interval: 5m
+
   - name: ReiWimsy
     group: Bots
     token: "@PUSH_TOKEN@"

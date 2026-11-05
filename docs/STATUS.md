@@ -4,21 +4,23 @@
 
 `dist/status/`: [Gatus](https://github.com/TwiN/gatus) 5.38.0 in the jail `status`, behind the jail's nginx, which gives
 the page in the reader's theme with the picker at its top ([Themes](./THEMES.md)), reached only through the jail's own
-Cloudflare tunnel. It checks the site, the nightly release and the Discord invite itself, and the public bots
-through what the host pushes to it every minute. The forge is not checked: Cloudflare's challenge stops any checker
-that is no browser ([Forge](./FORGE.md#forgejo)).
+Cloudflare tunnel. It checks the site, the nightly release and the Discord invite itself; the forge, Tracer's site and
+the public bots through what the host pushes to it every minute, since Cloudflare's challenge stops any checker that is
+no browser on the forge's and Tracer's names ([Forge](./FORGE.md#forgejo)), and the forge's guard keeps everything
+off its jails but a read of their files and processes from the host.
 
 ## What it checks
 
 | Endpoint | Every | Up when |
 |---|---|---|
-| scarletnx.dev | 5 min | it answers 302 (to the Pages site) |
 | Site (scarletnx.github.io) | 5 min | 200, and the page says "ScarletNX is a static recompiler" |
 | Nightly release | 10 min | GitHub's API has a latest release named `nightly-*` (6 of the 60 calls an hour it allows) |
 | Discord invite | 30 min | Discord's API knows the invite the site links to |
 | ReiWimsy | pushed | `reiwimsy_enable` is YES in `discordbots` and `/usr/local/libexec/reiwimsy` has run a minute or more |
 | AccordWimsy | pushed | `noirjail.sh jail fresh` passes: each mirror had a good pass within its time |
 | Tracer | pushed | `tracer_enable` is YES in `tracer` and `/usr/local/libexec/tracer` has run a minute or more |
+| git.scarletnx.dev | pushed | `forgejo_enable` is YES in `gitscarlet` and its `forgejo web` has run a minute or more, read from the host |
+| issues.scarletnx.dev | pushed | the web jail's nginx gives Tracer's first page (`jexec tracerweb fetch`) |
 
 No push for 5 minutes reads as down, so a push that stops shows too. A running process is no proof of a live Discord
 connection: a bot whose gateway stays down while it runs still reads as up. Only public bots are on the page.

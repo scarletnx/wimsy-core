@@ -10,6 +10,9 @@ sed_args=
 while IFS='=' read -r name value; do
 	case "$name" in '' | '#'*) continue ;; esac
 	sed_args="$sed_args -e s|@$name@|$value|g"
+	# NAME_JSON: the value as a JSON string writes it, each slash escaped (the logo Gatus puts in its page)
+	json=$(printf '%s' "$value" | sed 's|/|\\\\/|g')
+	sed_args="$sed_args -e s|@${name}_JSON@|$json|g"
 done < addresses.conf
 for icon in icons/*.png; do
 	bot=$(basename "$icon" .png | tr '[:lower:]' '[:upper:]')

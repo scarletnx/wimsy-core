@@ -5,6 +5,9 @@
 #   ReiWimsy, Tracer: up when its rc variable in its jail (discordbots, tracer) says YES and its program
 #     has run there for a minute or more (a bot daemon(8) restarts every 30 s reads as down).
 #   AccordWimsy: up when `noirjail.sh jail fresh` passes (each mirror had a good pass within its time).
+#   git.scarletnx.dev: up when forgejo_enable says YES in the jail gitscarlet and its forgejo has run a minute or
+#     more, read from the host (its guard keeps everything else off that jail and its tunnel's).
+#   issues.scarletnx.dev: up when the web jail tracerweb's nginx gives Tracer's first page.
 # The token is in a root-only file, as the whole header curl sends: never on a command line.
 set -u
 header=/usr/local/etc/status-scarletnx/push-header
@@ -49,12 +52,24 @@ bot() {
 	fi
 }
 
+# Pushes site <key>: up when the web jail tracerweb's nginx answers <url> from inside the jail, else down with
+# fetch's words.
+# Usage: site <key> <url>
+site() {
+	if _s_out=$(jexec tracerweb fetch -q -o /dev/null -T 10 "$2" 2>&1); then
+		push "$1" true
+	else
+		push "$1" false "$_s_out"
+	fi
+}
 if [ ! -r "$header" ]; then
 	echo "$(date '+%F %T') no $header: run install.sh" >&2
 	exit 78
 fi
 bot bots_reiwimsy discordbots reiwimsy_enable /usr/local/libexec/reiwimsy
 bot bots_tracer tracer tracer_enable /usr/local/libexec/tracer
+bot web_git-scarletnx-dev gitscarlet forgejo_enable "/usr/local/sbin/forgejo web"
+site web_issues-scarletnx-dev http://127.0.0.1:8080/
 esc=$(printf '\033')
 if _f_out=$(/usr/local/libexec/noirjail/noirjail.sh jail fresh --auto 2>&1); then
 	push bots_accordwimsy true
