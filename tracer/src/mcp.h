@@ -10,6 +10,7 @@
 #define MCP_LINES     2000        /* the lines read_log returns at most */
 #define MCP_TEXT_MAX  (128 << 10) /* the bytes of a tool's text at most */
 #define MCP_IMAGE_MAX (8 << 20)   /* the bytes of a screenshot that get_screenshot returns at most */
+#define MCP_WORDS     16          /* the words of a query at most */
 
 typedef struct {
     const char* root; /* the site's folder */

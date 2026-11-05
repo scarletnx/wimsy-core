@@ -136,7 +136,8 @@ addresses match only the game version it names, and only a copy of that version 
 that failed a `symbolize` object (its title ID, game version and game addresses) for ScarletNX's own MCP server
 (`scarletnx --mcp`) on a machine that has the game, its `find_game` then `symbolize` or `disassemble`. Tracer keeps no
 game code, not even the bytes a crash report dumps: nothing of a game goes to a server that is not its owner's. A
-browser's request whose Origin is another site's gets 403; a request over 1 MiB, 413.
+browser's request whose Origin is another site's gets 403; a request over 1 MiB, 413. A query of more than 16 words is
+refused with their count, and each word and filter is searched for in time linear in what it is searched in.
 
 Its settings, in the environment (`tracer_mcp_url`, `tracer_mcp_site` and `tracer_mcp_listen` in rc.conf):
 `TRACER_URL` (needed), `TRACER_SITE` (the site's folder, `/var/db/tracer-site`), `TRACER_MCP_LISTEN` (an IPv4 address

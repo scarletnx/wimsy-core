@@ -95,21 +95,9 @@ static cJSON* read_json(const char* root, const char* rel) {
     return o;
 }
 
-/* whether text holds part, ASCII letters in any case; an empty or NULL part is in everything */
-static int holds(const char* text, const char* part) {
-    size_t n, i;
-    if (!part || !*part) return 1;
-    if (!text) return 0;
-    n = strlen(part);
-    for (; *text; ++text) {
-        for (i = 0; i < n && text[i] && tolower((unsigned char)text[i]) == tolower((unsigned char)part[i]); ++i)
-            continue;
-        if (i == n) return 1;
-    }
-    return 0;
-}
 /* a text found in lines in any case (ASCII letters), in time linear in each line: Knuth, Morris and Pratt's search, as
-   read_log's lines are a log's of up to 64 MiB, and holds() costs a line's length times the text's */
+   read_log's lines are a log's of up to 64 MiB and a request's texts 1 MiB, and a plain search costs a line's length
+   times the text's */
 typedef struct {
     char* low;    /* the text, lowered; owned */
     size_t* fail; /* the longest border of each prefix of low; owned */
@@ -146,42 +134,64 @@ static void finder_free(Finder* f) {
     free(f->low);
     free(f->fail);
 }
+/* whether text holds what f finds; f's empty text is in everything, a NULL text holds nothing else */
+static int found(const Finder* f, const char* text) { return !f->n || (text && finder_in(f, text)); }
 static int same(const char* a, const char* b) {
     if (!a || !b) return 0;
     for (; *a && tolower((unsigned char)*a) == tolower((unsigned char)*b); ++a, ++b) continue;
     return !*a && !*b;
 }
-/* whether each word of query is in one of o's string fields */
-static int words_in(const cJSON* o, const char* query) {
+/* a query's words, each searched for in time linear in what it is searched in: a request is 1 MiB, and each report's
+   fields are searched for each word */
+typedef struct {
+    Finder find[MCP_WORDS];
+    int n;
+} Words;
+/* query's words into w: 0, or -1 with why (owned) for more than MCP_WORDS */
+static int words_of(Words* w, const char* query, char** why) {
+    const char* s = query ? query : "";
+    int count = 0;
+    w->n = 0;
+    *why = NULL;
+    for (;;) {
+        size_t len;
+        while (isspace((unsigned char)*s)) ++s;
+        if (!(len = strcspn(s, " \t\r\n"))) break;
+        if (count < MCP_WORDS) {
+            char* word = rei_format("%.*s", (int)len, s);
+            finder_init(&w->find[w->n++], word);
+            free(word);
+        }
+        ++count;
+        s += len;
+    }
+    if (count <= MCP_WORDS) return 0;
+    *why = rei_format("query has %d words: %d at most", count, MCP_WORDS);
+    return -1;
+}
+static void words_free(Words* w) {
+    while (w->n) finder_free(&w->find[--w->n]);
+}
+/* whether each word of w is in one of o's string fields */
+static int words_in(const cJSON* o, const Words* w) {
     Buf all = {0};
     const cJSON* v;
-    const char* s = query;
-    int ok = 1;
-    if (!query || !*query) return 1;
+    int ok = 1, i;
+    if (!w->n) return 1;
     cJSON_ArrayForEach(v, o) if (cJSON_IsString(v)) {
         buf_add(&all, v->valuestring);
         buf_add(&all, "\n");
     }
     else if (cJSON_IsNumber(v)) buf_printf(&all, "#%.0f\n", v->valuedouble);
-    while (ok && *s) {
-        char word[256];
-        size_t len;
-        while (isspace((unsigned char)*s)) ++s;
-        len = strcspn(s, " \t\r\n");
-        if (!len) break;
-        if (len >= sizeof word) len = sizeof word - 1;
-        memcpy(word, s, len);
-        word[len] = 0;
-        ok = holds(all.text, word);
-        s += strcspn(s, " \t\r\n");
-    }
+    for (i = 0; ok && i < w->n; ++i) ok = found(&w->find[i], all.text);
     buf_free(&all);
     return ok;
 }
-/* a game given as its key, its title ID, or words of its title */
-static int is_game(const cJSON* o, const char* game) {
+/* a game given as its key, its title ID, or words of its title (title, game's Finder) */
+static int is_game(const cJSON* o, const char* game, const Finder* title) {
     if (!game || !*game) return 1;
-    return same(jstr(o, "game"), game) || same(jstr(o, "title_id"), game) || holds(jstr(o, "title"), game);
+    return same(jstr(o, "game"), game) || same(jstr(o, "title_id"), game) ||
+           (jstr(o, "title") && found(title, jstr(o, "title")));
 }
 static int integer(const cJSON* args, const char* key, int otherwise, int lo, int hi) {
     const cJSON* v = cJSON_GetObjectItemCaseSensitive(args, key);
@@ -198,19 +208,27 @@ static char* printed(cJSON* o) {
 }
 
 static char* list_games(const Mcp* m, const cJSON* args, int* error) {
-    cJSON *all = read_json(m->root, "api/games.json"), *out = cJSON_CreateObject(), *list, *g;
-    const char *query = jstr(args, "query"), *outcome = jstr(args, "outcome"), *console = jstr(args, "console");
+    cJSON *all, *out, *list, *g;
+    const char *outcome = jstr(args, "outcome"), *console = jstr(args, "console");
     int count = 0;
-    if (!all) {
-        cJSON_Delete(out);
+    Words words;
+    char* why;
+    if (words_of(&words, jstr(args, "query"), &why)) {
+        words_free(&words);
+        *error = 1;
+        return why;
+    }
+    if (!(all = read_json(m->root, "api/games.json"))) {
+        words_free(&words);
         *error = 1;
         return rei_strdup("the site has no api/games.json yet");
     }
+    out = cJSON_CreateObject();
     list = cJSON_AddArrayToObject(out, "games");
     cJSON_ArrayForEach(g, cJSON_GetObjectItemCaseSensitive(all, "games")) {
         char* url;
         cJSON* copy;
-        if (!words_in(g, query) || (outcome && *outcome && !same(jstr(g, "outcome"), outcome)) ||
+        if (!words_in(g, &words) || (outcome && *outcome && !same(jstr(g, "outcome"), outcome)) ||
             (console && *console && !same(jstr(g, "console"), console)))
             continue;
         url = rei_format("%s/g/%s.html", m->url, jstr(g, "game") ? jstr(g, "game") : "");
@@ -222,27 +240,40 @@ static char* list_games(const Mcp* m, const cJSON* args, int* error) {
     }
     cJSON_AddNumberToObject(out, "count", count);
     cJSON_Delete(all);
+    words_free(&words);
     return printed(out);
 }
 
 static char* search_reports(const Mcp* m, const cJSON* args, int* error) {
-    cJSON *all = read_json(m->root, "api/reports.json"), *out = cJSON_CreateObject(), *list, *r;
-    const char *query = jstr(args, "query"), *game = jstr(args, "game"), *outcome = jstr(args, "outcome"),
-               *signature = jstr(args, "signature"), *branch = jstr(args, "branch"), *gpu = jstr(args, "gpu"),
+    cJSON *all, *out, *list, *r;
+    const char *game = jstr(args, "game"), *outcome = jstr(args, "outcome"), *branch = jstr(args, "branch"),
                *console = jstr(args, "console");
     int limit = integer(args, "limit", 50, 1, 500), matched = 0;
-    if (!all) {
-        cJSON_Delete(out);
+    Words words;
+    Finder title, signature, gpu;
+    char* why;
+    if (words_of(&words, jstr(args, "query"), &why)) {
+        words_free(&words);
+        *error = 1;
+        return why;
+    }
+    if (!(all = read_json(m->root, "api/reports.json"))) {
+        words_free(&words);
         *error = 1;
         return rei_strdup("the site has no api/reports.json yet");
     }
+    finder_init(&title, game ? game : "");
+    finder_init(&signature, jstr(args, "signature") ? jstr(args, "signature") : "");
+    finder_init(&gpu, jstr(args, "gpu") ? jstr(args, "gpu") : "");
+    out = cJSON_CreateObject();
     list = cJSON_AddArrayToObject(out, "reports");
     cJSON_ArrayForEach(r, cJSON_GetObjectItemCaseSensitive(all, "reports")) {
         char* url;
         cJSON* copy;
-        if (!words_in(r, query) || !is_game(r, game) || (outcome && *outcome && !same(jstr(r, "outcome"), outcome)) ||
-            !holds(jstr(r, "signature"), signature) || (branch && *branch && !same(jstr(r, "branch"), branch)) ||
-            !holds(jstr(r, "gpu"), gpu) || (console && *console && !same(jstr(r, "console"), console)))
+        if (!words_in(r, &words) || !is_game(r, game, &title) ||
+            (outcome && *outcome && !same(jstr(r, "outcome"), outcome)) || !found(&signature, jstr(r, "signature")) ||
+            (branch && *branch && !same(jstr(r, "branch"), branch)) || !found(&gpu, jstr(r, "gpu")) ||
+            (console && *console && !same(jstr(r, "console"), console)))
             continue;
         if (matched++ >= limit) continue;
         url = rei_format("%s/r/%.0f/", m->url, jnum(r, "id"));
@@ -254,6 +285,10 @@ static char* search_reports(const Mcp* m, const cJSON* args, int* error) {
     cJSON_AddNumberToObject(out, "matched", matched);
     if (matched > limit) cJSON_AddNumberToObject(out, "shown", limit);
     cJSON_Delete(all);
+    words_free(&words);
+    finder_free(&title);
+    finder_free(&signature);
+    finder_free(&gpu);
     return printed(out);
 }
 
@@ -491,15 +526,17 @@ static char* signatures(const Mcp* m, const cJSON* args, int* error) {
     cJSON** sorted;
     const char *game = jstr(args, "game"), *outcome = jstr(args, "outcome");
     int limit = integer(args, "limit", 30, 1, 200), n = 0, i;
+    Finder title;
     if (!all) {
         cJSON_Delete(groups);
         *error = 1;
         return rei_strdup("the site has no api/reports.json yet");
     }
+    finder_init(&title, game ? game : "");
     cJSON_ArrayForEach(r, cJSON_GetObjectItemCaseSensitive(all, "reports")) { /* the newest first */
         const char* sig = jstr(r, "signature");
         cJSON *games, *ids;
-        if (!sig || !is_game(r, game) || (outcome && *outcome && !same(jstr(r, "outcome"), outcome))) continue;
+        if (!sig || !is_game(r, game, &title) || (outcome && *outcome && !same(jstr(r, "outcome"), outcome))) continue;
         if (!(g = cJSON_GetObjectItemCaseSensitive(groups, sig))) {
             g = cJSON_CreateObject();
             jset(g, "signature", sig);
@@ -535,6 +572,7 @@ static char* signatures(const Mcp* m, const cJSON* args, int* error) {
     free(sorted);
     cJSON_Delete(groups);
     cJSON_Delete(all);
+    finder_free(&title);
     return printed(out);
 }
 

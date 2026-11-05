@@ -1118,6 +1118,30 @@ static void test_mcp(void) {
     t = call(&m, "search_reports", "{\"signature\":\"GetNpadJoyHoldType\",\"gpu\":\"some gpu\",\"query\":\"#2\"}");
     HAS(t, "\\\"matched\\\":1");
     free(t);
+    { /* a query's words: 16 at most, each found in time linear in a report's fields */
+        Buf words = {0}, args = {0};
+        int i;
+        for (i = 0; i < MCP_WORDS; ++i) buf_add(&words, i % 2 ? " svcbreak" : " SOME");
+        buf_printf(&args, "{\"query\":\"%s\"}", words.text);
+        t = call(&m, "search_reports", args.text);
+        HAS(t, "\\\"matched\\\":12");
+        free(t);
+        t = call(&m, "list_games", args.text);
+        HAS(t, "\\\"count\\\":1");
+        free(t);
+        buf_add(&words, " game");
+        buf_free(&args);
+        buf_printf(&args, "{\"query\":\"%s\"}", words.text);
+        t = call(&m, "search_reports", args.text);
+        HAS(t, "query has 17 words: 16 at most");
+        HAS(t, "\"isError\":true");
+        free(t);
+        t = call(&m, "list_games", args.text);
+        HAS(t, "query has 17 words: 16 at most");
+        free(t);
+        buf_free(&args);
+        buf_free(&words);
+    }
     t = call(&m, "get_report", "{\"id\":2}");
     HAS(t, "https://reports.example/r/2/1.log");
     HAS(t, "\\\"summary\\\":{");
