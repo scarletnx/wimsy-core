@@ -51,11 +51,17 @@ static const char* const KNOWN[] = {"REIWIMSY_TOKEN",        "REIWIMSY_REPO",   
                                     "REIWIMSY_CHANNELS",     "REIWIMSY_STATE",        "REIWIMSY_CARDS_PRS",
                                     "REIWIMSY_CARDS_ISSUES", "REIWIMSY_CARDS_NIGHTLY"};
 
+/* the bot's end, with 1, from which daemon(8) starts it again. _exit, not exit: the threads of the rounds and the
+   answers may be inside their requests, which libcurl's cleanup and exit's handlers (OpenSSL's) must not run under */
+static void end(void) {
+    fflush(NULL);
+    _exit(1);
+}
 static void stop(const char* fmt, const char* value) {
     fputs("reiwimsy: ", stderr);
     fprintf(stderr, fmt, value);
     fputc('\n', stderr);
-    exit(1);
+    end();
 }
 /* name's value; NULL when it is unset or empty */
 static const char* setting(const char* name) {
@@ -292,8 +298,6 @@ int main(void) {
     discord_set_event_scheduler(client, scheduler);
     code = discord_run(client);
     rei_log("the gateway stopped: %s", discord_strerror(code, client));
-    discord_cleanup(client);
-    ccord_global_cleanup();
-    curl_global_cleanup();
-    return 1; /* daemon(8) starts it again */
+    end();
+    return 1;
 }
