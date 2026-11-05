@@ -18,6 +18,7 @@ that is no browser ([Forge](./FORGE.md#forgejo)).
 | Discord invite | 30 min | Discord's API knows the invite the site links to |
 | ReiWimsy | pushed | `reiwimsy_enable` is YES in `discordbots` and `/usr/local/libexec/reiwimsy` has run a minute or more |
 | AccordWimsy | pushed | `noirjail.sh jail fresh` passes: each mirror had a good pass within its time |
+| Tracer | pushed | `tracer_enable` is YES in `tracer` and `/usr/local/libexec/tracer` has run a minute or more |
 
 No push for 5 minutes reads as down, so a push that stops shows too. A running process is no proof of a live Discord
 connection: a bot whose gateway stays down while it runs still reads as up. Only public bots are on the page.

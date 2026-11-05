@@ -23,7 +23,8 @@ h1,h2,h3{line-height:1.2;overflow-wrap:anywhere}
 /* the theme picker: plain links the site's nginx answers with a cookie (docs/THEMES.md), the one in effect filled */
 .sws{display:flex;flex-wrap:wrap;align-items:center;gap:2px 12px;padding-block:4px;font-size:12px;border-bottom:1px solid var(--faint)}
 .sws span{color:var(--soft);font-weight:600}
-.sws a{display:inline-flex;align-items:center;min-height:28px;padding:0 8px;color:var(--ink);text-decoration:none}
+.sws a{display:inline-flex;align-items:center;gap:6px;min-height:28px;padding:0 8px;color:var(--ink);text-decoration:none}
+.sws img{width:16px;height:16px}
 .sws a:hover{text-decoration:underline}
 
 .top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 24px;padding-block:8px;

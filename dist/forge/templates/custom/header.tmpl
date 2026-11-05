@@ -1,6 +1,7 @@
 {{/* SWS's theme picker (docs/THEMES.md), in every page's head after Forgejo's theme: the theme and mode the reader
 picked, from the cookies the Tracer site's nginx keeps for all of scarletnx.dev, over the account's theme or the
-default; a cookie that names no theme or mode reads as none. Then the picker's look, in the theme's roles. */}}
+default; a cookie that names no theme or mode reads as none. Then the look of the picker (extra_links.tmpl), in the
+theme's roles. */}}
 {{- with .Context -}}
 {{- $t := .GetSiteCookie "sws_theme" -}}
 {{- $m := .GetSiteCookie "sws_mode" -}}
@@ -15,9 +16,13 @@ default; a cookie that names no theme or mode reads as none. Then the picker's l
 {{- end -}}
 {{- end }}
 <style>
-.sws{display:flex;flex-wrap:wrap;align-items:center;gap:2px 12px;padding:4px 16px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;background:var(--bg);border-bottom:1px solid var(--faint)}
-.sws span{color:var(--soft);font-weight:600}
-.sws a{display:inline-flex;align-items:center;min-height:28px;padding:0 8px;color:var(--ink);text-decoration:none}
-.sws a:hover{text-decoration:underline}
-.sws a[aria-current]{background:var(--accent);color:var(--on-accent)}
+/* the picker (extra_links.tmpl) at the navbar's right, beside Sign In: last in the left menu, which takes the room
+   between; on a phone in the bar itself, beside the menu's button, as Forgejo's collapsed menu opens only by script */
+#navbar .sws-pick { order: 1; margin-left: auto }
+@media (min-width: 768px) { #navbar .navbar-left { flex: 1 } }
+@media (max-width: 767.98px) { #navbar details.dropdown.sws-pick { display: block } #navbar .navbar-mobile-right { order: 2; margin-inline-start: 0 !important } }
+.sws-pick > summary, .sws-pick a { display: flex; align-items: center; gap: .5em; text-transform: uppercase; letter-spacing: .08em; font-size: 12px }
+.sws-pick img { width: 20px; height: 20px; flex: none }
+.sws-pick .sws-modes { display: flex; gap: 2px; padding-top: 4px; border-top: 1px solid var(--faint) }
+#navbar details.sws-pick a[aria-current] { background: var(--accent); color: var(--on-accent) }
 </style>

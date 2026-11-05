@@ -16,11 +16,13 @@ html .bg-gray-200,html.dark .dark\:bg-gray-700{background-color:var(--raised)}
 .sws span{color:var(--soft);font-weight:600}
 .sws a{display:inline-flex;align-items:center;min-height:28px;padding:0 8px;color:var(--ink);text-decoration:none}
 .sws a:hover{text-decoration:underline}
+.sws img{width:16px;height:16px;margin-right:6px}
 .sws a[href$="/sws/default"]{background:var(--accent);color:var(--on-accent)}
 /* The floating refresh and theme control sits over the last card on a phone: room below it. */
 .dashboard-container{padding-bottom:5rem}
 /* Each bot's icon before its name, wherever Gatus writes the name with it as the title; render.sh
    puts icons/<bot>.png in as data, so the page loads no file from elsewhere. */
-span[title="ReiWimsy"]::before,span[title="AccordWimsy"]::before{content:"";display:inline-block;width:1.5em;height:1.5em;margin-right:.4em;vertical-align:-.4em;background:center/contain no-repeat}
+span[title="ReiWimsy"]::before,span[title="AccordWimsy"]::before,span[title="Tracer"]::before{content:"";display:inline-block;width:1.5em;height:1.5em;margin-right:.4em;vertical-align:-.4em;background:center/contain no-repeat}
 span[title="ReiWimsy"]::before{background-image:url(data:image/png;base64,@ICON_REIWIMSY@)}
 span[title="AccordWimsy"]::before{background-image:url(data:image/png;base64,@ICON_ACCORDWIMSY@)}
+span[title="Tracer"]::before{background-image:url(data:image/png;base64,@ICON_TRACER@)}

@@ -1,0 +1,26 @@
+{{/* SWS's theme picker in the navbar, beside Sign In (header.tmpl moves it to the navbar's right; docs/THEMES.md): a
+<details> drop-down, as Forgejo's own menus are, so it opens without a script; plain links to the Tracer site's nginx,
+which keeps the pick in a cookie of all of scarletnx.dev and sends the reader back; each theme with its Wimsy, the pick
+in effect marked. Forgejo has no hook on the navbar's right: this is its left one's, extra_links. */}}
+{{- $t := "sepia" -}}
+{{- $m := "auto" -}}
+{{- with .Context -}}
+{{- $c := .GetSiteCookie "sws_theme" -}}
+{{- if or (eq $c "wimsy") (eq $c "fuddles") (eq $c "default") -}}{{- $t = $c -}}{{- end -}}
+{{- $c = .GetSiteCookie "sws_mode" -}}
+{{- if or (eq $c "light") (eq $c "dark") -}}{{- $m = $c -}}{{- end -}}
+{{- end }}
+<details class="dropdown dir-rtl sws-pick">
+	<summary title="Theme"><img src="{{AssetUrlPrefix}}/img/sws/logo-{{$t}}.svg" width="20" height="20" alt=""><span>Theme</span></summary>
+	<div class="content"><ul>
+		<li><a href="https://issues.scarletnx.dev/sws/sepia" referrerpolicy="no-referrer-when-downgrade"{{if eq $t "sepia"}} aria-current="true"{{end}}><img src="{{AssetUrlPrefix}}/img/sws/logo-sepia.svg" width="20" height="20" alt="">Sepia</a></li>
+		<li><a href="https://issues.scarletnx.dev/sws/wimsy" referrerpolicy="no-referrer-when-downgrade"{{if eq $t "wimsy"}} aria-current="true"{{end}}><img src="{{AssetUrlPrefix}}/img/sws/logo-wimsy.svg" width="20" height="20" alt="">Wimsy</a></li>
+		<li><a href="https://issues.scarletnx.dev/sws/fuddles" referrerpolicy="no-referrer-when-downgrade"{{if eq $t "fuddles"}} aria-current="true"{{end}}><img src="{{AssetUrlPrefix}}/img/sws/logo-fuddles.svg" width="20" height="20" alt="">Fuddles</a></li>
+		<li><a href="https://issues.scarletnx.dev/sws/default" referrerpolicy="no-referrer-when-downgrade"{{if eq $t "default"}} aria-current="true"{{end}}><img src="{{AssetUrlPrefix}}/img/sws/logo-default.svg" width="20" height="20" alt="">Default</a></li>
+		<li class="sws-modes">
+			<a href="https://issues.scarletnx.dev/sws/auto" referrerpolicy="no-referrer-when-downgrade"{{if and (ne $t "default") (eq $m "auto")}} aria-current="true"{{end}}>Auto</a>
+			<a href="https://issues.scarletnx.dev/sws/light" referrerpolicy="no-referrer-when-downgrade"{{if and (ne $t "default") (eq $m "light")}} aria-current="true"{{end}}>Light</a>
+			<a href="https://issues.scarletnx.dev/sws/dark" referrerpolicy="no-referrer-when-downgrade"{{if or (eq $t "default") (eq $m "dark")}} aria-current="true"{{end}}>Dark</a>
+		</li>
+	</ul></div>
+</details>
