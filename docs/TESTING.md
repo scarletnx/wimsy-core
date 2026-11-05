@@ -114,6 +114,16 @@ In a job of its own, on each pull request and each push to main, the bots built 
   makes report #1 of the message they reply to (Discord's REST API gives it, the fake CDN its log, which the site
   keeps with its home folder as `~`), the second is told that message is report #1 already. A mention asking for help
   in channel 7 goes unanswered with `TRACER_CHANNELS=6`, and is answered with `TRACER_CHANNELS=all` (`tracer-all`).
+- `zombie` (ReiWimsy) and `tracer-zombie`: a heartbeat a second; the first connection sends READY and the first
+  kilobyte of a 60000-byte frame, then nothing, its heartbeats unanswered. The bot has to leave it as a zombie, identify
+  on the next connection (a Concord that reads that one's HELLO as the dead frame's tail waits forever) and keep it
+  until the gateway closes, though its ACKs come 0.3 s after each heartbeat (a Concord whose heartbeat timer still
+  fires every millisecond from the zombie leaves it a millisecond after READY).
+- `unready` (ReiWimsy) and `tracer-unready`: a heartbeat a second, the first connection's unanswered, and each later
+  one closed with no CLOSE frame once the bot sends IDENTIFY, its session never ready again, which Concord waits out
+  forever: the bot has to end with status 1 on its own, saying its session was last seen ready longer ago than three
+  heartbeat intervals. `stalled` (ReiWimsy) the same, once the first connection is left each `GET /gateway/bot` held
+  with no answer, which Concord also waits on forever.
 - `reiwimsy --fix-cards` on a nightly channel holding two cards that say "Building": its dry run changes nothing,
   `--apply` deletes the one of a commit inside a push and redraws the push's head with its failed build, and a second
   `--apply` finds nothing to do.
@@ -123,7 +133,8 @@ test is not run by root (as root where the system keeps user namespaces from use
 sends Discord, its CDN and GitHub to the fake and whose CA bundle, libcurl's (`curl-config --ca`), holds only the CA
 the test makes. It needs util-linux, iproute2, python3, openssl and libcurl's headers. One by hand:
 
-    sh rei/tests/test_gateway.sh reiwimsy|tracer|fix-cards BINARY
+    sh rei/tests/test_gateway.sh PROGRAM BINARY    # one of reiwimsy, tracer, tracer-all, zombie, tracer-zombie,
+                                                   # unready, tracer-unready, stalled, fix-cards
 
 ## The themes
 

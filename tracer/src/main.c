@@ -36,6 +36,7 @@ sends the text and the attachments of a message that mentions it */
 #include "rest.h"
 #include "site.h"
 #include "titles.h"
+#include "watch.h"
 #include "worker.h"
 
 #define LISTED  64   /* the channels and the admins named, at most */
@@ -468,6 +469,7 @@ int main(int argc, char** argv) {
     discord_add_intents(client, DISCORD_GATEWAY_GUILDS | DISCORD_GATEWAY_GUILD_MESSAGES |
                                     (issues.repo ? DISCORD_GATEWAY_GUILD_MESSAGE_REACTIONS : 0));
     discord_set_event_scheduler(client, scheduler);
+    wd_start(client, end);
     code = discord_run(client);
     if (code == CCORD_DISCORD_BAD_AUTH) { /* what Concord's discord_run returns for any failure of GET gateway/bot */
         char* now = dc_said(&dc, "gateway/bot");

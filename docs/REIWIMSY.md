@@ -111,4 +111,10 @@ Concord calls any failure of the `GET gateway/bot` that starts a session "Bad au
 the bot asks Discord again and ends that line with the answer: `asked again, Discord answers 200` (the network back, the
 token good), `401: ...` (the token refused), or `0: ` and why no answer came (Discord still out of reach).
 
+It also stops when its gateway's session has not been ready for three heartbeat intervals (Discord's are 41.25 s), a
+wait Concord would never end on its own (a connection that closes with no CLOSE frame before READY, a `GET
+gateway/bot` that never gets an answer). That line says when the session was last seen ready and what it waited for:
+`the gateway stopped: its session was last seen ready 124.0 s ago, longer than the 123.8 s (3 heartbeat intervals of
+41.25 s) a connection may take to bring READY or RESUMED`.
+
 Building it: [Build](./BUILD.md#reiwimsy); its tests: [Testing](./TESTING.md).

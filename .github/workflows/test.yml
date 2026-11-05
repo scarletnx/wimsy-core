@@ -35,9 +35,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq libcurl4-openssl-dev libsqlite3-dev libarchive-dev zlib1g-dev libmicrohttpd-dev
-      - name: Concord at the commits dist/freebsd/build.sh pins, with its fixes
+      - name: Concord at the commits dist/freebsd/build.sh pins, with its fixes, its tests passed
         run: |
-          eval "$(grep -E '^(CONCORD_VERSION|CONCORD_COMMIT|REFLECTC_COMMIT|CONCORD_URL|CONCORD_PATCHES)=' dist/freebsd/build.sh)"
+          eval "$(grep -E '^(CONCORD_VERSION|CONCORD_COMMIT|REFLECTC_COMMIT|CONCORD_URL|CONCORD_PATCHES|CONCORD_TESTS)=' dist/freebsd/build.sh)"
           git -c advice.detachedHead=false clone -q --depth 1 --branch "v$CONCORD_VERSION" --recurse-submodules \
             --shallow-submodules "$CONCORD_URL" "$RUNNER_TEMP/concord"
           got=$(git -C "$RUNNER_TEMP/concord" rev-parse HEAD) sub=$(git -C "$RUNNER_TEMP/concord/reflect-c" rev-parse HEAD)
@@ -47,11 +47,18 @@ jobs:
           fi
           for patch in $CONCORD_PATCHES; do git -C "$RUNNER_TEMP/concord" apply "$PWD/dist/freebsd/$patch"; done
           make -s -C "$RUNNER_TEMP/concord"
+          make -s -C "$RUNNER_TEMP/concord/test" $CONCORD_TESTS
+          for t in $CONCORD_TESTS; do (cd "$RUNNER_TEMP/concord/test" && "./$t"); done
           make -s -C "$RUNNER_TEMP/concord" install PREFIX="$RUNNER_TEMP/concord-prefix" SHAREDIR="$RUNNER_TEMP/concord-prefix/share"
       - run: make -C rei CONCORD="$RUNNER_TEMP/concord-prefix"
       - run: make -C tracer CONCORD="$RUNNER_TEMP/concord-prefix"
       # as root: unshare needs it where Ubuntu's AppArmor keeps user namespaces from users
       - run: sudo sh rei/tests/test_gateway.sh reiwimsy rei/reiwimsy
+      - run: sudo sh rei/tests/test_gateway.sh zombie rei/reiwimsy
+      - run: sudo sh rei/tests/test_gateway.sh unready rei/reiwimsy
+      - run: sudo sh rei/tests/test_gateway.sh stalled rei/reiwimsy
       - run: sudo sh rei/tests/test_gateway.sh fix-cards rei/reiwimsy
       - run: sudo sh rei/tests/test_gateway.sh tracer tracer/tracer
       - run: sudo sh rei/tests/test_gateway.sh tracer-all tracer/tracer
+      - run: sudo sh rei/tests/test_gateway.sh tracer-zombie tracer/tracer
+      - run: sudo sh rei/tests/test_gateway.sh tracer-unready tracer/tracer

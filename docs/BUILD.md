@@ -15,14 +15,24 @@ build without it.
 
 ## Concord
 
-Concord 3.0.1, linked statically, with a fix it does not have (`dist/freebsd/concord-heartbeat-send.patch`: a
-heartbeat that cannot be sent leaves its gateway retrying every millisecond, never reconnecting), at the commit
-`dist/freebsd/build.sh` pins (`CONCORD_COMMIT`, and `REFLECTC_COMMIT` for its reflect-c submodule), installed into a
-folder of its own. GNU make builds it (`gmake`, which is `make` on Linux):
+Concord 3.0.1, linked statically, with fixes it does not have, applied in this order (`CONCORD_PATCHES` in
+`dist/freebsd/build.sh`):
+
+- `dist/freebsd/concord-heartbeat-send.patch`: a heartbeat that cannot be sent leaves its gateway retrying every
+  millisecond, never reconnecting.
+- `dist/freebsd/concord-heartbeat-early-tick.patch`: a zombie's heartbeat timer, left firing every millisecond, takes
+  the next connection's first pulse for unanswered a millisecond after READY, and the gateway reconnects again.
+- `dist/freebsd/concord-frame-reset.patch`: a connection left in the middle of a frame has the next one's HELLO read
+  as that frame's tail, and the gateway waits forever.
+
+At the commit `dist/freebsd/build.sh` pins (`CONCORD_COMMIT`, and `REFLECTC_COMMIT` for its reflect-c submodule),
+installed into a folder of its own. GNU make builds it (`gmake`, which is `make` on Linux):
 
     git clone --depth 1 --branch v3.0.1 --recurse-submodules --shallow-submodules \
         https://github.com/Cogmasters/concord.git /tmp/concord
-    git -C /tmp/concord apply "$PWD/dist/freebsd/concord-heartbeat-send.patch"
+    for p in heartbeat-send heartbeat-early-tick frame-reset; do
+        git -C /tmp/concord apply "$PWD/dist/freebsd/concord-$p.patch"
+    done
     gmake -C /tmp/concord && gmake -C /tmp/concord install PREFIX="$HOME/concord" SHAREDIR="$HOME/concord/share"
 
 ## ReiWimsy
