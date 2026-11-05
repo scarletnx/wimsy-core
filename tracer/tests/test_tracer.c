@@ -760,7 +760,7 @@ static void test_reports(void) {
     HAS(p, "<h1>Report #1</h1>");
     /* the theme picker on every page, its links from the site's root however deep the page: the nginx answers them */
     HAS(p, "<body>\n<nav class=\"sws\" aria-label=\"Theme\">");
-    HAS(p, "<a href=\"/sws/fuddles\" referrerpolicy=\"same-origin\">Fuddles</a>");
+    HAS(p, "<a href=\"/sws/fuddles\" referrerpolicy=\"same-origin\"><img src=\"/sws/logo-fuddles.svg\" alt=\"\">Fuddles</a>");
     HAS(p, "<a href=\"/sws/dark\" referrerpolicy=\"same-origin\">Dark</a></nav>\n<header class=\"top\">");
     HAS(p, "<span class=\"badge missed\" title=\"Missed: 1 service command\">something missed</span>");
     HAS(p, "<dt>Missed</dt><dd>1 service command</dd>");

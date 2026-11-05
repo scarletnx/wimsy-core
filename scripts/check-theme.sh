@@ -7,7 +7,7 @@
 #     BUDGET bytes; tracer/site/sws/<id>.css, each theme's block, one for each Forgejo theme, each giving those roles;
 #   - dist/forge/public/assets/css/theme-*.css: each made by theme.py, and docs/FORGE.md's THEMES line naming them all;
 #   - dist/status/gatus.yaml.in and sws/<theme>.css.in: the two colour lines, and the rules using only their roles;
-#   - the picker: Tracer's links (tracer/src/site.h), the forge's (dist/forge/templates/custom), the status page's
+#   - the picker: Tracer's links (tracer/src/site.h), the forge's (dist/forge/templates/custom/extra_links.tmpl), the status page's
 #     (dist/status/nginx.conf.in) and both nginx's cookie maps naming every theme, and no other.
 # The colours themselves and their contrast are wimsy-dist's to check (theme.py fails on a pair that reads under it).
 #
@@ -55,7 +55,7 @@ blocks_ids = sorted(f.stem for f in pathlib.Path("tracer/site/sws").glob("*.css"
 if blocks_ids != sorted(ids):
     bad.append(f"tracer/site/sws has {blocks_ids}, the Forgejo themes are {sorted(ids)}")
 themes = sorted({i.split("-")[0] for i in ids})
-picks = {"tracer/src/site.h": r'href=\\"/sws/([a-z]+)\\"', "dist/forge/templates/custom/body_inner_pre.tmpl": r"/sws/([a-z]+)\"",
+picks = {"tracer/src/site.h": r'href=\\"/sws/([a-z]+)\\"', "dist/forge/templates/custom/extra_links.tmpl": r"/sws/([a-z]+)\"",
          "dist/status/nginx.conf.in": r"@SWS_URL@/([a-z]+)\""}
 for path, pat in picks.items():
     named = sorted(set(re.findall(pat, pathlib.Path(path).read_text())) - {"auto", "light", "dark"})
@@ -81,6 +81,20 @@ css = yml.split("custom-css: |", 1)[-1].split("\nendpoints:", 1)[0]
 for l in lines:
     css = css.replace(l, "")
 outside_uses("dist/status/gatus.yaml.in", re.sub(r"url\(data:[^)]*\)", "", css), roles)
+# the forge's copies of each theme's Wimsy, the files Tracer gives
+forge = pathlib.Path("dist/forge/public/assets/img/sws")
+for theme, source in (("sepia", "tracer/site/sws/logo-sepia.svg"), ("default", "tracer/site/sws/logo-default.svg"),
+                      ("wimsy", "dist/forge/public/assets/img/wimsy.svg"), ("fuddles", "tracer/site/tracer.svg")):
+    copy = forge / f"logo-{theme}.svg"
+    if not copy.exists() or copy.read_bytes() != pathlib.Path(source).read_bytes():
+        bad.append(f"{copy}: not {source} as it is")
+# each pick's stylesheet and Wimsy by a link of its own, or a cache (Cloudflare, the browser) gives one theme for another
+for path, needs in (("dist/freebsd/tracer-nginx.conf", ("'style.css?sws=$sws_css\"'", "'tracer.svg?sws=$sws_theme\"'")),
+                    ("dist/status/nginx.conf.in", ("custom.css?sws=$sws_theme",))):
+    text = pathlib.Path(path).read_text()
+    for need in needs:
+        if need not in text:
+            bad.append(f"{path}: no sub_filter to {need}: each pick needs a link of its own")
 status = sorted(f.name[:-len(".css.in")] for f in pathlib.Path("dist/status/sws").glob("*.css.in"))
 if status != themes:
     bad.append(f"dist/status/sws has {status}, the themes are {themes}")

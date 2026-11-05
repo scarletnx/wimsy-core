@@ -22,6 +22,10 @@ case_() {
 	cp "$top/tracer/src/site.h" "$t/c/tracer/src/"
 	cp -R "$top/dist/forge/public/assets/css" "$t/c/dist/forge/public/assets/"
 	cp -R "$top/dist/forge/templates/custom" "$t/c/dist/forge/templates/"
+	mkdir -p "$t/c/dist/forge/public/assets/img"
+	cp -R "$top/dist/forge/public/assets/img/sws" "$t/c/dist/forge/public/assets/img/"
+	cp "$top/dist/forge/public/assets/img/wimsy.svg" "$t/c/dist/forge/public/assets/img/"
+	cp "$top/tracer/site/tracer.svg" "$t/c/tracer/site/"
 	cp "$top/dist/status/gatus.yaml.in" "$top/dist/status/nginx.conf.in" "$t/c/dist/status/"
 	cp -R "$top/dist/status/sws" "$t/c/dist/status/"
 	cp "$top/dist/freebsd/tracer-nginx.conf" "$t/c/dist/freebsd/"
@@ -47,10 +51,13 @@ case_ "Tracer's stylesheet over its budget fails" tracer/site/style.css '$a /*'"
 case_ "a theme's block without a role the rules take fails" tracer/site/sws/wimsy-dark.css 's/--soft:[^;]*;//g' 1
 case_ "a Forgejo theme without its block in tracer/site/sws fails" tracer/site/sws/default.css rm 1
 case_ "Tracer's picker missing a theme fails" tracer/src/site.h '/sws\/fuddles/d' 1
-case_ "the forge's picker missing a theme fails" dist/forge/templates/custom/body_inner_pre.tmpl '/sws\/default/d' 1
+case_ "the forge's picker missing a theme fails" dist/forge/templates/custom/extra_links.tmpl '/sws\/default"/d' 1
+case_ "a forge copy of a Wimsy not the one Tracer gives fails" dist/forge/public/assets/img/sws/logo-sepia.svg '1s/^/<!-- x -->/' 1
 case_ "the status page's picker with a theme too many fails" dist/status/nginx.conf.in 's#<a href="@SWS_URL@/sepia">#<a href="@SWS_URL@/neon">Neon</a>&#' 1
 case_ "Tracer's nginx not mapping a theme fails" dist/freebsd/tracer-nginx.conf '/^\tfuddles fuddles;$/d' 1
 case_ "the status nginx not mapping a theme fails" dist/status/nginx.conf.in '/^\twimsy wimsy;$/d' 1
+case_ "Tracer's pages without a link of their own per pick fail" dist/freebsd/tracer-nginx.conf "/tracer.svg?sws=/d" 1
+case_ "the status page without a link of its own per pick fails" dist/status/nginx.conf.in "/custom.css?sws=/d" 1
 case_ "a status theme with a hex of its own fails" dist/status/sws/fuddles.css.in 's/var(--warn-fill)}/#ffaa00}/' 1
 case_ "a status theme gone fails" dist/status/sws/wimsy.css.in rm 1
 case_ "a Forgejo theme not made by theme.py fails" dist/forge/public/assets/css/theme-default.css '1s/.*/:root{}/' 1

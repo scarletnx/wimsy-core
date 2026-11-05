@@ -29,6 +29,10 @@ server {
 		gzip on;
 		gzip_types text/css application/javascript application/json image/svg+xml;
 		sub_filter_once on;
-		sub_filter '<body>' '<body><nav class="sws" aria-label="Theme"><span>Theme</span><a href="@SWS_URL@/sepia">Sepia</a><a href="@SWS_URL@/wimsy">Wimsy</a><a href="@SWS_URL@/fuddles">Fuddles</a><a href="@SWS_URL@/default">Default</a></nav>';
+		# a link of its own per pick, so no cache (Cloudflare, the browser) gives one theme for another
+		sub_filter 'href="/css/custom.css"' 'href="/css/custom.css?sws=$sws_theme"';
+		add_header Cache-Control "private, no-cache" always;
+		add_header Vary Cookie always;
+		sub_filter '<body>' '<body><nav class="sws" aria-label="Theme"><span>Theme</span><a href="@SWS_URL@/sepia"><img src="@SWS_URL@/logo-sepia.svg" alt="">Sepia</a><a href="@SWS_URL@/wimsy"><img src="@SWS_URL@/logo-wimsy.svg" alt="">Wimsy</a><a href="@SWS_URL@/fuddles"><img src="@SWS_URL@/logo-fuddles.svg" alt="">Fuddles</a><a href="@SWS_URL@/default"><img src="@SWS_URL@/logo-default.svg" alt="">Default</a></nav>';
 	}
 }
