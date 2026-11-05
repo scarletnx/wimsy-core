@@ -1,4 +1,4 @@
-{{/* git.scarletnx.dev's start page: scarletnx.github.io's text and links (its index.html), with every CI image the nightly release has, the bots (their avatars in public/assets/img/bots) and the copies on this forge, in Forgejo 17's frame (templates/home.tmpl). One column that wraps to a phone's width; colours from Forgejo's theme variables, so light and dark both work. Wimsy is ScarletNX's dist/wimsy.svg, served from here. */}}
+{{/* git.scarletnx.dev's start page: scarletnx.github.io's text and links (its index.html), with every CI image the nightly release has, the bots (their avatars in public/assets/img/bots) and the copies on this forge, in Forgejo 17's frame (templates/home.tmpl). One column that wraps to a phone's width; colours from Forgejo's theme variables, so light and dark both work. Wimsy is the theme's (img/sws/logo-<theme>.svg, Sepia's AccordWimsy when none is picked), as the navbar's logo is (custom/header.tmpl). */}}
 {{template "base/head" .}}
 <style>
 .sx-home { max-width: 56rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; text-align: center; line-height: 1.5; overflow-wrap: anywhere; }
@@ -21,7 +21,12 @@
 </style>
 <div role="main" aria-label="{{if .IsSigned}}{{ctx.Locale.Tr "dashboard"}}{{else}}{{ctx.Locale.Tr "home"}}{{end}}" class="page-content home">
 	<div class="sx-home">
-		<img class="sx-wimsy" src="{{AssetUrlPrefix}}/img/wimsy.svg" width="512" height="512" alt="Wimsy, the mascot of ScarletNX">
+		{{- $logo := "sepia" -}}
+		{{- with .Context -}}
+		{{- $c := .GetSiteCookie "sws_theme" -}}
+		{{- if or (eq $c "wimsy") (eq $c "fuddles") (eq $c "default") -}}{{- $logo = $c -}}{{- end -}}
+		{{- end }}
+		<img class="sx-wimsy" src="{{AssetUrlPrefix}}/img/sws/logo-{{$logo}}.svg" width="512" height="512" alt="Wimsy, the mascot of ScarletNX, in the theme's colours">
 		<ul class="sx-row sx-top">
 			<li><a href="https://github.com/scarletnx/ScarletNX">Source code</a></li>
 			<li><a href="https://github.com/scarletnx/nightly/releases/latest">Nightly release</a></li>
