@@ -47,8 +47,8 @@ In its environment, which the service sets from rc.conf:
 | `TRACER_SITE` | `/var/db/tracer-site` | the site's folder; the service gives it `tracer_mcp_site`'s |
 | `TRACER_MCP_LISTEN` | `127.0.0.1:8081` | the IPv4 address and port it listens on, where nginx sends `/mcp` |
 
-A `TRACER_` key it does not know stops it, naming the key. It knows the bot's keys too and reads none of them, so that
-both may be given one env file on one machine; `TRACER_UPSTREAM_REPO` is not among those it knows, and stops it.
+A `TRACER_` key it does not know stops it, naming the key. It knows each of the bot's keys too and reads none of them,
+so that both may be given one env file on one machine.
 
 ## The service
 

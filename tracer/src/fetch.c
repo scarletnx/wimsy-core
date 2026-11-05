@@ -4,8 +4,6 @@
 #include <curl/curl.h>
 #include <stdlib.h>
 
-#define AGENT "DiscordBot (https://github.com/scarletnx/discord-bots, 1) " REI_NAME
-
 typedef struct {
     Buf* out;
     size_t max;
@@ -35,7 +33,7 @@ int tr_fetch(void* ctx, const char* url, size_t max, Buf* out, char** why) {
     into.max = max;
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "https");
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, AGENT);
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, REI_AGENT);
     curl_easy_setopt(curl, CURLOPT_MAXFILESIZE_LARGE, (curl_off_t)max);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, body_of);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &into);

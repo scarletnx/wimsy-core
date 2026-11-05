@@ -696,3 +696,18 @@ char* mcp_handle(const Mcp* m, const char* body, size_t n, int* status) {
     cJSON_Delete(msg);
     return text;
 }
+
+const char* mcp_unknown_key(char* const* env) {
+    static const char* const known[] = {TR_KEYS, "TRACER_MCP_LISTEN"};
+    size_t k, n;
+    for (; env && *env; ++env) {
+        int found = 0;
+        if (strncmp(*env, "TRACER_", 7)) continue;
+        for (k = 0; k < sizeof known / sizeof *known && !found; ++k) {
+            n = strlen(known[k]);
+            found = !strncmp(*env, known[k], n) && (*env)[n] == '=';
+        }
+        if (!found) return *env;
+    }
+    return NULL;
+}

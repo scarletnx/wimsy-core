@@ -522,6 +522,7 @@ int main(void) {
     long written;
     int before;
     char template[] = "/tmp/accordwimsy-test.XXXXXX";
+    CHECK(!strcmp(AW_AGENT, "accordwimsy (https://github.com/scarletnx/wimsy-core)"));
     if (!mkdtemp(template)) return 1;
     /* no one's git settings: a commit signed through a pinentry, an insteadOf */
     setenv("GIT_CONFIG_GLOBAL", "/dev/null", 1);

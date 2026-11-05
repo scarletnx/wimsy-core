@@ -8,6 +8,7 @@
 * [AccordWimsy](#accordwimsy)
 * [Tracer](#tracer)
 * [The docs](#the-docs)
+* [The install script](#the-install-script)
 * [The bots against a fake Discord](#the-bots-against-a-fake-discord)
 * [The themes](#the-themes)
 * [The status page](#the-status-page)
@@ -17,8 +18,8 @@ What CI runs on each pull request and each push to main (`.github/workflows/test
 Discord:
 
     make -C rei test && make -C accordwimsy test && make -C tracer test &&
-        python3 scripts/test-check-docs.py && python3 scripts/check-docs.py && sh scripts/test-check-theme.sh &&
-        sh scripts/check-theme.sh
+        sh scripts/test-install.sh && python3 scripts/test-check-docs.py && python3 scripts/check-docs.py &&
+        sh scripts/test-check-theme.sh && sh scripts/check-theme.sh
 
 On FreeBSD, `make -C tracer test CXXRT=-lc++` ([Build](./BUILD.md#tracer)). The libraries each needs:
 [Build](./BUILD.md).
@@ -88,6 +89,13 @@ temporary folder:
 
 `scripts/test-check-docs.py` runs it on documents and sources made in a temporary folder, each rule failing where it
 should and passing where it should.
+
+## The install script
+
+`sh scripts/test-install.sh` runs `scripts/install.sh` against fake jails (`jls`, `jexec` and `pkg` on `PATH`, a
+package a text file of its name, dependencies and files): the services of a package restarted where they were running
+and nowhere else (`tracer_mcp` in the site's jail, where `tracer` does not run; both where both run), a package with
+none, and a jail that is not running. No FreeBSD needed.
 
 ## The bots against a fake Discord
 

@@ -6,6 +6,9 @@
 #include <stddef.h>
 #include "cJSON.h"
 
+/* the User-Agent of each request, which GitHub asks for: the program and its repository */
+#define AW_AGENT "accordwimsy (https://github.com/scarletnx/wimsy-core)"
+
 /* a string that grows; its text is NUL-terminated, "" while empty */
 typedef struct {
     char* text;
