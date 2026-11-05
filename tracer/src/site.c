@@ -438,12 +438,16 @@ char* site_report_html(const StReport* r, const StFile* files, int nfiles, const
     field(&b, "Game version", r->version);
     field(&b, "Signature", r->signature);
     field(&b, "Missed", r->missed);
-    if (hex(r->commit)) {
+    if (hex(r->commit) || (r->build && *r->build) || r->age) { /* the build, its commit linked, and how old it was */
         buf_add(&b, "<dt>Build</dt><dd>");
-        esc(&b, r->build ? r->build : r->commit);
-        buf_printf(&b, " <a href=\"" SITE_REPO "/commit/%s\">%s</a></dd>\n", r->commit, r->commit);
-    } else
-        field(&b, "Build", r->build);
+        esc(&b, r->build ? r->build : r->commit ? r->commit : "");
+        if (hex(r->commit)) buf_printf(&b, " <a href=\"" SITE_REPO "/commit/%s\">%s</a>", r->commit, r->commit);
+        if (r->age) {
+            buf_add(&b, "<br>");
+            esc(&b, r->age);
+        }
+        buf_add(&b, "</dd>\n");
+    }
     field(&b, "System", r->system);
     field(&b, "GPU", r->gpu);
     field(&b, "Driver", r->driver);
@@ -521,6 +525,7 @@ static cJSON* report_object(const StReport* r) {
     jset(o, "signature", r->signature);
     jset(o, "missed", r->missed);
     jset(o, "console", r->console);
+    jset(o, "build_age", r->age);
     if (r->issue > 0 && r->issue_url) {
         cJSON_AddNumberToObject(o, "issue", (double)r->issue);
         jset(o, "issue_url", r->issue_url);

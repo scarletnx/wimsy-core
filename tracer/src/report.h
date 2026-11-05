@@ -5,6 +5,7 @@
    site's folder; "delete N" and "help" answered. Each answer is an embed for a reply */
 #ifndef TR_REPORT_H
 #define TR_REPORT_H
+#include "age.h"
 #include "issues.h"
 #include "message.h"
 #include "store.h"
@@ -38,6 +39,7 @@ struct Tracer {
     void* admin_ctx;
     const Titles* titles;   /* the games' names, for a game its logs don't name; NULL for none */
     const TrIssues* issues; /* where an approved report is filed as an issue; NULL, or its repo NULL, for nowhere */
+    const TrAge* age;       /* how far a new report's build is behind main; NULL for no line */
     /* m's files taken into k (its dir made, its base and counts set), where they are read: in a worker of their own
        (main.c's, without the bot's token), or here by tr_take when take is NULL. 0, or -1 with why (owned) */
     int (*take)(void* ctx, Tracer* t, const TrMessage* m, Taken* k, char** why);

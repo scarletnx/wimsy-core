@@ -20,6 +20,7 @@
 #include "common/utilities/demangle.h"
 #include "common/utilities/logscan.h"
 #include "channels.h"
+#include "age.h"
 #include "files.h"
 #include "issues.h"
 #include "mcp.h"
@@ -1890,6 +1891,226 @@ static void test_issues(void) {
     gh_body = NULL;
 }
 
+/* ---- the build's age ---- */
+static int gql_asks, gql_status = 200;
+static char *gql_answer, *gql_body;
+static char gql_url[256];
+static void fake_graphql(void* ctx, const char* method, const char* url, const char* body, const char* etag,
+                         RgAnswer* out) {
+    (void)ctx;
+    (void)etag;
+    memset(out, 0, sizeof *out);
+    ++gql_asks;
+    snprintf(gql_url, sizeof gql_url, "%s %s", method, url);
+    free(gql_body);
+    gql_body = rei_strdup(body ? body : "");
+    out->status = gql_status;
+    if (gql_status)
+        out->body = rei_strdup(gql_answer);
+    else
+        out->error = rei_strdup("POST https://api.github.com/graphql: Could not resolve host: api.github.com");
+}
+/* GitHub's answer for a commit of the repository made at made, main's last at last, behind commits behind it */
+static void github_says(const char* made, const char* last, long behind, const char* tag) {
+    free(gql_answer);
+    gql_answer =
+        rei_format("{\"data\":{\"repository\":{\"object\":{\"committedDate\":\"%s\"},\"ref\":{\"target\":{"
+                   "\"committedDate\":\"%s\"},\"compare\":{\"behindBy\":%ld}}},\"nightly\":{\"latestRelease\":{"
+                   "\"tagName\":\"%s\"}}}}",
+                   made, last, behind, tag);
+}
+static char age_log[2048];
+static int age_served = -1;
+/* a report of a log whose build is commit, sent by author as message id: the reply's text, owned; *report its id */
+static char* age_report(u64 id, u64 author, const char* commit, long* report) {
+    const char* at = strstr(LOG, "1234abc");
+    TrMessage m;
+    char* t;
+    snprintf(age_log, sizeof age_log, "%.*s%s%s", (int)(at - LOG), LOG, commit, at + 7);
+    if (age_served < 0) {
+        age_served = nserved;
+        serve("https://cdn.discordapp.com/age/game.log", age_log, 0);
+    }
+    served[age_served].n = strlen(age_log);
+    m = message(id, author, "<@99> how old");
+    attach(&m, "game.log", "https://cdn.discordapp.com/age/game.log", (double)strlen(age_log));
+    t = answer_text(respond(&m));
+    tr_message_free(&m);
+    *report = st_report_of(tracer.store, id);
+    return t;
+}
+static const char* age_settings[2][2];
+static const char* age_env(const char* name) {
+    return age_settings[0][0] && !strcmp(age_settings[0][0], name) ? age_settings[0][1] : NULL;
+}
+static void test_age(void) {
+    static const char BEHIND[] = "Build aaaa111 (main) is 37 commits and 2 days behind main; the newest nightly is "
+                                 "2026-11-04 (413fc2f): retry on it before we dig in.";
+    static const char DIRTY[] =
+        "Build bbbb222-dirty is not a published build (local changes): numbers from it may not match main.";
+    TrAge a;
+    StReport r;
+    char *why, *t, *p, *rel;
+    long id;
+    /* the setting: scarletnx/ScarletNX by default, OWNER/NAME or refused, said with its value */
+    age_settings[0][0] = NULL;
+    CHECK(!tr_age_settings(&a, age_env, &why) && !why);
+    SAME(a.repo, "scarletnx/ScarletNX");
+    SAME(a.owner, "scarletnx");
+    t = tr_age_said(&a);
+    SAME(t, "build age: a -dirty build said not to be a published one, nothing asked of GitHub, as "
+            "TRACER_ISSUES_TOKEN is not set");
+    free(t);
+    age_settings[0][0] = "TRACER_UPSTREAM_REPO";
+    age_settings[0][1] = "o";
+    CHECK(tr_age_settings(&a, age_env, &why) == -1);
+    SAME(why, "TRACER_UPSTREAM_REPO=o is not OWNER/NAME");
+    free(why);
+    age_settings[0][1] = "o/r/x";
+    CHECK(tr_age_settings(&a, age_env, &why) == -1);
+    SAME(why, "TRACER_UPSTREAM_REPO=o/r/x is not OWNER/NAME");
+    free(why);
+    age_settings[0][1] = "o/r x";
+    CHECK(tr_age_settings(&a, age_env, &why) == -1);
+    SAME(why, "TRACER_UPSTREAM_REPO=o/r x is not OWNER/NAME");
+    free(why);
+    age_settings[0][1] = "o/r";
+    CHECK(!tr_age_settings(&a, age_env, &why));
+    SAME(a.owner, "o");
+    SAME(a.name, "r");
+    a.fetch = fake_graphql;
+    t = tr_age_said(&a);
+    SAME(t, "build age: each report's commit against o/r's main and o/nightly's newest nightly, asked of GitHub once "
+            "in 3600 s a commit");
+    free(t);
+    tracer.age = &a;
+
+    /* a build behind main: how far, and the newest nightly, in the reply and on the page, from one query */
+    github_says("2026-11-02T23:59:59Z", "2026-11-04T00:00:01Z", 37, "nightly-2026-11-04-413fc2f");
+    gql_asks = 0;
+    t = age_report(9100, 300, "aaaa111", &id);
+    HAS(t, BEHIND);
+    free(t);
+    CHECK(gql_asks == 1);
+    SAME(gql_url, "POST https://api.github.com/graphql");
+    HAS(gql_body, "\"owner\":\"o\"");
+    HAS(gql_body, "\"name\":\"r\"");
+    HAS(gql_body, "\"commit\":\"aaaa111\"");
+    HAS(gql_body, "refs/heads/main");
+    CHECK(st_get(tracer.store, id, &r, NULL, NULL) == 1);
+    SAME(r.age, BEHIND);
+    st_report_free(&r);
+    rel = rei_format("r/%ld/index.html", id);
+    p = page(rel);
+    HAS(p, "<br>Build aaaa111 (main) is 37 commits and 2 days behind main; the newest nightly is 2026-11-04 (413fc2f)");
+    HAS(p, "<a href=\"https://github.com/scarletnx/ScarletNX/commit/aaaa111\">aaaa111</a>");
+    free(p);
+    free(rel);
+    rel = rei_format("api/r/%ld.json", id);
+    p = page(rel);
+    HAS(p, "\"build_age\":\"Build aaaa111 (main) is 37 commits");
+    free(p);
+    free(rel);
+    /* the same commit within the hour: GitHub not asked again; past it, asked again */
+    now_is += 600;
+    t = age_report(9101, 301, "aaaa111", &id);
+    HAS(t, BEHIND);
+    free(t);
+    CHECK(gql_asks == 1);
+    now_is += TR_AGE_FRESH;
+    github_says("2026-11-02T10:00:00Z", "2026-11-05T10:00:00Z", 40, "nightly-2026-11-05-5555aaa");
+    t = age_report(9102, 302, "aaaa111", &id);
+    HAS(t, "Build aaaa111 (main) is 40 commits and 3 days behind main; the newest nightly is 2026-11-05 (5555aaa)");
+    free(t);
+    CHECK(gql_asks == 2);
+
+    /* local changes: said without asking */
+    t = age_report(9103, 303, "bbbb222-dirty", &id);
+    HAS(t, DIRTY);
+    free(t);
+    CHECK(gql_asks == 2);
+    /* a commit the repository does not have: not a published build either, kept for the hour */
+    free(gql_answer);
+    gql_answer = rei_strdup(
+        "{\"data\":{\"repository\":{\"object\":null,\"ref\":{\"target\":{\"committedDate\":\"2026-11-05T10:00:00Z\"},"
+        "\"compare\":null}},\"nightly\":{\"latestRelease\":{\"tagName\":\"nightly-2026-11-05-5555aaa\"}}},\"errors\":["
+        "{\"type\":\"NOT_FOUND\",\"path\":[\"repository\",\"ref\",\"compare\"],\"message\":\"Could not resolve head ref "
+        "'cccc333'.\"}]}");
+    t = age_report(9104, 304, "cccc333", &id);
+    HAS(t, "Build cccc333 is not a published build (local changes): numbers from it may not match main.");
+    free(t);
+    t = age_report(9105, 305, "cccc333", &id);
+    HAS(t, "Build cccc333 is not a published build");
+    free(t);
+    CHECK(gql_asks == 3);
+    /* one commit and one day: no plural */
+    github_says("2026-11-04T10:00:00Z", "2026-11-05T10:00:00Z", 1, "nightly-2026-11-05-5555aaa");
+    t = age_report(9106, 306, "dddd444", &id);
+    HAS(t, "Build dddd444 (main) is 1 commit and 1 day behind main; the newest nightly is 2026-11-05 (5555aaa)");
+    free(t);
+    /* no line for a build with every commit of main, nor for the newest nightly itself, nor without a nightly */
+    github_says("2026-11-05T10:00:00Z", "2026-11-05T10:00:00Z", 0, "nightly-2026-11-05-5555aaa");
+    t = age_report(9107, 307, "eeee555", &id);
+    LACKS(t, "behind main");
+    LACKS(t, "published build");
+    free(t);
+    CHECK(st_get(tracer.store, id, &r, NULL, NULL) == 1 && !r.age);
+    st_report_free(&r);
+    rel = rei_format("r/%ld/index.html", id);
+    p = page(rel);
+    LACKS(p, "behind main");
+    free(p);
+    free(rel);
+    github_says("2026-11-05T10:00:00Z", "2026-11-05T12:00:00Z", 3, "nightly-2026-11-05-5555aaa");
+    t = age_report(9108, 308, "5555aaa", &id);
+    LACKS(t, "behind main");
+    free(t);
+    github_says("2026-11-04T10:00:00Z", "2026-11-05T12:00:00Z", 3, "v1.0.0");
+    t = age_report(9109, 309, "ffff666", &id);
+    LACKS(t, "behind main");
+    free(t);
+    /* GitHub silent or refusing: no line, and asked again at the next report */
+    gql_asks = 0;
+    gql_status = 0;
+    t = age_report(9110, 310, "1111aaa", &id);
+    LACKS(t, "behind main");
+    free(t);
+    gql_status = 502;
+    free(gql_answer);
+    gql_answer = rei_strdup("{\"message\":\"Server Error\"}");
+    t = age_report(9111, 311, "1111aaa", &id);
+    LACKS(t, "behind main");
+    free(t);
+    gql_status = 200;
+    free(gql_answer);
+    gql_answer = rei_strdup("{\"data\":{\"repository\":null,\"nightly\":null},\"errors\":[{\"type\":\"NOT_FOUND\","
+                            "\"message\":\"Could not resolve to a Repository with the name 'o/r'.\"}]}");
+    t = age_report(9112, 312, "1111aaa", &id);
+    LACKS(t, "behind main");
+    LACKS(t, "published build"); /* not the commit's fault */
+    free(t);
+    CHECK(gql_asks == 3);
+    /* without a token: nothing asked, a -dirty build still said */
+    a.fetch = NULL;
+    t = age_report(9113, 313, "2222bbb", &id);
+    LACKS(t, "behind main");
+    free(t);
+    t = age_report(9114, 314, "bbbb222-dirty", &id);
+    HAS(t, DIRTY);
+    free(t);
+    CHECK(gql_asks == 3);
+    /* a build without git: nothing to ask */
+    a.fetch = fake_graphql;
+    t = age_report(9115, 315, "unknown", &id);
+    LACKS(t, "published build");
+    free(t);
+    CHECK(gql_asks == 3);
+    tracer.age = NULL;
+    free(gql_answer);
+    free(gql_body);
+    gql_answer = gql_body = NULL;
+}
+
 int main(int argc, char** argv) {
     char *db, *command;
     if (argc == 2) return as_worker(argv[1]);
@@ -1935,6 +2156,7 @@ int main(int argc, char** argv) {
         test_mcp_grep();
         test_worker(argv[0]);
         test_issues();
+        test_age();
     }
     st_close(tracer.store);
     if (getenv("TRACER_TEST_KEEP")) fprintf(stderr, "kept %s\n", site);

@@ -47,12 +47,16 @@ static const char* const UPGRADES[] = {
     "CREATE INDEX asks_poster ON asks(poster, created);",
     /* 6, the GitHub issue an administrator's approval opened */
     "ALTER TABLE reports ADD COLUMN issue INTEGER NOT NULL DEFAULT 0;"
-    "ALTER TABLE reports ADD COLUMN issue_url TEXT;"};
+    "ALTER TABLE reports ADD COLUMN issue_url TEXT;",
+    /* 7, how far a report's build was behind main, and what GitHub said of each commit (age.h) */
+    "ALTER TABLE reports ADD COLUMN age TEXT;"
+    "CREATE TABLE ages(commit_id TEXT PRIMARY KEY, asked REAL NOT NULL, found INTEGER NOT NULL, behind INTEGER NOT"
+    " NULL, days INTEGER NOT NULL, nightly TEXT);"};
 
 /* a report's columns, in the order row_report reads them */
 #define REPORT_COLUMNS                                                                                                 \
     "id, created, guild, channel, message, poster, game, title, named, title_id, note, version, build, commit_id, "    \
-    "branch, system, gpu, driver, outcome, signature, missed, console, issue, issue_url"
+    "branch, system, gpu, driver, outcome, signature, missed, console, issue, issue_url, age"
 
 static void said(Store* s, const char* what) { rei_log("the database, %s: %s", what, sqlite3_errmsg(s->db)); }
 
@@ -142,8 +146,8 @@ int st_add(Store* s, StReport* r, const StFile* files, int nfiles) {
         return -1;
     }
     q = prepared(s, "INSERT INTO reports(created, guild, channel, message, poster, game, title, named, title_id, note,"
-                    " version, build, commit_id, branch, system, gpu, driver, outcome, signature, missed, console)"
-                    " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+                    " version, build, commit_id, branch, system, gpu, driver, outcome, signature, missed, console, age)"
+                    " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
     f = prepared(s, "INSERT INTO files(report, n, kind, name, path, bytes, summary, message) VALUES(?,?,?,?,?,?,?,?)");
     ok = q && f;
     if (ok) {
@@ -168,6 +172,7 @@ int st_add(Store* s, StReport* r, const StFile* files, int nfiles) {
         text_at(q, 19, r->signature);
         text_at(q, 20, r->missed);
         text_at(q, 21, r->console);
+        text_at(q, 22, r->age);
         ok = sqlite3_step(q) == SQLITE_DONE;
         if (!ok) said(s, "a report added");
     }
@@ -553,6 +558,7 @@ static void row_report(sqlite3_stmt* q, StReport* r) {
     r->console = text_of(q, 21);
     r->issue = (long)sqlite3_column_int64(q, 22);
     r->issue_url = text_of(q, 23);
+    r->age = text_of(q, 24);
 }
 
 int st_get(Store* s, long id, StReport* r, StFile** files, int* nfiles) {
@@ -674,7 +680,49 @@ void st_report_free(StReport* r) {
     free(r->missed);
     free(r->console);
     free(r->issue_url);
+    free(r->age);
     memset(r, 0, sizeof *r);
+}
+
+int st_age(Store* s, const char* commit, StAge* a) {
+    sqlite3_stmt* q = prepared(s, "SELECT asked, found, behind, days, nightly FROM ages WHERE commit_id = ?");
+    int step;
+    memset(a, 0, sizeof *a);
+    if (!q) return -1;
+    sqlite3_bind_text(q, 1, commit, -1, SQLITE_TRANSIENT);
+    step = sqlite3_step(q);
+    if (step == SQLITE_ROW) {
+        a->asked = sqlite3_column_double(q, 0);
+        a->found = sqlite3_column_int(q, 1);
+        a->behind = (long)sqlite3_column_int64(q, 2);
+        a->days = (long)sqlite3_column_int64(q, 3);
+        a->nightly = text_of(q, 4);
+    } else if (step != SQLITE_DONE)
+        said(s, "a commit's age read");
+    sqlite3_finalize(q);
+    return step == SQLITE_ROW ? 1 : step == SQLITE_DONE ? 0 : -1;
+}
+
+int st_set_age(Store* s, const char* commit, const StAge* a) {
+    sqlite3_stmt* q = prepared(s, "INSERT OR REPLACE INTO ages(commit_id, asked, found, behind, days, nightly)"
+                                  " VALUES(?,?,?,?,?,?)");
+    int ok;
+    if (!q) return -1;
+    sqlite3_bind_text(q, 1, commit, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_double(q, 2, a->asked);
+    sqlite3_bind_int(q, 3, a->found);
+    sqlite3_bind_int64(q, 4, a->behind);
+    sqlite3_bind_int64(q, 5, a->days);
+    text_at(q, 6, a->nightly);
+    ok = sqlite3_step(q) == SQLITE_DONE;
+    if (!ok) said(s, "a commit's age kept");
+    sqlite3_finalize(q);
+    return ok ? 0 : -1;
+}
+
+void st_age_free(StAge* a) {
+    free(a->nightly);
+    memset(a, 0, sizeof *a);
 }
 void st_files_free(StFile* f, int n) {
     int i;
