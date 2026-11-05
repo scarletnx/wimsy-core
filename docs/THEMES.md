@@ -55,9 +55,9 @@ that is none of those reads as Sepia and Auto. Default has no light, so it ignor
   that menu take the room between and puts the picker at its end, beside Sign In; overriding `base/head_navbar.tmpl`
   whole would do the same and break on each upgrade that changes that file. Both templates read the cookie through
   `.Context.GetSiteCookie`, which Forgejo 17 gives every page; look at it, and at the navbar's classes, before an
-  upgrade. Settings > Appearance still lists the themes by their ids. The navbar's logo and the start page's Wimsy
-  are the picked theme's too (Sepia's AccordWimsy when none is picked): `header.tmpl` hides Forgejo's logo image and
-  draws the theme's behind it, and `home.tmpl` links the theme's.
+  upgrade. Settings > Appearance still lists the themes by their ids. The navbar's logo is the picked theme's too
+  (Sepia's AccordWimsy when none is picked): `header.tmpl` hides Forgejo's logo image and draws the theme's behind it.
+  The start page's big Wimsy is always the default one (`img/wimsy.svg`), whatever the theme.
 - **Status page**: Gatus reads no cookie. In the status jail nginx stands in front of it (127.0.0.1:8090 to Gatus's
   8080): it gives `/css/custom.css` from `/usr/local/www/status-sws/<theme>.css`, the page linking it as
   `custom.css?sws=<theme>` for the same reason, gives the page's logo as the theme's Wimsy (Gatus writes the logo's
