@@ -20,7 +20,7 @@ What CI runs on each pull request and each push to main. No network and no Disco
   the program's lock and usage.
 - Tracer (`tracer/tests/test_tracer.c`, no Concord, no libcurl), through a fake download into a database and a site in a
   temporary folder: the events and what a message asks, which files are logs and screenshots, the logs unpacked from a
-  `.gz` and a `.zip`, the screenshots' metadata taken out (PNG, JPEG, WebP) and broken ones refused, text made valid
+  `.gz` and a `.zip`, the screenshots' metadata taken out (PNG, JPEG, WebP, GIF) and broken ones refused, text made valid
   UTF-8, the game a log names (and the older builds' titles, a garbled one, a name in another script), the crash
   report's dumps left out of a log as the log summary leaves them out, and whole reports: kept with their home folders
   as `~`, drawn with everything escaped, the same message again, refusals, updates (by a reply or `add N`, refused to
@@ -37,9 +37,10 @@ report already), a database of the first schema upgraded, a deleted message, a r
   report's build is, through a fake GitHub (behind main, the plurals, a commit asked once an hour, -dirty and a commit
   the repository lacks, no line at main or the newest nightly, GitHub silent or refusing, no token, no git); the
   worker (the test program run as one: a report through it, its environment without the token, one that crashes, one
-  that never answers, one gone before it reads, one that names a host file); and the MCP server over that site: its
-  handshake and protocol versions, notifications, broken and unknown requests, and each tool's filters, limits and
-  errors.
+  that never answers, one gone before it reads, one that names a host file, one that reads the bot's environment
+  before the bot keeps it from its user's debuggers and not after, no worker for a message without files); and the MCP
+  server over that site: its handshake and protocol versions, notifications, broken and unknown requests, each tool's
+  filters, limits and errors, and a query's 16 words at most.
 - The docs (`scripts/check-docs.sh`): no date in `README.md` and `docs/*.md` outside code, as a doc says what is and
   the commit message says when; `scripts/test-check-docs.sh` holds the check to dates in text, in code and none.
 

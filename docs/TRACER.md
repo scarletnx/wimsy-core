@@ -7,9 +7,12 @@
 the game reports that people send it on Discord and draws them as a static site, grouped by game.
 
 A message that mentions it with a ScarletNX log attached becomes a report. Its files are read by a worker: the bot runs
-itself again (`tracer --report`) for each message, without its settings or its token in the environment, within 1 GiB
-of memory, 120 s of processor, 600 s in all and 128 MiB a file, so that a file that crashes or stalls its reader costs
-that report alone. The worker's answer is checked before any of its files moves from the work folder (`work/` beside
+itself again (`tracer --report`) for each message that has files, without its settings or its token in the
+environment, within 1 GiB of memory, 120 s of processor, 600 s in all and 128 MiB a file, so that a file that crashes
+or stalls its reader costs that report alone. A worker runs as the bot's user, and the bot keeps its own memory and
+environment, where its tokens are, from debuggers of that user (not dumpable on Linux, `PROC_TRACE_CTL` on FreeBSD:
+no ptrace, no `/proc/<pid>/environ` or `kern.proc.env`), so that a worker a file took over cannot read them; it does not
+start without that. The worker's answer is checked before any of its files moves from the work folder (`work/` beside
 the database) into the site. A report keeps:
 
 - Its logs (`.log`, `.txt`, or one packed in a `.gz` or a `.zip`; 3 at most, 64 MiB each) are downloaded from Discord,
@@ -20,8 +23,8 @@ the database) into the site. A report keeps:
   and GPU, how the run ended and where, the service commands and what else the runtime missed, the last lines. A file
   that is no ScarletNX log is named in the reply and not kept.
 - Its screenshots (PNG, JPEG, WebP, GIF or PPM, read from their bytes; 8 at most, 25 MiB each) lose their metadata:
-  EXIF and its place and camera, XMP, PNG's text and time, JPEG's comments, and what follows a JPEG's end (a phone's
-  motion photo video, a maker's trailer). A PPM, the frames ScarletNX's runtimes save (P6, 8 bits a channel), is kept
+  EXIF and its place and camera, XMP, PNG's text and time, JPEG's and GIF's comments, a GIF's applications' data but
+  its loop, and what follows a JPEG's or a GIF's end (a phone's motion photo video, a maker's trailer). A PPM, the frames ScarletNX's runtimes save (P6, 8 bits a channel), is kept
   as a PNG, which a browser shows.
 - Its videos (MP4 or WebM, read from their bytes; 2 at most, 100 MiB each) are played on the report's page. An MP4's
   place, time and camera (its udta and meta boxes whole, where a phone keeps them under its own keys, XMP's uuid box,
@@ -146,7 +149,8 @@ addresses match only the game version it names, and only a copy of that version 
 that failed a `symbolize` object (its title ID, game version and game addresses) for ScarletNX's own MCP server
 (`scarletnx --mcp`) on a machine that has the game, its `find_game` then `symbolize` or `disassemble`. Tracer keeps no
 game code, not even the bytes a crash report dumps: nothing of a game goes to a server that is not its owner's. A
-browser's request whose Origin is another site's gets 403; a request over 1 MiB, 413.
+browser's request whose Origin is another site's gets 403; a request over 1 MiB, 413. A query of more than 16 words is
+refused with their count, and each word and filter is searched for in time linear in what it is searched in.
 
 Its settings, in the environment (`tracer_mcp_url`, `tracer_mcp_site` and `tracer_mcp_listen` in rc.conf):
 `TRACER_URL` (needed), `TRACER_SITE` (the site's folder, `/var/db/tracer-site`), `TRACER_MCP_LISTEN` (an IPv4 address

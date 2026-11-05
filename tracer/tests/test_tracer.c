@@ -3,7 +3,11 @@
 /* Tracer without Discord or the network: what a message asks, which files are logs and screenshots, the screenshots'
    metadata taken out, the logs unpacked, the game a log names, and whole reports kept, drawn, refused and deleted
    through a fake download into a database and a site of a temporary folder */
+#if defined(__FreeBSD__) /* sys/procctl.h's structures are of BSD types (u_int), which _POSIX_C_SOURCE hides */
+#undef _POSIX_C_SOURCE
+#else
 #define _POSIX_C_SOURCE 200809L
+#endif
 #include <archive.h>
 #include <archive_entry.h>
 #include <sqlite3.h>
@@ -13,9 +17,13 @@
 #include <dirent.h>
 #include <signal.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 #include <zlib.h>
+#if defined(__FreeBSD__)
+#include <sys/procctl.h>
+#endif
 
 #include "common/utilities/demangle.h"
 #include "common/utilities/logscan.h"
@@ -446,7 +454,50 @@ static void test_images(void) {
         CHECK(tr_ppm_png("GIF89a...", 9, &out));
         buf_free(&out);
     }
-    CHECK(tr_strip_image("GIF89a...", 9) == 9);
+    { /* a GIF keeps its picture and its loop, not a comment, an editor's XMP or what follows its end */
+        static const char head[] = "GIF89a\1\0\1\0\x80\0\0" /* 1x1, a global table of 2 colours */
+                                   "\0\0\0\xff\xff\xff";
+        static const char loop[] = "\x21\xff\x0bNETSCAPE2.0\x03\x01\0\0\0";
+        static const char note[] = "\x21\xfe\x05where\0";
+        static const char xmp[] = "\x21\xff\x0bXMP DataXMP\x04GPS!\0";
+        static const char frame[] = "\x21\xf9\x04\0\0\0\0\0"                    /* its control */
+                                    "\x2c\0\0\0\0\1\0\1\0\0\x02\x02\x44\x01\0"; /* the image */
+        char gif[256], want[256];
+        size_t gn = 0, gw = 0;
+#define PUT(to, at, part)                                                                                              \
+    do {                                                                                                               \
+        memcpy(to + at, part, sizeof part - 1);                                                                        \
+        at += sizeof part - 1;                                                                                         \
+    } while (0)
+        PUT(gif, gn, head);
+        PUT(gif, gn, loop);
+        PUT(gif, gn, note);
+        PUT(gif, gn, xmp);
+        PUT(gif, gn, frame);
+        PUT(gif, gn,
+            "\x3b"
+            "MOTION");
+        PUT(want, gw, head);
+        PUT(want, gw, loop);
+        PUT(want, gw, frame);
+        PUT(want, gw, "\x3b");
+#undef PUT
+        CHECK(tr_strip_image(gif, gn) == gw && !memcmp(gif, want, gw));
+        CHECK(!found(gif, gw, "where") && !found(gif, gw, "GPS") && !found(gif, gw, "MOTION"));
+        CHECK(!tr_strip_image("GIF89a...", 9)); /* its screen cut short */
+        memcpy(gif, want, gw);
+        CHECK(tr_strip_image(gif, gw - 1) == gw - 1 && !memcmp(gif, want, gw - 1)); /* no trailer: as it is */
+        memcpy(gif, want, gw - 1);
+        memcpy(gif + gw - 1, "\x21\xfe\x05wh", 5); /* a comment cut short after the image: what came before */
+        CHECK(tr_strip_image(gif, gw + 4) == gw && !memcmp(gif, want, gw));
+        memcpy(gif, want, gw);
+        CHECK(!tr_strip_image(gif, gw - 3)); /* its only image cut short */
+        memcpy(gif, want, gw);
+        CHECK(!tr_strip_image(gif, sizeof head - 1 + sizeof loop - 3)); /* a block cut short before any image */
+        memcpy(gif, want, gw);
+        gif[sizeof head - 1] = 0x42; /* no block of a GIF's */
+        CHECK(!tr_strip_image(gif, gw));
+    }
     CHECK(!tr_image_ext("<svg>", 5));
 }
 
@@ -1126,6 +1177,30 @@ static void test_mcp(void) {
     t = call(&m, "search_reports", "{\"signature\":\"GetNpadJoyHoldType\",\"gpu\":\"some gpu\",\"query\":\"#2\"}");
     HAS(t, "\\\"matched\\\":1");
     free(t);
+    { /* a query's words: 16 at most, each found in time linear in a report's fields */
+        Buf words = {0}, args = {0};
+        int i;
+        for (i = 0; i < MCP_WORDS; ++i) buf_add(&words, i % 2 ? " svcbreak" : " SOME");
+        buf_printf(&args, "{\"query\":\"%s\"}", words.text);
+        t = call(&m, "search_reports", args.text);
+        HAS(t, "\\\"matched\\\":12");
+        free(t);
+        t = call(&m, "list_games", args.text);
+        HAS(t, "\\\"count\\\":1");
+        free(t);
+        buf_add(&words, " game");
+        buf_free(&args);
+        buf_printf(&args, "{\"query\":\"%s\"}", words.text);
+        t = call(&m, "search_reports", args.text);
+        HAS(t, "query has 17 words: 16 at most");
+        HAS(t, "\"isError\":true");
+        free(t);
+        t = call(&m, "list_games", args.text);
+        HAS(t, "query has 17 words: 16 at most");
+        free(t);
+        buf_free(&args);
+        buf_free(&words);
+    }
     t = call(&m, "get_report", "{\"id\":2}");
     HAS(t, "https://reports.example/r/2/1.log");
     HAS(t, "\\\"summary\\\":{");
@@ -1392,6 +1467,15 @@ static void test_titles(void) {
 }
 
 /* the hourly limit counts what was asked: reports deleted since, files that were no log, and updates */
+/* the workers a message got: tr_take here, counted */
+static int takes;
+static int counted_take(void* ctx, Tracer* t, const TrMessage* m, Taken* k, char** why) {
+    (void)ctx;
+    *why = NULL;
+    ++takes;
+    tr_take(t, k, m);
+    return 0;
+}
 static void test_limits(void) {
     TrMessage m;
     char* t;
@@ -1422,11 +1506,15 @@ static void test_limits(void) {
         tr_message_free(&m);
     }
     CHECK(downloads == TR_HOURLY);
-    m = message(2500, 80, "<@99>"); /* no file: nothing to download, nothing counted */
+    m = message(2500, 80, "<@99>"); /* no file: nothing to download, nothing counted, no worker */
+    tracer.take = counted_take;
+    takes = 0;
     t = answer_text(respond(&m));
     HAS(t, "Attach the game's ScarletNX log");
     free(t);
     tr_message_free(&m);
+    CHECK(takes == 0);
+    tracer.take = NULL;
     {
         long made;
         m = message(2501, 80, "<@99>");
@@ -1438,7 +1526,11 @@ static void test_limits(void) {
         for (i = 1; i <= TR_HOURLY; ++i) {
             char* add = rei_format("<@99> add %ld a note", made);
             m = message(2501 + (u64)i, 80, add);
+            tracer.take = counted_take;
+            takes = 0;
             t = answer_text(respond(&m));
+            CHECK(takes == 0); /* a note alone: no worker either */
+            tracer.take = NULL;
             HAS(t, i < TR_HOURLY ? "a note" : "in the last hour");
             free(t);
             tr_message_free(&m);
@@ -1856,6 +1948,16 @@ static int as_worker(const char* how) {
     if (!strcmp(how, "--env"))
         printf("{\"logs\":0,\"images\":0,\"files\":[],\"skipped\":\"TRACER_TOKEN %s, HOME %s\"}",
                getenv("TRACER_TOKEN") ? "seen" : "none", getenv("HOME") ? "seen" : "none");
+#if defined(__linux__)
+    if (!strcmp(how, "--peek")) { /* a worker taken over: the bot's environment, where its tokens are, read */
+        char* path = rei_format("/proc/%ld/environ", (long)getppid());
+        FILE* f = fopen(path, "rb");
+        int c = f ? fgetc(f) : EOF;
+        printf("{\"logs\":0,\"images\":0,\"files\":[],\"skipped\":\"%s\"}", c != EOF ? "read" : "kept");
+        if (f) fclose(f);
+        free(path);
+    }
+#endif
     if (!strcmp(how, "--lie")) /* a worker taken over: a file of the host as a report's */
         printf("{\"logs\":0,\"images\":1,\"files\":[{\"n\":1,\"kind\":\"image\",\"name\":\"x.png\","
                "\"path\":\"1.png\",\"taken\":\"/etc/passwd\"}]}");
@@ -1983,6 +2085,60 @@ static void test_worker(const char* self_path) {
     worker_argv[1] = "--report";
     tracer.take = NULL;
     CHECK(waiting_files() == 0);
+}
+
+/* the bot kept from its workers' debugging: in a process of its own, as nothing gives that back (and LeakSanitizer
+   needs it). Linux: a worker reads its parent's /proc environ before, and not after; FreeBSD: tracing disabled */
+static void test_untraceable(const char* self_path) {
+#if defined(__linux__)
+    int kept;
+    if (!geteuid()) { /* root reads every process's */
+        fputs("tracer: the bot kept from its workers: not tried as root, whom nothing keeps out\n", stderr);
+        return;
+    }
+    for (kept = 0; kept < 2; ++kept) {
+        int status = -1;
+        pid_t pid;
+        fflush(NULL);
+        if (!(pid = fork())) {
+            TrMessage m = message(7004, 134, "<@99>");
+            Taken k;
+            char* why = NULL;
+            int read, said;
+            if (kept && wk_untraceable(&why)) _exit(3);
+            memset(&k, 0, sizeof k);
+            k.dir = rei_format("%s/work/take.XXXXXX", site);
+            if (!mkdtemp(k.dir)) _exit(4);
+            worker_argv[0] = (char*)self_path;
+            worker_argv[1] = "--peek";
+            if (wk_take(worker_argv, 20, &m, &k, &why)) _exit(5);
+            read = k.skipped.text && !strcmp(k.skipped.text, "read");
+            said = read || (k.skipped.text && !strcmp(k.skipped.text, "kept"));
+            tr_taken_free(&k);
+            _exit(read ? 1 : said ? 0 : 6);
+        }
+        CHECK(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status));
+        if (WEXITSTATUS(status) != !kept)
+            fprintf(stderr, "  a worker %s its bot's environment (%d)\n",
+                    kept ? "read, after wk_untraceable," : "could not read, before wk_untraceable,",
+                    WEXITSTATUS(status));
+        CHECK(WIFEXITED(status) && WEXITSTATUS(status) == !kept);
+    }
+#elif defined(__FreeBSD__)
+    int status = -1;
+    pid_t pid;
+    (void)self_path;
+    fflush(NULL);
+    if (!(pid = fork())) {
+        char* why;
+        int traced = 0;
+        if (wk_untraceable(&why)) _exit(3);
+        _exit(procctl(P_PID, getpid(), PROC_TRACE_STATUS, &traced) ? 4 : traced == -1 ? 0 : 1);
+    }
+    CHECK(pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0);
+#else
+    (void)self_path;
+#endif
 }
 
 /* ---- the issues ---- */
@@ -2424,6 +2580,7 @@ int main(int argc, char** argv) {
         test_replies();
         test_mcp_grep();
         test_worker(argv[0]);
+        test_untraceable(argv[0]);
         test_issues();
         test_age();
     }

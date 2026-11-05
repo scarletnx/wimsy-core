@@ -386,6 +386,10 @@ int main(int argc, char** argv) {
         curl_global_cleanup();
         return failed;
     }
+    { /* before anything else: its workers, which read what strangers send, never read its tokens */
+        char* why;
+        if (wk_untraceable(&why)) stop("its tokens could not be kept from its workers: %s", why);
+    }
     if (argc != 1) stop("%s takes no argument: its settings are in its environment (the env file)", argv[0]);
     if (argv[0][0] != '/') stop("%s is not run by its full path, which its workers need", argv[0]);
     again[0] = argv[0];
@@ -436,6 +440,9 @@ int main(int argc, char** argv) {
         rei_log("%s", said);
         free(said);
     }
+    rei_log("workers: %s --report reads each report's files, without the settings, the tokens and this process's "
+            "memory",
+            argv[0]);
     if (site_assets(env.assets, env.site)) stop("the site's files could not be copied from %s", env.assets);
     if (!env.titles)
         rei_log("TRACER_TITLES is not set: no list of games' names, a game its logs don't name keeps its title ID");

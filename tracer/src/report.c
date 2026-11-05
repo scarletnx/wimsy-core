@@ -482,9 +482,11 @@ void tr_take(Tracer* t, Taken* k, const TrMessage* m) {
     }
 }
 
-/* m's files taken into k, its folder made in t->work: 0, or -1 said in the log (k freed by the caller) */
+/* m's files taken into k, its folder made in t->work: 0, or -1 said in the log (k freed by the caller). A message
+   without files gets no folder and no worker, which anyone's mention would cost otherwise */
 static int fetched(Tracer* t, const TrMessage* m, Taken* k) {
     char* why = NULL;
+    if (!m->nfiles) return 0;
     k->dir = rei_format("%s/take.XXXXXX", t->work);
     if (!mkdtemp(k->dir)) {
         rei_log("a folder for message %llu's files could not be made in %s: %s", (unsigned long long)m->id, t->work,
