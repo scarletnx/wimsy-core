@@ -7,7 +7,8 @@
 #   sh scripts/install.sh JAIL PACKAGE...      e.g. sh scripts/install.sh discordbots packages/reiwimsy-1.0.0.pkg
 #
 # Each package's dependencies come from the jail's own package repository (pkg install), the package itself is added
-# from its file (pkg add), and a service of it that was running is restarted on the new program. A service is never
+# from its file (pkg add), and each service of it (an rc script it installs) that was running in that jail is restarted
+# on the new program: tracer_mcp in the jail that serves Tracer's site, where tracer does not run. A service is never
 # turned on here: its env file is filled in first (docs/INSTALL.md). A jail of a guard group (noirjail.sh) trips on the
 # processes this starts: pause the group first, and let it learn after.
 set -eu
@@ -25,13 +26,16 @@ for file in "$@"; do
 	[ -f "$file" ] || { echo "$file: no such package file" >&2; exit 1; }
 	name=$(pkg query -F "$file" %n)
 	deps=$(pkg query -F "$file" %dn)
+	files=$(pkg query -F "$file" %Fp)
 	[ -z "$deps" ] || jexec "$jail" pkg install -y $deps
 	base=$(basename "$file")
 	install -m 644 "$file" "$root/tmp/$base"
 	jexec "$jail" pkg add -f "/tmp/$base"
 	rm "$root/tmp/$base"
-	if [ -x "$root/usr/local/etc/rc.d/$name" ] && jexec "$jail" service "$name" status > /dev/null 2>&1; then
-		jexec "$jail" service "$name" restart
-	fi
+	for service in $(printf '%s\n' "$files" | sed -n 's|^/usr/local/etc/rc\.d/||p'); do
+		if jexec "$jail" service "$service" status > /dev/null 2>&1; then
+			jexec "$jail" service "$service" restart
+		fi
+	done
 	echo "$jail: $(jexec "$jail" pkg query '%n %v' "$name") installed"
 done

@@ -57,7 +57,8 @@ then into a jail:
     sh scripts/install.sh discordbots packages/reiwimsy-$(cat VERSION).pkg
 
 `scripts/install.sh JAIL PACKAGE...` installs each package's dependencies from the jail's package repository, adds
-the package from its file, and restarts its service when it was running. It turns no service on. A jail that reaches no
+the package from its file, and restarts each of its services (the rc scripts it installs) that was running in that
+jail. It turns no service on. A jail that reaches no
 package repository installs from one of the host's instead (`noirjail.sh jail pkg --name JAIL accordwimsy`, from its
 poudriere repository). A jail of a guard group trips on any process started in it: the group is paused first and
 learns after ([Forge](./FORGE.md#the-guard)).
@@ -186,11 +187,10 @@ What someone has to see goes to `accordwimsy.err`; noirjail.sh's `JAIL_LOG_MAIL`
 
 ## Upgrade and removal
 
-A new version: build the packages again and run `scripts/install.sh` again for each jail. It restarts the service
-named as the package when it was running: ReiWimsy's and Tracer's start again on the new program. In `tracerweb` that
-service, `tracer`, does not run, so tracer-mcp goes on with the old program until `service -j tracerweb tracer_mcp
-restart`. AccordWimsy's next pass runs the new one (in `gitsync`, `noirjail.sh jail pkg --name gitsync accordwimsy`
-with the group paused, from the host's repository). Removal, for each:
+A new version: build the packages again and run `scripts/install.sh` again for each jail. Each of the package's
+services that was running in that jail starts again on the new program: `reiwimsy` in `discordbots`, `tracer` in
+`tracer`, `tracer_mcp` in `tracerweb`. AccordWimsy's next pass runs the new one (in `gitsync`, `noirjail.sh jail pkg
+--name gitsync accordwimsy` with the group paused, from the host's repository). Removal, for each:
 
     service -j discordbots reiwimsy stop
     pkg -j discordbots delete reiwimsy
