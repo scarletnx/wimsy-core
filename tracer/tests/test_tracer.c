@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -1958,6 +1959,12 @@ static int as_worker(const char* how) {
         free(path);
     }
 #endif
+    if (!strcmp(how, "--fds")) { /* the bot's files, which the bot left open at a high descriptor: closed by wk_limit */
+        int was = fcntl(900, F_GETFD) != -1;
+        wk_limit();
+        printf("{\"logs\":0,\"images\":0,\"files\":[],\"skipped\":\"%s, %s\"}", was ? "open" : "none",
+               fcntl(900, F_GETFD) != -1 ? "open" : "closed");
+    }
     if (!strcmp(how, "--lie")) /* a worker taken over: a file of the host as a report's */
         printf("{\"logs\":0,\"images\":1,\"files\":[{\"n\":1,\"kind\":\"image\",\"name\":\"x.png\","
                "\"path\":\"1.png\",\"taken\":\"/etc/passwd\"}]}");
@@ -2074,6 +2081,16 @@ static void test_worker(const char* self_path) {
         SAME(why, "its answer is no JSON object");
         free(why);
         tr_message_free(&big);
+    }
+    { /* a descriptor of the bot's, open in the worker until wk_limit closes it */
+        int keep = open("/dev/null", O_RDONLY);
+        CHECK(keep >= 0 && dup2(keep, 900) == 900);
+        worker_argv[1] = "--fds";
+        CHECK(!wk_take(worker_argv, 20, &m, &k, &why));
+        SAME(k.skipped.text, "open, closed");
+        buf_free(&k.skipped);
+        close(900);
+        close(keep);
     }
     worker_argv[1] = "--lie";
     CHECK(wk_take(worker_argv, 20, &m, &k, &why) == -1);

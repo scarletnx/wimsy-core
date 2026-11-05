@@ -1,7 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
    Copyright 2026 the ScarletNX contributors */
-#if defined(__FreeBSD__) /* sys/procctl.h's structures are of BSD types (u_int), which _POSIX_C_SOURCE hides */
+#if defined(__FreeBSD__) /* sys/procctl.h's structures (u_int) and closefrom are BSD's, which _POSIX_C_SOURCE hides */
 #undef _POSIX_C_SOURCE
+#elif defined(__linux__) /* closefrom is glibc's too, since 2.34 */
+#define _DEFAULT_SOURCE
 #endif
 #include "worker.h"
 #include <errno.h>
@@ -62,10 +64,17 @@ void wk_limit(void) {
     r.rlim_cur = r.rlim_max = WK_MEMORY;
     setrlimit(RLIMIT_AS, &r);
 #endif
-    /* the bot's open files (its gateway, its database) are not the worker's: all but the standard three closed */
+    /* the bot's open files (its gateway, its database) are not the worker's: all but the standard three closed, at
+       once where the system can, as one close a descriptor the limit allows takes 115 ms at devola's 463221 */
+#if defined(__FreeBSD__) || (defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 34)))
+    (void)fd;
+    (void)top;
+    closefrom(3);
+#else
     top = getrlimit(RLIMIT_NOFILE, &r) || r.rlim_cur == RLIM_INFINITY || r.rlim_cur > (1 << 20) ? (1 << 20)
                                                                                                 : (long)r.rlim_cur;
     for (fd = 3; fd < top; ++fd) close((int)fd);
+#endif
 }
 
 int wk_untraceable(char** why) {
