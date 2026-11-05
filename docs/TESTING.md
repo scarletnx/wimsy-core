@@ -38,9 +38,9 @@ report already), a database of the first schema upgraded, a deleted message, a r
   the repository lacks, no line at main or the newest nightly, GitHub silent or refusing, no token, no git); the
   worker (the test program run as one: a report through it, its environment without the token, one that crashes, one
   that never answers, one gone before it reads, one that names a host file, one that reads the bot's environment
-  before the bot keeps it from its user's debuggers and not after, no worker for a message without files); and the MCP
-  server over that site: its handshake and protocol versions, notifications, broken and unknown requests, each tool's
-  filters, limits and errors, and a query's 16 words at most.
+  before the bot keeps it from its user's debuggers and not after, the bot's descriptors closed in it, no worker for a
+  message without files); and the MCP server over that site: its handshake and protocol versions, notifications,
+  broken and unknown requests, each tool's filters, limits and errors, and a query's 16 words at most.
 - The docs (`scripts/check-docs.sh`): no date in `README.md` and `docs/*.md` outside code, as a doc says what is and
   the commit message says when; `scripts/test-check-docs.sh` holds the check to dates in text, in code and none.
 
