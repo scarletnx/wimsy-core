@@ -22,8 +22,8 @@ CI runs. Building: [Build](./BUILD.md); the tests: [Testing](./TESTING.md).
 | `dist/status/`, `dist/forge/` | the [status page](./STATUS.md) and the [forge](./FORGE.md)'s start page |
 | `scripts/` | `install.sh`, `make-titles.py`, `sync-logscan.sh`, `check-docs.py`, and the tests of the first and the last |
 
-Tracer builds ReiWimsy's `util.c`, `http.c` and `rest.c` again as its own, and AccordWimsy builds ReiWimsy's cJSON: a
-change there is a change to all of them, and every program's tests run it.
+Tracer builds ReiWimsy's `util.c`, `http.c`, `rest.c` and `watch.c` again as its own, and AccordWimsy builds
+ReiWimsy's cJSON: a change there is a change to all of them, and every program's tests run it.
 
 ## Rules
 

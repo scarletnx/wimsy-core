@@ -36,9 +36,9 @@ LOGIC = src/message.o src/files.o src/store.o src/site.o src/report.o src/titles
 
 all: tracer tracer-mcp
 
-tracer: $(LOGIC) src/rei_http.o src/rei_rest.o src/fetch.o src/main.o
-	$(CC) $(CFLAGS) -o $@ $(LOGIC) src/rei_http.o src/rei_rest.o src/fetch.o src/main.o $(CONCORD)/lib/libdiscord.a \
-		$(CURL_LIBS) $(LIBS)
+tracer: $(LOGIC) src/rei_http.o src/rei_rest.o src/rei_watch.o src/fetch.o src/main.o
+	$(CC) $(CFLAGS) -o $@ $(LOGIC) src/rei_http.o src/rei_rest.o src/rei_watch.o src/fetch.o src/main.o \
+		$(CONCORD)/lib/libdiscord.a $(CURL_LIBS) $(LIBS)
 
 tracer-mcp: src/mcp.o src/mcp_main.o src/rei_util.o third_party/cjson.o
 	$(CC) $(CFLAGS) -o $@ src/mcp.o src/mcp_main.o src/rei_util.o third_party/cjson.o $(MHD_LIBS) -lm
@@ -50,6 +50,7 @@ test-gateway: tracer
 	sh $(REI)/tests/test_gateway.sh tracer ./tracer
 	sh $(REI)/tests/test_gateway.sh tracer-all ./tracer
 	sh $(REI)/tests/test_gateway.sh tracer-zombie ./tracer
+	sh $(REI)/tests/test_gateway.sh tracer-unready ./tracer
 
 tests/test_tracer: $(LOGIC) tests/test_tracer.c
 	$(CC) $(CFLAGS) $(OURS) $(SQLITE_CFLAGS) -o $@ tests/test_tracer.c $(LOGIC) $(LIBS)
@@ -83,7 +84,7 @@ src/fetch.o: src/fetch.c src/fetch.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) $(CURL_CFLAGS) -c -o $@ src/fetch.c
 # Concord's headers are not ours: their warnings are theirs
 src/main.o: src/main.c $(LOGSCAN_FILES) src/age.h src/channels.h src/issues.h src/worker.h src/fetch.h src/report.h \
-		src/site.h src/store.h src/message.h src/tracer.h
+		src/site.h src/store.h src/message.h src/tracer.h $(REI)/src/watch.h
 	$(CC) $(CFLAGS) $(OURS) $(CURL_CFLAGS) -isystem $(CONCORD)/include/concord -c -o $@ src/main.c
 src/rei_util.o: $(REI)/src/util.c $(REI)/src/rei.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ $(REI)/src/util.c
@@ -91,6 +92,8 @@ src/rei_http.o: $(REI)/src/http.c $(REI)/src/http.h $(REI)/src/rei.h
 	$(CC) $(CFLAGS) $(OURS) $(CURL_CFLAGS) -c -o $@ $(REI)/src/http.c
 src/rei_rest.o: $(REI)/src/rest.c $(REI)/src/rest.h $(REI)/src/rei.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ $(REI)/src/rest.c
+src/rei_watch.o: $(REI)/src/watch.c $(REI)/src/watch.h $(REI)/src/rei.h
+	$(CC) $(CFLAGS) $(OURS) $(CURL_CFLAGS) -isystem $(CONCORD)/include/concord -c -o $@ $(REI)/src/watch.c
 # cJSON and the log summary as their projects build them
 third_party/cjson.o: $(REI)/third_party/cjson/cJSON.c $(REI)/third_party/cjson/cJSON.h
 	$(CC) $(CFLAGS) -std=c89 -c -o $@ $(REI)/third_party/cjson/cJSON.c
@@ -100,6 +103,7 @@ third_party/demangle.o: third_party/logscan/common/utilities/demangle.c
 	$(CC) $(CFLAGS) -std=c99 -Ithird_party/logscan -c -o $@ third_party/logscan/common/utilities/demangle.c
 
 clean:
-	rm -f $(LOGIC) src/rei_http.o src/rei_rest.o src/fetch.o src/main.o src/mcp_main.o tracer tracer-mcp tests/test_tracer
+	rm -f $(LOGIC) src/rei_http.o src/rei_rest.o src/rei_watch.o src/fetch.o src/main.o src/mcp_main.o tracer tracer-mcp \
+		tests/test_tracer
 
 .PHONY: all test test-gateway clean

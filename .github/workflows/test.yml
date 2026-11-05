@@ -60,3 +60,4 @@ jobs:
       - run: sudo sh rei/tests/test_gateway.sh tracer tracer/tracer
       - run: sudo sh rei/tests/test_gateway.sh tracer-all tracer/tracer
       - run: sudo sh rei/tests/test_gateway.sh tracer-zombie tracer/tracer
+      - run: sudo sh rei/tests/test_gateway.sh tracer-unready tracer/tracer
