@@ -48,6 +48,7 @@ test: tests/test_tracer
 
 test-gateway: tracer
 	sh $(REI)/tests/test_gateway.sh tracer ./tracer
+	sh $(REI)/tests/test_gateway.sh tracer-all ./tracer
 
 tests/test_tracer: $(LOGIC) tests/test_tracer.c
 	$(CC) $(CFLAGS) $(OURS) $(SQLITE_CFLAGS) -o $@ tests/test_tracer.c $(LOGIC) $(LIBS)

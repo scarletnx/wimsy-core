@@ -11,9 +11,10 @@ The gateway sends HELLO, answers IDENTIFY with READY and each heartbeat with its
 replies, below) it closes with 1001, as Discord going away, and from then on GET /gateway/bot gets its connection
 closed with no answer.
 
-replies: once READY is sent, someone's reply that mentions the bot and brings no file, to message 50 of channel 6,
-which has a ScarletNX log and no mention (the REST API gives it; the CDN, its log); once the bot has answered it,
-another person's reply to the same message.
+replies: once READY is sent, a mention asking for help in channel 7 (which Tracer answers only with
+TRACER_CHANNELS=all), then someone's reply that mentions the bot and brings no file, to message 50 of channel 6, which
+has a ScarletNX log and no mention (the REST API gives it; the CDN, its log); once the bot has answered it, another
+person's reply to the same message.
 
 cards, for reiwimsy --fix-cards: the nightly channel 5 holds two of the bot's cards saying "Building" from five hours
 ago, a commit inside a push (B) and that push's head (C), whose build failed; one of its cards saying something else,
@@ -221,16 +222,23 @@ async def gateway(reader, writer, headers):
         writer.close()
 
     async def replies():
-        for seq, (message, author) in enumerate((("60", "8"), ("61", "9")), start=2):
+        elsewhere = dict(reply("70", "10"), channel_id="7", content="<@" + ME["id"] + "> help")
+        del elsewhere["message_reference"]
+        send({"op": 0, "t": "MESSAGE_CREATE", "s": 2, "d": elsewhere})
+        say("gateway: MESSAGE_CREATE 70, a mention asking for help in channel 7")
+        for seq, (message, author) in enumerate((("60", "8"), ("61", "9")), start=3):
             send({"op": 0, "t": "MESSAGE_CREATE", "s": seq, "d": reply(message, author)})
             await writer.drain()
             say(f"gateway: MESSAGE_CREATE {message}, a reply by {author} to message 50")
-            try:
-                said = await asyncio.wait_for(posted.get(), 30)
+            try:  # the bot answers in order: an answer to 70, when it gives one, comes first
+                while True:
+                    said = await asyncio.wait_for(posted.get(), 30)
+                    say(f"discord: answered {json.dumps(said)}")
+                    if said.get("message_reference", {}).get("message_id") == message:
+                        break
             except TimeoutError:
                 say(f"discord: no answer to {message} in 30 s")
                 break
-            say(f"discord: answered {json.dumps(said)}")
         cue.set()
 
     send({"op": 10, "d": {"heartbeat_interval": 41250}, "s": None, "t": None})
@@ -312,7 +320,7 @@ async def serve(reader, writer):
             elif method == "GET" and target == "/api/v10/channels/6/messages/50":
                 say(f"discord: {method} {target}")
                 answer(writer, LOGGED)
-            elif method == "POST" and target == "/api/v10/channels/6/messages":
+            elif method == "POST" and target in ("/api/v10/channels/6/messages", "/api/v10/channels/7/messages"):
                 posted.put_nowait(json.loads(body))
                 answer(writer, {"id": str(900 + posted.qsize())})
             elif "/emojis" in target:

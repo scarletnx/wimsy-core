@@ -1924,6 +1924,29 @@ static void test_channels(void) {
     CHECK(tr_answers_in(listed, 2, &cache, 701, fake_parent, NULL) && parents_asked == 1);
     CHECK(tr_answers_in(listed, 2, &cache, 701, fake_parent, NULL) && parents_asked == 1);
     CHECK(!tr_answers_in(listed, 2, &cache, 702, fake_parent, NULL) && parents_asked == 2);
+    /* all: every channel and thread, no parent asked; ids; nothing; anything else refused naming it */
+    CHECK(tr_answers_in(listed, TR_CHANNELS_ALL, &cache, 999, fake_parent, NULL) && parents_asked == 2);
+    said = tr_channels_said(listed, TR_CHANNELS_ALL);
+    SAME(said, "all, as TRACER_CHANNELS=all: every channel and thread it can read");
+    free(said);
+    {
+        u64 got[3];
+        char* why;
+        CHECK(tr_channels_of("all", got, 3, &why) == TR_CHANNELS_ALL && !why);
+        CHECK(tr_channels_of(NULL, got, 3, &why) == 0 && tr_channels_of("", got, 3, &why) == 0 && !why);
+        CHECK(tr_channels_of("70,,71", got, 3, &why) == 2 && got[0] == 70 && got[1] == 71);
+        CHECK(tr_channels_of("All", got, 3, &why) == -2);
+        SAME(why, "TRACER_CHANNELS=All: All is neither all nor a channel's id (Developer Mode, Copy Channel ID: its "
+                  "digits)");
+        free(why);
+        CHECK(tr_channels_of("70,all", got, 3, &why) == -2);
+        SAME(why, "TRACER_CHANNELS=70,all: all is neither all nor a channel's id (Developer Mode, Copy Channel ID: its "
+                  "digits)");
+        free(why);
+        CHECK(tr_channels_of("1,2,3,4", got, 3, &why) == -2);
+        SAME(why, "TRACER_CHANNELS=1,2,3,4 names more than 3 channels");
+        free(why);
+    }
 }
 
 /* ---- the worker ---- */

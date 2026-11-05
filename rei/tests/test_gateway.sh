@@ -8,9 +8,10 @@
 # 1, which daemon(8) starts it again from, saying that Concord's GET gateway/bot failed and what Discord answers it
 # now. fix-cards: reiwimsy --fix-cards on a nightly channel with two cards saying "Building" (fake_discord.py's
 # cards): the dry run changes nothing, --apply deletes the one of a commit inside a push and redraws the push's head
-# with its failed build, and a second --apply finds nothing to do.
+# with its failed build, and a second --apply finds nothing to do. Tracer answers only in its channel 6 there, and a
+# mention in channel 7 goes unanswered; tracer-all is the same with TRACER_CHANNELS=all, which answers that one too.
 #
-#   sh rei/tests/test_gateway.sh reiwimsy|tracer|fix-cards BINARY
+#   sh rei/tests/test_gateway.sh reiwimsy|tracer|tracer-all|fix-cards BINARY
 #
 # Linux, no network: the bot runs in a mount and network namespace of its own, and in a user namespace too when not run
 # by root (a machine that keeps those from users runs the test as root), whose /etc/hosts sends Discord and GitHub to
@@ -20,10 +21,10 @@ set -eu
 program=${1:-} binary=${2:-}
 case "$program" in
 reiwimsy) drop_after=github ;;
-tracer) drop_after=replies ;;
+tracer | tracer-all) drop_after=replies ;;
 fix-cards) drop_after=cards ;;
 *)
-	echo "usage: sh test_gateway.sh reiwimsy|tracer|fix-cards BINARY (program \"$program\")" >&2
+	echo "usage: sh test_gateway.sh reiwimsy|tracer|tracer-all|fix-cards BINARY (program \"$program\")" >&2
 	exit 2
 	;;
 esac
@@ -58,7 +59,7 @@ elif [ "$program" = fix-cards ]; then
 	set -- REIWIMSY_TOKEN=$token REIWIMSY_REPO=owner/repo GITHUB_TOKEN=fake REIWIMSY_CARDS_NIGHTLY=5
 else
 	set -- TRACER_TOKEN=$token TRACER_URL=http://127.0.0.1:8 TRACER_DB="$tmp/tracer.db" TRACER_SITE="$tmp/site" \
-		TRACER_ASSETS="$top/tracer/site" TRACER_CHANNELS=6
+		TRACER_ASSETS="$top/tracer/site" TRACER_CHANNELS=$([ "$program" = tracer-all ] && echo all || echo 6)
 fi
 
 # root keeps the real one: in a user namespace of its own, its root would lose its rights over the files of the
@@ -131,7 +132,9 @@ if [ "$program" = fix-cards ]; then
 fi
 status=$(cat "$tmp/status")
 # the line Concord's failed GET gateway/bot ends with, Discord asked again: the fake closes the connection unanswered
-said="^$program: the gateway stopped: Concord's GET gateway/bot failed, .*; asked again, Discord answers 0: GET "
+bot=$program
+[ "$program" = tracer-all ] && bot=tracer
+said="^$bot: the gateway stopped: Concord's GET gateway/bot failed, .*; asked again, Discord answers 0: GET "
 said="${said}https://discord.com/api/v10/gateway/bot: "
 failed=
 if [ "$status" != 1 ]; then
@@ -144,10 +147,15 @@ elif ! grep -q 'gateway: closed with 1001' "$tmp/fake.log"; then
 	failed="the fake gateway never closed under it"
 elif ! grep -q "$said" "$tmp/bot.log"; then
 	failed="it never said its GET gateway/bot failed and what Discord answers it now"
-elif [ "$program" = tracer ]; then
+elif [ "$bot" = tracer ]; then
 	# the first reply: a report of message 50, its log downloaded and kept with its home folder as ~; the second: told
-	# that message is that report already
-	if ! grep -q 'discord: answered {"embeds": \[{"title": "Report #1: Fake Game".*/r/1/' "$tmp/fake.log"; then
+	# that message is that report already. The mention in channel 7: its help, with all; nothing, with channel 6 alone
+	if [ "$program" = tracer-all ] &&
+		! grep -q 'discord: answered {"embeds": \[{"title": "Tracer".*"message_reference": {"message_id": "70"' "$tmp/fake.log"; then
+		failed="TRACER_CHANNELS=all, and the mention in channel 7 got no help"
+	elif [ "$program" = tracer ] && grep -q '"message_reference": {"message_id": "70"' "$tmp/fake.log"; then
+		failed="TRACER_CHANNELS=6, and the mention in channel 7 was answered"
+	elif ! grep -q 'discord: answered {"embeds": \[{"title": "Report #1: Fake Game".*/r/1/' "$tmp/fake.log"; then
 		failed="its answer to the first reply was not report #1 of the message it replies to"
 	elif ! grep -q "discord: answered .*The message you replied to is report #1's already" "$tmp/fake.log"; then
 		failed="its answer to the second reply did not say that message is report #1 already"
@@ -163,5 +171,7 @@ if [ -n "$failed" ]; then
 	tail -n 15 "$tmp/bot.log" >&2
 	exit 1
 fi
-[ "$program" = tracer ] && echo "tracer: a reply alone made report #1 of the message it replies to, and a second was told so"
+[ "$bot" = tracer ] && echo "$program: a reply alone made report #1 of the message it replies to, and a second was told so"
+[ "$program" = tracer ] && echo "tracer: the mention in channel 7, which TRACER_CHANNELS=6 leaves out, went unanswered"
+[ "$program" = tracer-all ] && echo "tracer-all: TRACER_CHANNELS=all answered the mention in channel 7 with its help"
 echo "$program: ended with 1 when its gateway stopped: $(grep "$said" "$tmp/bot.log")"

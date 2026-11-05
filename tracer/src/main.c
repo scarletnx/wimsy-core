@@ -2,7 +2,7 @@
    Copyright 2026 the ScarletNX contributors */
 /* Tracer: the game reports that people send it on Discord, kept in a database and drawn as a static site.
 
-    TRACER_TOKEN=... TRACER_URL=https://... [TRACER_CHANNELS=id,id] [TRACER_ADMINS=id,id] [TRACER_DB=file]
+    TRACER_TOKEN=... TRACER_URL=https://... [TRACER_CHANNELS=id,id|all] [TRACER_ADMINS=id,id] [TRACER_DB=file]
     [TRACER_SITE=folder] [TRACER_ASSETS=folder] [TRACER_TITLES=file] [TRACER_UPSTREAM_REPO=owner/name] tracer
 
 A report is deleted by the person who sent it, by the guild's owner and administrators, and by TRACER_ADMINS.
@@ -115,7 +115,11 @@ static void read_env(void) {
     env.site = setting("TRACER_SITE", "/var/db/tracer-site");
     env.assets = setting("TRACER_ASSETS", "/usr/local/share/tracer");
     env.titles = setting("TRACER_TITLES", NULL);
-    env.nchannels = ids("TRACER_CHANNELS", env.channels);
+    { /* "all", or the channels' ids */
+        char* why;
+        if ((env.nchannels = tr_channels_of(getenv("TRACER_CHANNELS"), env.channels, LISTED, &why)) == -2)
+            stop("%s", why);
+    }
     env.nadmins = ids("TRACER_ADMINS", env.admins);
     n = strlen(env.url);
     while (n && env.url[n - 1] == '/') --n;

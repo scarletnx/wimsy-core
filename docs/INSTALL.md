@@ -116,7 +116,8 @@ A channel id for `REIWIMSY_CHANNELS` and the card channels: Developer Mode, righ
 
 3. Its Discord application ([below](#tracers-discord-application)) and its token.
 4. The env file the package made in `tracer`, `/usr/local/etc/tracer.env` (root's, 600): `TRACER_TOKEN`, `TRACER_URL`
-   (the site's address), `TRACER_CHANNELS` (without it no report is taken), and the other keys
+   (the site's address), `TRACER_CHANNELS` (channels' ids, or `all` for every channel it can read; without it no
+   report is taken), and the other keys
    [Tracer](./TRACER.md#settings) lists. For the issues, `TRACER_ISSUES_REPO` and `TRACER_ISSUES_TOKEN`: on GitHub,
    Settings, Developer settings, Fine-grained tokens, the repository alone, the permission Issues: Read and write,
    nothing else. For the games' names, `TRACER_TITLES`, a file `python3 scripts/make-titles.py --out FILE` makes in
@@ -156,7 +157,8 @@ In the Developer Portal:
    `https://discord.com/oauth2/authorize?client_id=<APPLICATION_ID>&scope=bot&permissions=274877991936`
 
 An id for `TRACER_CHANNELS` or `TRACER_ADMINS`: Developer Mode, right click, Copy Channel ID or Copy User ID. A forum
-channel's id takes its posts too.
+channel's id takes its posts too. `TRACER_CHANNELS=all` takes reports in every channel and thread the bot can read, as
+its server's roles and channels' permissions let it.
 
 ## AccordWimsy
 

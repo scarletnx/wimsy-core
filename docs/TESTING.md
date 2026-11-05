@@ -60,7 +60,7 @@ temporary folder:
   its refusals (another channel or server, a bot's message, one gone or kept from the bot, one without files as the
   Message Content intent shows it, one that is a report already);
 - a database of the first schema upgraded, a deleted message, a report's number never reused, the hourly limit, the
-  JSON with no Discord id, the channels it answers in;
+  JSON with no Discord id, the channels it answers in (a list, `all`, none, and other words refused);
 - the issues an approval files, through a fake GitHub: an administrator's reaction files one, a second files none,
   anyone else's reaction or another emoji nothing, a refusal said and tried again, the settings and their refusals;
 - how old a report's build is, through a fake GitHub: behind main, the plurals, a commit asked once an hour, `-dirty`
@@ -110,7 +110,8 @@ In a job of its own, on each pull request and each push to main, the bots built 
   starts it again), not on a signal, saying that Concord's `GET gateway/bot` failed and what Discord answers it now.
 - Tracer the same, its gateway closed once it has answered two replies that mention it and bring no file: the first
   makes report #1 of the message they reply to (Discord's REST API gives it, the fake CDN its log, which the site
-  keeps with its home folder as `~`), the second is told that message is report #1 already.
+  keeps with its home folder as `~`), the second is told that message is report #1 already. A mention asking for help
+  in channel 7 goes unanswered with `TRACER_CHANNELS=6`, and is answered with `TRACER_CHANNELS=all` (`tracer-all`).
 - `reiwimsy --fix-cards` on a nightly channel holding two cards that say "Building": its dry run changes nothing,
   `--apply` deletes the one of a commit inside a push and redraws the push's head with its failed build, and a second
   `--apply` finds nothing to do.
