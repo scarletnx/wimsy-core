@@ -3,7 +3,8 @@
 # Copyright 2026 the ScarletNX contributors
 #
 # A bot built with Concord, its gateway dying under it: ReiWimsy with its rounds held inside a GitHub request, Tracer
-# just up. Each has to end with status 1, which daemon(8) starts it again from, and say why in its last line.
+# just up. Each has to end with status 1, which daemon(8) starts it again from, saying that Concord's GET gateway/bot
+# failed and what Discord answers it now.
 #
 #   sh rei/tests/test_gateway.sh reiwimsy|tracer BINARY
 #
@@ -77,6 +78,9 @@ unshare -rnm sh -c '
 ' sh "$tmp" "$ca" "$here" "$drop_after" "$binary" "$@"
 
 status=$(cat "$tmp/status")
+# the line Concord's failed GET gateway/bot ends with, Discord asked again: the fake closes the connection unanswered
+said="^$program: the gateway stopped: Concord's GET gateway/bot failed, .*; asked again, Discord answers 0: GET "
+said="${said}https://discord.com/api/v10/gateway/bot: "
 failed=
 if [ "$status" != 1 ]; then
 	case "$status" in
@@ -86,8 +90,8 @@ if [ "$status" != 1 ]; then
 	esac
 elif ! grep -q 'gateway: closed with 1001' "$tmp/fake.log"; then
 	failed="the fake gateway never closed under it"
-elif ! grep -q "^$program: the gateway stopped: " "$tmp/bot.log"; then
-	failed="it never said the gateway stopped"
+elif ! grep -q "$said" "$tmp/bot.log"; then
+	failed="it never said its GET gateway/bot failed and what Discord answers it now"
 fi
 if [ -n "$failed" ]; then
 	echo "test_gateway.sh: $program, its gateway closed: $failed. The fake's steps, then the end of its log:" >&2
@@ -95,4 +99,4 @@ if [ -n "$failed" ]; then
 	tail -n 15 "$tmp/bot.log" >&2
 	exit 1
 fi
-echo "$program: ended with 1 when its gateway stopped ($(grep -c . "$tmp/fake.log") fake steps): ok"
+echo "$program: ended with 1 when its gateway stopped: $(grep "$said" "$tmp/bot.log")"

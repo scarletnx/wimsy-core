@@ -45,3 +45,8 @@ without `GITHUB_TOKEN`. It keeps GitHub's answers, its replies' and its cards' i
 It runs as the service `reiwimsy` (`dist/freebsd/reiwimsy.rc`): daemon(8) runs `/usr/local/libexec/reiwimsy` as the user
 `reiwimsy` and starts it again when it stops, its output in syslog (tag `reiwimsy`, `/var/log/messages`), its env file
 exported to it by rc.subr. Installing it: [Install](./INSTALL.md#reiwimsy).
+
+It stops when its gateway does, and its last line says why. Concord calls any failure of the `GET gateway/bot` that
+starts a session "Bad authentication token", a timeout too, so the bot asks Discord again and ends that line with the
+answer: `asked again, Discord answers 200` (the network back, the token good), `401: ...` (the token refused), or `0: `
+and why no answer came (Discord still out of reach).

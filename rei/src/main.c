@@ -297,7 +297,14 @@ int main(void) {
                                     DISCORD_GATEWAY_DIRECT_MESSAGES | DISCORD_GATEWAY_MESSAGE_CONTENT);
     discord_set_event_scheduler(client, scheduler);
     code = discord_run(client);
-    rei_log("the gateway stopped: %s", discord_strerror(code, client));
+    if (code == CCORD_DISCORD_BAD_AUTH) { /* what Concord's discord_run returns for any failure of GET gateway/bot */
+        char* now = dc_said(&dc, "gateway/bot");
+        rei_log("the gateway stopped: Concord's GET gateway/bot failed, which it calls \"%s\" whatever the failure, a "
+                "timeout too; asked again, Discord answers %s",
+                discord_strerror(code, client), now);
+        free(now);
+    } else
+        rei_log("the gateway stopped: %s", discord_strerror(code, client));
     end();
     return 1;
 }

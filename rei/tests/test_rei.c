@@ -106,6 +106,10 @@ static void fake(void* ctx, const char* method, const char* url, const char* bod
                 return;
             }
             out->status = fixtures[i].status;
+            if (!out->status) { /* no answer: the body is why, as http.c says it */
+                out->error = rei_strdup(fixtures[i].body);
+                return;
+            }
             out->body = rei_strdup(fixtures[i].body);
             if (fixtures[i].etag) out->etag = rei_strdup(fixtures[i].etag);
             return;
@@ -457,6 +461,20 @@ static void rest_tests(void) {
     CHECK(dc_history(&d, 7, 0, ids, webhook, mine, 4) == 3);
     CHECK(ids[0] == 9 && webhook[0] && !mine[0] && ids[1] == 8 && !webhook[1] && mine[1] && !webhook[2] && !mine[2]);
     CHECK(dc_history(&d, 8, 0, ids, webhook, mine, 4) == -1);
+    { /* what Discord answers now, for the gateway's end: the status, and past a 2xx the body or why none came */
+        char* said;
+        answer("GET", DC_API "gateway/bot", 200, "{\"url\":\"wss://gateway.discord.gg\"}");
+        SAME(said = dc_said(&d, "gateway/bot"), "200");
+        free(said);
+        answer("GET", DC_API "gateway/bot", 401, "{\"message\": \"401: Unauthorized\", \"code\": 0}");
+        SAME(said = dc_said(&d, "gateway/bot"), "401: {\"message\": \"401: Unauthorized\", \"code\": 0}");
+        free(said);
+        answer("GET", DC_API "gateway/bot", 0,
+               "GET https://discord.com/api/v10/gateway/bot: Connection timed out after 30001 milliseconds");
+        SAME(said = dc_said(&d, "gateway/bot"),
+             "0: GET https://discord.com/api/v10/gateway/bot: Connection timed out after 30001 milliseconds");
+        free(said);
+    }
     cJSON_Delete(e);
     forget();
 }
