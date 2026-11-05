@@ -52,6 +52,16 @@ screenshots a report). Only the person who sent the report and the server's admi
 asked for a report of their own, which goes with the same game. A report its logs did not name takes the name a later
 log of the same title ID gives. Words added later are shown under the report's note, each with its date.
 
+A log sent without the mention: a reply to that message that mentions Tracer and brings no file of its own makes a
+report of the message it replies to, as if it had mentioned Tracer: its logs, screenshots and videos, its author as the
+one who sent it (who deletes it and adds to it, and whose deleted message takes it back), its words as the note, else
+the reply's. The answer is a reply to the one who asked, and the hourly limit counts them. Tracer asks Discord for that
+message (`GET channels/<id>/messages/<id>`, with the Read Message History permission), and Discord shows a bot the
+files of a message that does not mention it only with the Message Content intent (below); without it the reply is told
+to send the log again with a mention, and the start's log line says which. A reply that brings files makes a report of
+those, as any message does; a reply to a message that is part of a report already gets that report's link; a message of
+another channel or server, a bot's or a webhook's, one that is gone and one with no log are refused, each with why.
+
 `@Tracer help` says how; `@Tracer delete 12`, or a reply with `@Tracer delete`, deletes a report, for the person who
 sent it, the owner and administrators (the Administrator permission) of the server it was sent in, and `TRACER_ADMINS`.
 A message deleted on Discord takes back what it sent: the whole report, or what it added to one. Ten reports and updates
@@ -92,8 +102,11 @@ the token nothing is asked, and only a `-dirty` build is said.
 
 The site does not say who sent a report. The database keeps the sender's user id (for the deletion, the updates and
 the hourly limit) and the ids of the messages that lead to a report, nothing else of them; it keeps nothing of
-messages that do not mention it. It asks for no privileged intent: Discord sends the text and the attachments of a
-message that mentions the bot, and of no other.
+messages that do not mention it, but the one a reply asks it to make a report of. Its gateway asks for no privileged
+intent: Discord sends it the text and the attachments of a message that mentions the bot, and of no other. The one
+message a reply asks for is read through Discord's REST API, which shows its files when the application has the
+Message Content intent: a switch in the Developer Portal (Bot, Privileged Gateway Intents) for a bot in fewer than 100
+servers, which changes nothing else Tracer receives.
 
 ## The site
 

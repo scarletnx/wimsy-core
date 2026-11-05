@@ -83,8 +83,9 @@ Its log is syslog's, tag `tracer`, in the jail's `/var/log/messages`; its databa
 In the Developer Portal:
 
 1. Bot: the name Tracer, its avatar (`tracer/site/tracer.svg` on a navy square, room around it for the round crop);
-   reset the token, put it in the env file. **No** privileged intent: Discord sends a message's text and attachments
-   to a bot it mentions. Public Bot off.
+   reset the token, put it in the env file. Discord sends a message's text and attachments to a bot it mentions; the
+   Message Content Intent lets Tracer read the one message that a reply mentioning it asks for (a log sent without the
+   mention), and without it such a reply is told to send the log again ([Tracer](./TRACER.md)). Public Bot off.
 2. About me: what it keeps, that the site shows no names, and `@Tracer help`.
 3. Invite (OAuth2, scope `bot`), with only what it needs: View Channels, Send Messages, Send Messages in Threads, Embed
    Links, Read Message History (a reply needs it):

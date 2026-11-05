@@ -167,6 +167,7 @@ static void test_message(void) {
                              "\"99\",\"bot\":true},\"embeds\":[{\"title\":\"Report #2\",\"url\":"
                              "\"https://reports.example/r/2/\"}]}}";
         CHECK(tr_message(reply, strlen(reply), 99, &m) && m.reply_to == 555 && !m.reply_report);
+        CHECK(m.reply_channel == 22 && !m.reply_guild && !m.bot);
         tr_message_free(&m);
         CHECK(tr_message(answer, strlen(answer), 99, &m) && m.reply_to == 556 && m.reply_report == 2);
         tr_message_free(&m);
@@ -179,6 +180,18 @@ static void test_message(void) {
     CHECK(
         !tr_message("{\"id\":\"1\",\"channel_id\":\"2\",\"webhook_id\":\"5\",\"author\":{\"id\":\"3\"}}", 64, 99, &m));
     CHECK(!tr_message("not json", 8, 99, &m));
+    { /* a message as the REST API gives it: a bot's too, said */
+        const char* got =
+            "{\"id\":\"1\",\"channel_id\":\"2\",\"author\":{\"id\":\"3\",\"bot\":true},\"content\":"
+            "\"<@99> hi\",\"attachments\":[{\"filename\":\"a.log\",\"url\":\"https://cdn.discordapp.com/a\"}]}";
+        CHECK(tr_message_of(got, strlen(got), &m) && m.bot && m.nfiles == 1 && m.author == 3 && !m.guild);
+        tr_message_free(&m);
+        CHECK(tr_message_of("{\"id\":\"1\",\"channel_id\":\"2\",\"webhook_id\":\"5\",\"author\":{\"id\":\"3\"}}", 64,
+                            &m) &&
+              m.bot);
+        tr_message_free(&m);
+        CHECK(!tr_message_of("[]", 2, &m));
+    }
     CHECK(tr_deleted("{\"id\":\"77\",\"channel_id\":\"2\"}", 29) == 77);
     {
         char* name;
@@ -213,6 +226,9 @@ static void test_command(void) {
     free(note);
     CHECK(tr_command("<@99>", &note, &n) == TR_REPORT);
     SAME(note, "");
+    free(note);
+    note = tr_words("<@99>\n  Some   Game <#6>");
+    SAME(note, "Some Game");
     free(note);
     memset(longer, 'a', sizeof longer);
     memcpy(longer + TR_NOTE - 1, "\xc3\xa9", 2); /* an é across the cut */
@@ -1050,7 +1066,7 @@ static void test_mcp(void) {
     cJSON* o;
     TrMessage add = message(5000, 66, "<@99> add 2");
     attach(&add, "shot.png", "https://cdn.discordapp.com/1/shot.png", 10);
-    free(answer_text(respond(&add))); /* report 2 gets a screenshot, 2.png */
+    free(answer_text(respond(&add))); /* report 2 message_gets a screenshot, 2.png */
     tr_message_free(&add);
     m.root = site;
     m.url = "https://reports.example";
@@ -1432,6 +1448,258 @@ static void test_limits(void) {
     }
 }
 
+/* ---- a reply that asks for a report of the message it replies to ---- */
+typedef struct {
+    u64 id;
+    int status;
+    const char* json;
+} Held;
+static Held held[16];
+static int nheld, intent = 1, message_gets;
+static char* fake_message(void* ctx, u64 channel, u64 id, int* status, char** why) {
+    int i;
+    (void)ctx;
+    ++message_gets;
+    *why = NULL;
+    for (i = 0; i < nheld; ++i)
+        if (held[i].id == id) {
+            *status = held[i].status;
+            if (!held[i].status) {
+                *why = rei_strdup("Could not resolve host: discord.com");
+                return NULL;
+            }
+            if (held[i].status != 200) *why = rei_strdup("{\"message\": \"Missing Access\", \"code\": 50001}");
+            return rei_strdup(held[i].json);
+        }
+    *status = 404;
+    *why = rei_format("{\"message\": \"Unknown Message\", \"channel\": %llu}", (unsigned long long)channel);
+    return rei_strdup("{\"message\": \"Unknown Message\", \"code\": 10008}");
+}
+static int fake_intent(void* ctx, char** why) {
+    (void)ctx;
+    *why = intent < 0 ? rei_strdup("GET applications/@me answered 401: 401: Unauthorized") : NULL;
+    return intent;
+}
+static void hold(u64 id, int status, const char* json) {
+    held[nheld].id = id;
+    held[nheld].status = status;
+    held[nheld++].json = json;
+}
+static int asks_of(u64 poster) {
+    sqlite3* db;
+    sqlite3_stmt* q;
+    char* path = rei_format("%s/tracer.db", site);
+    int n = -1;
+    if (sqlite3_open(path, &db) == SQLITE_OK &&
+        sqlite3_prepare_v2(db, "SELECT count(*) FROM asks WHERE poster = ?", -1, &q, NULL) == SQLITE_OK) {
+        sqlite3_bind_int64(q, 1, (sqlite3_int64)poster);
+        if (sqlite3_step(q) == SQLITE_ROW) n = sqlite3_column_int(q, 0);
+        sqlite3_finalize(q);
+    }
+    sqlite3_close(db);
+    free(path);
+    return n;
+}
+/* a reply to message to, by author, saying content */
+static TrMessage reply_to(u64 id, u64 author, const char* content, u64 to) {
+    TrMessage m = message(id, author, content);
+    m.reply_to = to;
+    m.reply_channel = 22;
+    m.reply_guild = 33;
+    return m;
+}
+static void test_replies(void) {
+    TrMessage m;
+    char* t;
+    long made, other;
+    StReport r;
+    int reports_before, n;
+    StReport* all;
+    tracer.message = fake_message;
+    tracer.content_intent = fake_intent;
+    now_is += 3601;
+    /* someone's message with a log, sent without a mention; a reply that mentions Tracer and says nothing else makes it
+       a report: its files, its author and its words */
+    hold(
+        7101, 200,
+        "{\"id\":\"7101\",\"channel_id\":\"22\",\"author\":{\"id\":\"145\"},\"content\":\"crashes when I open the map\","
+        "\"attachments\":[{\"filename\":\"game.log\",\"url\":\"https://cdn.discordapp.com/1/game.log\",\"size\":10},"
+        "{\"filename\":\"shot.png\",\"url\":\"https://cdn.discordapp.com/1/shot.png\",\"size\":10}]}");
+    downloads = 0;
+    m = reply_to(7102, 146, "<@99>", 7101);
+    t = answer_text(tr_answer(&tracer, &m, &made));
+    HAS(t, "Report #");
+    HAS(t, "1 log, 1 screenshot");
+    free(t);
+    CHECK(made > 0 && downloads == 2);
+    CHECK(st_get(tracer.store, made, &r, NULL, NULL) == 1);
+    CHECK(r.poster == 145 && r.message == 7101 && r.channel == 22 && r.guild == 33);
+    SAME(r.note, "crashes when I open the map");
+    st_report_free(&r);
+    CHECK(st_report_of(tracer.store, 7102) == made); /* the reply leads to it too */
+    CHECK(asks_of(146) == 1 && asks_of(145) == 0);   /* the hourly limit counts the one who asked */
+    {                                                /* the gateway's event again: nothing, no second report */
+        long again;
+        CHECK(!tr_answer(&tracer, &m, &again) && !again);
+    }
+    tr_message_free(&m);
+    /* a second reply to the same message: the report's link, no other report */
+    CHECK(!st_reports(tracer.store, NULL, &all, &reports_before));
+    st_reports_free(all, reports_before);
+    message_gets = 0;
+    m = reply_to(7103, 147, "<@99>", 7101);
+    {
+        char* want = rei_format("The message you replied to is report #%ld's already", made);
+        char* link = rei_format("https://reports.example/r/%ld/", made);
+        t = answer_text(tr_answer(&tracer, &m, &other));
+        HAS(t, want);
+        HAS(t, link);
+        free(want);
+        free(link);
+        free(t);
+    }
+    CHECK(!other && !message_gets);
+    tr_message_free(&m);
+    CHECK(!st_reports(tracer.store, NULL, &all, &n));
+    st_reports_free(all, n);
+    CHECK(n == reports_before);
+    /* deleting the reply leaves the report; deleting the message it made a report of deletes it */
+    CHECK(tr_forget(&tracer, 7102));
+    CHECK(st_get(tracer.store, made, &r, NULL, NULL) == 1);
+    st_report_free(&r);
+    CHECK(tr_forget(&tracer, 7101));
+    CHECK(st_get(tracer.store, made, &r, NULL, NULL) == 0);
+    /* the reply's own files win: the report is the reply's */
+    hold(7104, 200,
+         "{\"id\":\"7104\",\"channel_id\":\"22\",\"author\":{\"id\":\"145\"},\"content\":\"\",\"attachments\":["
+         "{\"filename\":\"game.log\",\"url\":\"https://cdn.discordapp.com/1/game.log\",\"size\":10}]}");
+    message_gets = 0;
+    m = reply_to(7105, 146, "<@99> mine instead", 7104);
+    attach(&m, "game.log", "https://cdn.discordapp.com/1/game.log", 10);
+    t = answer_text(tr_answer(&tracer, &m, &made));
+    HAS(t, "Report #");
+    free(t);
+    CHECK(!message_gets && st_get(tracer.store, made, &r, NULL, NULL) == 1);
+    CHECK(r.poster == 146 && r.message == 7105);
+    SAME(r.note, "mine instead");
+    st_report_free(&r);
+    tr_message_free(&m);
+    /* a message without words: the reply's are the note */
+    m = reply_to(7106, 146, "<@99> Some Game, at the boss", 7104);
+    t = answer_text(tr_answer(&tracer, &m, &made));
+    free(t);
+    CHECK(st_get(tracer.store, made, &r, NULL, NULL) == 1);
+    CHECK(r.poster == 145 && r.message == 7104);
+    SAME(r.note, "Some Game, at the boss");
+    st_report_free(&r);
+    tr_message_free(&m);
+    /* a message whose files are no log */
+    hold(7107, 200,
+         "{\"id\":\"7107\",\"channel_id\":\"22\",\"author\":{\"id\":\"145\"},\"content\":\"\",\"attachments\":["
+         "{\"filename\":\"setup.exe\",\"url\":\"https://cdn.discordapp.com/1/setup.exe\",\"size\":10}]}");
+    m = reply_to(7108, 146, "<@99>", 7107);
+    t = answer_text(tr_answer(&tracer, &m, &made));
+    HAS(t, "The message you replied to has no ScarletNX log, so no report:\\nsetup.exe: not a log or a screenshot");
+    free(t);
+    CHECK(!made);
+    tr_message_free(&m);
+    /* a message without files: said as Discord shows it, the Message Content intent on, off, or not said */
+    hold(7109, 200,
+         "{\"id\":\"7109\",\"channel_id\":\"22\",\"author\":{\"id\":\"145\"},\"content\":\"\",\"attachments\":[]}");
+    m = reply_to(7110, 146, "<@99>", 7109);
+    intent = 1;
+    t = answer_text(tr_answer(&tracer, &m, &made));
+    HAS(t, "The message you replied to has no file, so it has no ScarletNX log");
+    free(t);
+    intent = 0;
+    t = answer_text(tr_answer(&tracer, &m, &made));
+    HAS(t, "I can't see the files of the message you replied to");
+    HAS(t, "Message Content intent");
+    free(t);
+    intent = -1;
+    t = answer_text(tr_answer(&tracer, &m, &made));
+    HAS(t, "did not say whether it would show me one (GET applications/@me answered 401: 401: Unauthorized)");
+    free(t);
+    intent = 1;
+    tr_message_free(&m);
+    /* a bot's message, a message gone, one Discord keeps from the bot, no answer, an answer that is no message */
+    hold(
+        7111, 200,
+        "{\"id\":\"7111\",\"channel_id\":\"22\",\"author\":{\"id\":\"5\",\"bot\":true},\"content\":\"\",\"attachments\":["
+        "{\"filename\":\"game.log\",\"url\":\"https://cdn.discordapp.com/1/game.log\",\"size\":10}]}");
+    hold(7112, 403, "{\"message\": \"Missing Access\", \"code\": 50001}");
+    hold(7113, 0, NULL);
+    hold(7114, 200, "[1, 2]");
+    {
+        static const struct {
+            u64 to;
+            const char* said;
+        } refused[] = {
+            {7111, "is a bot's or a webhook's, not a report"},
+            {7199, "The message you replied to is gone (Discord answered 404), so no report."},
+            {7112,
+             "(it answered 403: {\\\"message\\\": \\\"Missing Access\\\", \\\"code\\\": 50001}): I need the Read Message "
+             "History permission"},
+            {7113, "Discord did not answer when I asked for the message you replied to (Could not resolve host: "
+                   "discord.com)"},
+            {7114, "is no message (its answer is no message: [1, 2])"},
+        };
+        size_t i;
+        downloads = 0;
+        for (i = 0; i < sizeof refused / sizeof *refused; ++i) {
+            m = reply_to(7120 + i, 146, "<@99>", refused[i].to);
+            t = answer_text(tr_answer(&tracer, &m, &made));
+            HAS(t, refused[i].said);
+            CHECK(!made);
+            free(t);
+            tr_message_free(&m);
+        }
+        CHECK(!downloads);
+    }
+    /* a reference into another channel or server is refused, and Discord is not asked */
+    message_gets = 0;
+    m = reply_to(7130, 146, "<@99>", 7109);
+    m.reply_channel = 23;
+    t = answer_text(tr_answer(&tracer, &m, &made));
+    HAS(t, "The message you replied to is in <#23>, not this channel");
+    free(t);
+    m.reply_channel = 22;
+    m.reply_guild = 34;
+    t = answer_text(tr_answer(&tracer, &m, &made));
+    HAS(t, "The message you replied to is in another server (34)");
+    free(t);
+    CHECK(!message_gets && !made);
+    tr_message_free(&m);
+    /* the hourly limit of the one who asks: refused before anything is downloaded */
+    {
+        int i;
+        for (i = asks_of(146); i < TR_HOURLY; ++i) {
+            m = message(7140 + (u64)i, 146, "<@99>");
+            attach(&m, "notes.txt", "https://cdn.discordapp.com/1/notes.txt", 10);
+            free(answer_text(respond(&m)));
+            tr_message_free(&m);
+        }
+        hold(7160, 200,
+             "{\"id\":\"7160\",\"channel_id\":\"22\",\"author\":{\"id\":\"148\"},\"content\":\"\",\"attachments\":["
+             "{\"filename\":\"game.log\",\"url\":\"https://cdn.discordapp.com/1/game.log\",\"size\":10}]}");
+        downloads = 0;
+        m = reply_to(7161, 146, "<@99>", 7160);
+        t = answer_text(tr_answer(&tracer, &m, &made));
+        HAS(t, "You sent 10 reports and updates in the last hour");
+        free(t);
+        CHECK(!made && !downloads);
+        tr_message_free(&m);
+    }
+    /* without the means to ask Discord, a reply alone is asked for a log, as before */
+    tracer.message = NULL;
+    m = reply_to(7170, 149, "<@99>", 7160);
+    t = answer_text(tr_answer(&tracer, &m, &made));
+    HAS(t, "Attach the game's ScarletNX log");
+    free(t);
+    tr_message_free(&m);
+    tracer.content_intent = NULL;
+}
+
 /* another server's administrator neither deletes nor adds to a report of this one */
 static void test_other_guild(void) {
     TrMessage m;
@@ -1545,7 +1813,7 @@ static void test_channels(void) {
 
 /* ---- the worker ---- */
 /* a download in a worker that the tests run: url's bytes from the file the test wrote for it in WORKER_TEST_SERVED (no
-   TRACER_ name, which a worker never gets) */
+   TRACER_ name, which a worker never message_gets) */
 static char* served_path(const char* url) {
     unsigned long h = 2166136261UL;
     const char* dir = getenv("WORKER_TEST_SERVED");
@@ -2153,6 +2421,7 @@ int main(int argc, char** argv) {
         test_missed();
         test_limits();
         test_other_guild();
+        test_replies();
         test_mcp_grep();
         test_worker(argv[0]);
         test_issues();

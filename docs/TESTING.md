@@ -25,7 +25,10 @@ What CI runs on each pull request and each push to main. No network and no Disco
   report's dumps left out of a log as the log summary leaves them out, and whole reports: kept with their home folders
   as `~`, drawn with everything escaped, the same message again, refusals, updates (by a reply or `add N`, refused to
   others, within the limits, taken back with their message, a later log naming the game), deletion by the sender and the
-  guild's administrators and by no one else, a database of the first schema upgraded, a deleted message, a report's
+  guild's administrators and by no one else, a reply alone that makes a report of the message it replies to (its
+files, its author, its words, the hourly limit of the one who asked) and its refusals (another channel or server, a
+bot's message, one gone or kept from the bot, one without files as the Message Content intent shows it, one that is a
+report already), a database of the first schema upgraded, a deleted message, a report's
   number never reused, the hourly limit, the JSON with no Discord id, the games' names from the list (an update's and an
   add-on's ID, a report named at once, one named at the next start, a log's name first, a GBA game by its code), each
   console's report, what the runtime missed counted beside the outcome; the channels it answers in; the issues an
@@ -49,13 +52,15 @@ And in a job of its own, on each pull request and each push to main, the bots bu
 ReiWimsy comes up, its rounds wait inside a GitHub request held open, then the gateway closes and Discord's
 `GET /gateway/bot` gets no answer: Concord's `discord_run` returns, and the bot has to end with status 1 (daemon(8)
 starts it again), not on a signal, saying that Concord's `GET gateway/bot` failed and what Discord answers it now.
-Tracer the same, its gateway closed once it is up. And `reiwimsy --fix-cards` on a nightly channel holding two cards
-that say "Building": its dry run changes nothing, `--apply` deletes the one of a commit inside a push and redraws the
-push's head with its failed build, and a second `--apply` finds nothing to do. Linux only, with no network: the bot runs in a mount and network
-namespace of its own, and a user namespace when the test is not run by root (as root where the system keeps user
-namespaces from users), whose `/etc/hosts` sends Discord and GitHub to the fake and whose CA bundle, libcurl's
-(`curl-config --ca`), holds only the CA the test makes. It needs util-linux, iproute2, python3, openssl and libcurl's
-headers.
+Tracer the same, its gateway closed once it has answered two replies that mention it and bring no file: the first
+makes report #1 of the message they reply to (Discord's REST API gives it, the fake CDN its log, which the site keeps
+with its home folder as `~`), the second is told that message is report #1 already. And `reiwimsy --fix-cards` on a
+nightly channel holding two cards that say "Building": its dry run changes nothing, `--apply` deletes the one of a
+commit inside a push and redraws the push's head with its failed build, and a second `--apply` finds nothing to do.
+Linux only, with no network: the bot runs in a mount and network namespace of its own, and a user namespace when the
+test is not run by root (as root where the system keeps user namespaces from users), whose `/etc/hosts` sends Discord,
+its CDN and GitHub to the fake and whose CA bundle, libcurl's (`curl-config --ca`), holds only the CA the test makes.
+It needs util-linux, iproute2, python3, openssl and libcurl's headers.
 
 Beside them:
 
