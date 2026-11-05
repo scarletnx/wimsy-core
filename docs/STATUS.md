@@ -30,7 +30,7 @@ connection: a bot whose gateway stays down while it runs still reads as up. Only
 | `dist/status/push.sh.in` | the bots' state, pushed every minute from the host's cron |
 | `dist/status/render.sh` | writes `gatus.yaml` and `push.sh` from the two; those are what runs, never edited by hand |
 | `dist/status/gatus.yaml`, `dist/status/push.sh` | what `render.sh` wrote, kept beside the templates so a review sees what runs |
-| `dist/status/colours.py` | Wimsy's colours as Gatus's, from ScarletNX's `dist/wimsy.svg` |
+| `dist/status/gatus.yaml.in`'s two `html:root` lines | the Sepia theme's colours as Gatus's, made by wimsy-dist's `themes/theme.py` |
 | `dist/status/icons/` | each bot's icon, 64 px, put into the page as data |
 | `dist/status/check.sh` | the page checked without Gatus ([Testing](./TESTING.md#the-status-page)) |
 | `dist/status/install.sh` | as root on the host: the push token, the config and the database directory into the jail, Gatus started again, `push.sh` and its cron line |
@@ -58,10 +58,10 @@ As root on the host, from a checkout:
 After a change to a template, an icon or an address:
 
     sh dist/status/render.sh
-    sh dist/status/check.sh <ScarletNX's dist/wimsy.svg>
+    sh dist/status/check.sh
     sh dist/status/install.sh status
 
-After Wimsy's colours change, first `python3 dist/status/colours.py <wimsy.svg> --update`. A new bot on the page is an
+After a theme's colours change, first wimsy-dist's `themes/theme.py --core <this checkout>`. A new bot on the page is an
 external endpoint in `gatus.yaml.in` with its icon's rule in the `custom-css` there, its icon in `icons/`, and a `bot`
 or `push` line in `push.sh.in`; `check.sh` fails until each is there.
 

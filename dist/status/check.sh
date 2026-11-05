@@ -1,14 +1,13 @@
 #!/bin/sh
-# What can be checked without running Gatus: the colours are Wimsy's (colours.py), gatus.yaml and
+# What can be checked without running Gatus: the theme's two colour lines are there, gatus.yaml and
 # push.sh are their templates rendered (render.sh) and leave no @NAME@ but @PUSH_TOKEN@ (install.sh's),
 # gatus.yaml is YAML with the keys Gatus reads, a bot with an icon for each external endpoint and the
 # reverse, push.sh pushes to each of them, the logo and icons it links to are there, and every
 # endpoint answers now as its conditions expect (curl; the Discord one by its code).
-# Usage: check.sh WIMSY_SVG
+# Usage: check.sh
 set -eu
 here=$(dirname "$0")
-[ $# -eq 1 ] || { echo "usage: $0 WIMSY_SVG (ScarletNX's dist/wimsy.svg)" >&2; exit 64; }
-python3 -I "$here/colours.py" "$1" --check
+[ $# -eq 0 ] || { echo "usage: $0 (no arguments: the theme's colours are wimsy-dist's, scripts/check-theme.sh)" >&2; exit 64; }
 cp "$here/gatus.yaml" "$here/gatus.yaml.kept"
 cp "$here/push.sh" "$here/push.sh.kept"
 "$here/render.sh"
@@ -35,6 +34,7 @@ bots = [e["name"] for e in c["external-endpoints"]]
 icons = sorted(f[:-4] for f in os.listdir(sys.argv[3]) if f.endswith(".png"))
 assert sorted(b.lower() for b in bots) == icons, (bots, icons)
 css = c["ui"]["custom-css"]
+assert css.count("html:root{--background:") == 1 and css.count("html:root.dark{--background:") == 1, "the theme's lines"
 push = open(sys.argv[2]).read()
 for e in c["external-endpoints"]:
     assert e["group"] == "Bots" and e["token"] == "@PUSH_TOKEN@" and e["heartbeat"]["interval"] == "5m", e

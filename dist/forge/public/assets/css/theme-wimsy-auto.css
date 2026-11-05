@@ -1,0 +1,42 @@
+@import "./theme-forgejo-auto.css";
+/* Wimsy (auto): made by wimsy-dist's themes/theme.py from palettes.toml: change the colours there, then run it again */
+:root{color-scheme:light dark;--font:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--bg:#f3f9fa;--faint:#b6dbdf;--ink:#04282c;--surface:#e4f2f3;--raised:#d4eaec;--soft:#075059;--accent:#0a727e;--ok:#0a764e;--warn:#836200;--bad:#66003b;--rule:#0c8694;--on-accent:#ffffff;--on-ok:#04282c;--ok-fill:#11ce87;--on-warn:#04282c;--warn-fill:#e0a800;--on-bad:#ffffff;--bad-fill:#66003b}
+@media (prefers-color-scheme:dark){:root{--font:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--bg:#021315;--faint:#074a51;--ink:#ebfdfd;--surface:#032124;--raised:#042f33;--soft:#9ecfd4;--accent:#3ae8ef;--ok:#11ce87;--warn:#e0a800;--bad:#b3829e;--rule:#0c8694;--on-accent:#021315;--on-ok:#021315;--ok-fill:#11ce87;--on-warn:#021315;--warn-fill:#e0a800;--on-bad:#021315;--bad-fill:#b2809d}}
+/* Forgejo 17's variables in the theme's roles: every theme file ends with these lines (theme.py adds them) */
+:root{
+--border-radius:0;--border-radius-medium:0;--border-radius-large:0;
+--color-primary:var(--accent);--color-primary-contrast:var(--on-accent);
+--color-primary-dark-1:color-mix(in srgb,var(--accent),var(--ink) 15%);--color-primary-dark-2:color-mix(in srgb,var(--accent),var(--ink) 30%);
+--color-primary-dark-3:color-mix(in srgb,var(--accent),var(--ink) 45%);--color-primary-dark-4:color-mix(in srgb,var(--accent),var(--ink) 60%);
+--color-primary-light-1:color-mix(in srgb,var(--accent),var(--bg) 15%);--color-primary-light-2:color-mix(in srgb,var(--accent),var(--bg) 30%);
+--color-primary-light-3:color-mix(in srgb,var(--accent),var(--bg) 45%);--color-primary-light-4:color-mix(in srgb,var(--accent),var(--bg) 60%);
+--color-primary-light-5:color-mix(in srgb,var(--accent),var(--bg) 70%);--color-primary-light-6:color-mix(in srgb,var(--accent),var(--bg) 80%);
+--color-primary-light-7:color-mix(in srgb,var(--accent),var(--bg) 90%);
+--color-primary-alpha-10:color-mix(in srgb,var(--accent) 10%,transparent);--color-primary-alpha-20:color-mix(in srgb,var(--accent) 20%,transparent);
+--color-primary-alpha-30:color-mix(in srgb,var(--accent) 30%,transparent);--color-primary-alpha-40:color-mix(in srgb,var(--accent) 40%,transparent);
+--color-primary-alpha-50:color-mix(in srgb,var(--accent) 50%,transparent);--color-primary-alpha-60:color-mix(in srgb,var(--accent) 60%,transparent);
+--color-primary-alpha-70:color-mix(in srgb,var(--accent) 70%,transparent);--color-primary-alpha-80:color-mix(in srgb,var(--accent) 80%,transparent);
+--color-primary-alpha-90:color-mix(in srgb,var(--accent) 90%,transparent);
+--color-secondary:var(--faint);--color-secondary-dark-1:var(--faint);--color-secondary-dark-2:var(--rule);--color-secondary-dark-3:var(--rule);
+--color-secondary-light-1:var(--raised);--color-secondary-light-2:var(--surface);--color-secondary-light-3:var(--surface);--color-secondary-light-4:var(--bg);
+--color-body:var(--bg);--color-box-header:var(--raised);--color-box-body:var(--surface);--color-box-body-highlight:var(--raised);
+--color-text-dark:var(--ink);--color-text:var(--ink);--color-text-light:var(--soft);--color-text-light-1:var(--soft);
+--color-text-light-2:var(--soft);--color-text-light-3:var(--soft);--color-placeholder-text:var(--soft);
+--color-footer:var(--raised);--color-timeline:var(--faint);--color-header-wrapper:var(--surface);
+--color-input-text:var(--ink);--color-input-background:var(--bg);--color-input-toggle-background:var(--bg);
+--color-input-border:var(--rule);--color-input-border-hover:var(--ink);
+--color-nav-bg:var(--raised);--color-nav-hover-bg:var(--faint);--color-secondary-nav-bg:var(--bg);
+--color-menu:var(--surface);--color-card:var(--surface);--fancy-card-bg:var(--surface);--fancy-card-border:var(--faint);
+--color-button:var(--raised);--color-hover:color-mix(in srgb,var(--ink) 8%,transparent);--color-active:color-mix(in srgb,var(--ink) 14%,transparent);
+--color-light-border:var(--faint);--color-secondary-bg:var(--raised);--color-expand-button:var(--raised);
+--color-markup-code-block:var(--raised);--color-markup-code-inline:var(--raised);--color-code-bg:var(--surface);
+--color-label-bg:var(--raised);--color-label-hover-bg:var(--faint);--color-label-active-bg:var(--faint);--color-label-text:var(--ink);
+--color-accent:var(--accent);--color-small-accent:var(--raised);--color-highlight-bg:var(--raised);--color-highlight-fg:var(--ink);
+--color-red:var(--bad);--color-red-light:var(--bad);--color-green:var(--ok);--color-green-light:var(--ok);
+--color-yellow:var(--warn);--color-orange:var(--warn);--color-purple:var(--accent);--color-violet:var(--accent);
+--color-error-bg:var(--surface);--color-error-border:var(--bad);--color-error-text:var(--ink);
+--color-success-bg:var(--surface);--color-success-border:var(--ok);--color-success-text:var(--ink);
+--color-warning-bg:var(--surface);--color-warning-border:var(--warn);--color-warning-text:var(--ink);
+--color-info-bg:var(--surface);--color-info-border:var(--rule);--color-info-text:var(--ink);
+--fonts-override:var(--font);accent-color:var(--accent)}
+.markup a[href]{text-decoration-line:underline}

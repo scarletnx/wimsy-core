@@ -54,10 +54,18 @@ packages, federation and the update check off; `[security] DISABLE_WEBHOOKS = tr
 challenges every client that is no browser on the forge's name, so repositories come in through `gitsync`, never by a
 clone from outside, and the [status page](./STATUS.md) does not check the forge.
 
-## The start page
+## The start page and the themes
 
-`dist/forge/`: Forgejo's start page (`templates/home.tmpl`: getting started, the bots, the repositories) and its
-images (`public/assets/img`: the logo, the favicons, Wimsy, each bot's avatar). With the group paused, from the host:
+`dist/forge/`: Forgejo's start page (`templates/home.tmpl`: getting started, the bots, the repositories), its
+images (`public/assets/img`: the logo, the favicons, Wimsy, each bot's avatar) and its themes (`public/assets/css`:
+SWS's, each `theme-<id>.css` made by wimsy-dist's `themes/theme.py`). Forgejo offers only those, Sepia to whoever
+has no account or picked none, through `app.ini`:
+
+    [ui]
+    DEFAULT_THEME = sepia-auto
+    THEMES = sepia-auto,sepia-light,sepia-dark,wimsy-auto,wimsy-light,wimsy-dark,fuddles-auto,fuddles-light,fuddles-dark,default
+
+With the group paused, from the host:
 
     sh dist/forge/install.sh
     service -j gitscarlet forgejo restart
