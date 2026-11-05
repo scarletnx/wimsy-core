@@ -73,8 +73,11 @@ for it). The worker's answer is checked before any of its files moves from the w
   game code, from No-Intro's list in [libretro-database](https://github.com/libretro/libretro-database), which names a
   GBA game before its cartridge's 12-letter title. The list names games, so it is never in this repository:
   `python3 scripts/make-titles.py --out FILE` makes it where the bot runs. One that has the name alone goes with the
-  reports that have its title ID. The 3DS's and the Vita's headers have the game's own name. The message's text names
-  the game only when the log says neither; its first 200 bytes are kept as the report's note.
+  reports that have its title ID. The 3DS's and the Vita's headers have the game's own name. A name with two `?` in a
+  row is one ScarletNX's launcher wrote into a shared log, which turns each byte outside ASCII into a `?`
+  ("Pok??mon"): it counts as no name, so other reports' and the list's come first, and a report kept with one is
+  named again from them at the next start (its log line: `report #38 named <name>, which was <the ? name>`). The
+  message's text names the game only when the log says neither; its first 200 bytes are kept as the report's note.
 - Beside how the run ended, what the runtime missed, counted from the first log's summary: "1116 shaders, 1 texture
   format, 1 service command" (shaders by the shaders, the rest by the different ones). A run with no failure that
   missed something is answered in the warning's colour. The site marks it "something missed" beside the outcome, the

@@ -99,6 +99,11 @@ static char* name_key(const char* name, const char* console) {
     return buf_take(&b);
 }
 
+/* a name ScarletNX's launcher wrote into a shared log: its Share Log writes each byte outside printable ASCII as '?', so
+   each other letter, two to four bytes in UTF-8, comes as two '?' or more in a row ("Pok??mon"). Not the game's name
+   then: another report's log's, or the list's, comes before it */
+static int mangled(const char* name) { return name && strstr(name, "??") != NULL; }
+
 /* a name and not bytes the log misread: no control characters, no U+FFFD (tr_utf8's mark of an invalid byte) */
 static int named_well(const char* name, size_t n) {
     size_t i;
@@ -178,7 +183,7 @@ int tr_game(const cJSON* summary, const char* note, char** key, char** title, ch
     }
     if (got) {
         *title = got;
-        *named = 1;
+        *named = !mangled(got);
     } else if (*tid) /* the message's words are often what went wrong, not the game's name */
         *title = rei_strdup(*tid);
     else if (note && *note)
@@ -633,6 +638,10 @@ static cJSON* made(Tracer* t, const StReport* r, const Taken* k) {
    NULL */
 static char* known_name(Tracer* t, const char* key, const char* title_id, const char* console) {
     char* known = on_gba(console) ? NULL : st_title_of_key(t->store, key);
+    if (mangled(known)) { /* a report kept before the launcher's '?' were told from a name */
+        free(known);
+        known = NULL;
+    }
     const char* listed = known ? NULL : tr_titles_name(t->titles, console, title_id);
     return known ? known : listed ? rei_strdup(listed) : NULL;
 }
@@ -1057,9 +1066,9 @@ static void refile(Tracer* t, const StReport* r, const cJSON* s) {
             rei_log("report #%ld filed again under %s, not %s", r->id, key, r->key);
             site_update(t->store, t->root, 0, r->key);
         }
-    } else if ((!r->named || on_gba(jstr(s, "console"))) && strcmp(title, r->title) &&
+    } else if ((!r->named || on_gba(jstr(s, "console")) || mangled(r->title)) && strcmp(title, r->title) &&
                !st_set_game(t->store, r->id, key, title, tid, named))
-        rei_log("report #%ld named %s", r->id, title);
+        rei_log("report #%ld named %s, which was %s", r->id, title, r->title);
     free(key);
     free(title);
     free(tid);
