@@ -25,12 +25,6 @@ as MCP's transport asks */
 static Mcp mcp;
 static char origin[512]; /* TRACER_URL's scheme, host and port */
 
-/* the settings of tracer's env file too, which this program may share */
-static const char* const KNOWN[] = {
-    "TRACER_TOKEN",        "TRACER_URL",          "TRACER_CHANNELS",     "TRACER_ADMINS", "TRACER_DB",
-    "TRACER_SITE",         "TRACER_ASSETS",       "TRACER_MCP_LISTEN",   "TRACER_TITLES", "TRACER_ISSUES_REPO",
-    "TRACER_ISSUES_TOKEN", "TRACER_ISSUES_EMOJI", "TRACER_ISSUES_LABELS"};
-
 static void stop(const char* fmt, const char* value) {
     fputs("tracer-mcp: ", stderr);
     fprintf(stderr, fmt, value);
@@ -107,20 +101,14 @@ static void completed(void* cls, struct MHD_Connection* c, void** state, enum MH
 
 int main(void) {
     extern char** environ;
-    char** e;
-    const char *url, *listen, *colon;
+    const char *unknown, *url, *listen, *colon;
     char host[64];
     struct sockaddr_in addr;
     struct MHD_Daemon* d;
-    size_t k, n;
+    size_t n;
     long port;
-    for (e = environ; *e; ++e) {
-        int known = 0;
-        if (strncmp(*e, "TRACER_", 7)) continue;
-        for (k = 0; k < sizeof KNOWN / sizeof *KNOWN; ++k)
-            known |= !strncmp(*e, KNOWN[k], strlen(KNOWN[k])) && (*e)[strlen(KNOWN[k])] == '=';
-        if (!known) stop("%s: no such setting (TRACER_URL, TRACER_SITE, TRACER_MCP_LISTEN)", *e);
-    }
+    if ((unknown = mcp_unknown_key(environ)))
+        stop("%s: no such setting (TRACER_URL, TRACER_SITE, TRACER_MCP_LISTEN, or one of tracer's)", unknown);
     url = setting("TRACER_URL", NULL);
     if (!url || (strncmp(url, "https://", 8) && strncmp(url, "http://", 7)))
         stop("TRACER_URL, the site's https:// (or http://) address, is needed%s", "");

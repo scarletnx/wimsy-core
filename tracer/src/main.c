@@ -54,10 +54,7 @@ static Tracer tracer;
 static Titles titles;
 static u64 self;
 
-static const char* const KNOWN[] = {
-    "TRACER_TOKEN",        "TRACER_URL",           "TRACER_CHANNELS",     "TRACER_ADMINS",      "TRACER_DB",
-    "TRACER_SITE",         "TRACER_ASSETS",        "TRACER_TITLES",       "TRACER_ISSUES_REPO", "TRACER_ISSUES_TOKEN",
-    "TRACER_ISSUES_EMOJI", "TRACER_ISSUES_LABELS", "TRACER_UPSTREAM_REPO"};
+static const char* const KNOWN[] = {TR_KEYS};
 
 /* the bot's end, with 1, from which daemon(8) starts it again. _exit, not exit: the thread of the events may be inside
    a request, which libcurl's cleanup and exit's handlers (OpenSSL's) must not run under */

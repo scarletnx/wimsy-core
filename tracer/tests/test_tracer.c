@@ -1838,6 +1838,24 @@ static void test_other_guild(void) {
 
 /* read_log's grep: in any case, overlapping starts, and in time linear in the line: a 2 MiB line and a 16 KiB grep that
    matches all but its last byte at each place took over a minute, its length times the line's */
+/* tracer-mcp takes the bot's env file: each of the bot's keys, its own, and no other TRACER_ key */
+static void test_mcp_keys(void) {
+    static const char* const bot[] = {TR_KEYS};
+    char one[64], *alone[] = {one, NULL};
+    char* own[] = {"TRACER_URL=https://t", "TRACER_SITE=/s", "TRACER_MCP_LISTEN=127.0.0.1:8081", "PATH=/bin", NULL};
+    char* other[] = {"TRACER_URL=https://t", "TRACER_URLS=x", NULL};
+    char* upstream[] = {"TRACER_UPSTREAM_REPO=scarletnx/ScarletNX", NULL};
+    size_t i;
+    for (i = 0; i < sizeof bot / sizeof *bot; ++i) {
+        snprintf(one, sizeof one, "%s=x", bot[i]);
+        CHECK(!mcp_unknown_key(alone));
+    }
+    CHECK(!mcp_unknown_key(upstream));
+    CHECK(!mcp_unknown_key(own));
+    SAME(mcp_unknown_key(other), "TRACER_URLS=x");
+    CHECK(!mcp_unknown_key(NULL));
+}
+
 static void test_mcp_grep(void) {
     static const char lines[] = "first aaab line\nthe abaabab line\nAbAb\nnothing here\n";
     size_t line = (size_t)2 << 20, glen = 16 << 10;
@@ -2669,6 +2687,7 @@ int main(int argc, char** argv) {
         test_other_guild();
         test_replies();
         test_mcp_grep();
+        test_mcp_keys();
         test_worker(argv[0]);
         test_untraceable(argv[0]);
         test_issues();
