@@ -3,22 +3,24 @@
 # Copyright 2026 the ScarletNX contributors
 #
 # A bot built with Concord, its gateway dying under it: ReiWimsy with its rounds held inside a GitHub request, Tracer
-# just up. Each has to end with status 1, which daemon(8) starts it again from, saying that Concord's GET gateway/bot
-# failed and what Discord answers it now. fix-cards: reiwimsy --fix-cards on a nightly channel with two cards saying
-# "Building" (fake_discord.py's cards): the dry run changes nothing, --apply deletes the one of a commit inside a push
-# and redraws the push's head with its failed build, and a second --apply finds nothing to do.
+# once it has answered two replies that mention it and bring no file (the first makes a report of the message they
+# reply to, with that message's log; the second is told that it is that report already). Each has to end with status
+# 1, which daemon(8) starts it again from, saying that Concord's GET gateway/bot failed and what Discord answers it
+# now. fix-cards: reiwimsy --fix-cards on a nightly channel with two cards saying "Building" (fake_discord.py's
+# cards): the dry run changes nothing, --apply deletes the one of a commit inside a push and redraws the push's head
+# with its failed build, and a second --apply finds nothing to do.
 #
 #   sh rei/tests/test_gateway.sh reiwimsy|tracer|fix-cards BINARY
 #
 # Linux, no network: the bot runs in a mount and network namespace of its own, and in a user namespace too when not run
 # by root (a machine that keeps those from users runs the test as root), whose /etc/hosts sends Discord and GitHub to
-# fake_discord.py on 127.0.0.1 and whose CA bundle (libcurl's, curl-config --ca) holds only the CA this script makes.
-# Needs unshare and ip (util-linux, iproute2), python3, openssl and curl-config.
+# fake_discord.py on 127.0.0.1 (the CDN too) and whose CA bundle (libcurl's, curl-config --ca) holds only the CA this
+# script makes. Needs unshare and ip (util-linux, iproute2), python3, openssl and curl-config.
 set -eu
 program=${1:-} binary=${2:-}
 case "$program" in
 reiwimsy) drop_after=github ;;
-tracer) drop_after=ready ;;
+tracer) drop_after=replies ;;
 fix-cards) drop_after=cards ;;
 *)
 	echo "usage: sh test_gateway.sh reiwimsy|tracer|fix-cards BINARY (program \"$program\")" >&2
@@ -41,10 +43,11 @@ trap 'rm -rf "$tmp"' EXIT
 openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj /CN=fake-ca -keyout "$tmp/ca.key" -out "$tmp/ca.pem" \
 	2> /dev/null
 openssl req -newkey rsa:2048 -nodes -subj /CN=fake -keyout "$tmp/leaf.key" -out "$tmp/leaf.csr" 2> /dev/null
-printf 'subjectAltName=DNS:discord.com,DNS:gateway.discord.gg,DNS:api.github.com\n' > "$tmp/san.ext"
+printf 'subjectAltName=DNS:discord.com,DNS:gateway.discord.gg,DNS:cdn.discordapp.com,DNS:api.github.com\n' \
+	> "$tmp/san.ext"
 openssl x509 -req -in "$tmp/leaf.csr" -CA "$tmp/ca.pem" -CAkey "$tmp/ca.key" -CAcreateserial -days 2 \
 	-extfile "$tmp/san.ext" -out "$tmp/leaf.pem" 2> /dev/null
-printf '127.0.0.1 localhost discord.com gateway.discord.gg api.github.com\n' > "$tmp/hosts"
+printf '127.0.0.1 localhost discord.com gateway.discord.gg cdn.discordapp.com api.github.com\n' > "$tmp/hosts"
 # a token of Discord's form, which Concord checks before anything
 token=FakeFakeFakeFakeFakeFake.Fake00.FakeFakeFakeFakeFakeFakeFake
 mkdir "$tmp/site"
@@ -55,7 +58,7 @@ elif [ "$program" = fix-cards ]; then
 	set -- REIWIMSY_TOKEN=$token REIWIMSY_REPO=owner/repo GITHUB_TOKEN=fake REIWIMSY_CARDS_NIGHTLY=5
 else
 	set -- TRACER_TOKEN=$token TRACER_URL=http://127.0.0.1:8 TRACER_DB="$tmp/tracer.db" TRACER_SITE="$tmp/site" \
-		TRACER_ASSETS="$top/tracer/site"
+		TRACER_ASSETS="$top/tracer/site" TRACER_CHANNELS=6
 fi
 
 # root keeps the real one: in a user namespace of its own, its root would lose its rights over the files of the
@@ -141,6 +144,18 @@ elif ! grep -q 'gateway: closed with 1001' "$tmp/fake.log"; then
 	failed="the fake gateway never closed under it"
 elif ! grep -q "$said" "$tmp/bot.log"; then
 	failed="it never said its GET gateway/bot failed and what Discord answers it now"
+elif [ "$program" = tracer ]; then
+	# the first reply: a report of message 50, its log downloaded and kept with its home folder as ~; the second: told
+	# that message is that report already
+	if ! grep -q 'discord: answered {"embeds": \[{"title": "Report #1: Fake Game".*/r/1/' "$tmp/fake.log"; then
+		failed="its answer to the first reply was not report #1 of the message it replies to"
+	elif ! grep -q "discord: answered .*The message you replied to is report #1's already" "$tmp/fake.log"; then
+		failed="its answer to the second reply did not say that message is report #1 already"
+	elif ! grep -qs 'loading ~/save.bin' "$tmp/site/r/1/1.log"; then
+		failed="the report's log is not in the site, its home folder as ~"
+	elif [ "$(grep -c 'cdn: GET /attachments/6/51/game.log' "$tmp/fake.log")" != 1 ]; then
+		failed="the log was not downloaded once"
+	fi
 fi
 if [ -n "$failed" ]; then
 	echo "test_gateway.sh: $program, its gateway closed: $failed. The fake's steps, then the end of its log:" >&2
@@ -148,4 +163,5 @@ if [ -n "$failed" ]; then
 	tail -n 15 "$tmp/bot.log" >&2
 	exit 1
 fi
+[ "$program" = tracer ] && echo "tracer: a reply alone made report #1 of the message it replies to, and a second was told so"
 echo "$program: ended with 1 when its gateway stopped: $(grep "$said" "$tmp/bot.log")"

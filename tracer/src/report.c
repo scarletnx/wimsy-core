@@ -233,7 +233,8 @@ static cJSON* help(void) {
         "Home folders in a log are shown as ~, and screenshots lose their metadata. The site does not show "
         "who sent a report.\n\n"
         "To add logs, screenshots or a note to a report, reply to it (or to my answer) and mention me, or write "
-        "`@Tracer add 12` with them.\n\n"
+        "`@Tracer add 12` with them. For a log someone sent without mentioning me, reply to their message and "
+        "mention me: I make a report of it.\n\n"
         "`@Tracer delete 12`, or a reply with `@Tracer delete`, deletes a report (yours, or any for an "
         "administrator). Deleting your message deletes what it sent: the report, or what it added.",
         TONE_SAID);
@@ -615,17 +616,22 @@ static int written(Tracer* t, long id, Taken* k) {
     return failed ? -1 : 0;
 }
 
-static cJSON* reported(Tracer* t, const TrMessage* m, char* note, long* report) {
+/* the report of m's files, which asker asked for: m itself, or the message asker replied to (its author the one who
+   sent the report). The hourly limit counts asker */
+static cJSON* reported(Tracer* t, const TrMessage* asker, const TrMessage* m, const char* note, long* report) {
     Taken k;
     StReport r;
     cJSON* e;
     char* text;
     if (st_by_message(t->store, m->id)) return NULL; /* the gateway's event again, after a resume */
-    if (m->nfiles && (e = limited(t, m))) return e;
+    if (m->nfiles && (e = limited(t, asker))) return e;
     memset(&k, 0, sizeof k);
     if (fetched(t, m, &k)) return unread(&k);
     if (!k.logs) {
-        text = k.skipped.len ? rei_format("No ScarletNX log here, so no report:\n%s", k.skipped.text)
+        text = k.skipped.len ? rei_format("%s, so no report:\n%s",
+                                          asker == m ? "No ScarletNX log here"
+                                                     : "The message you replied to has no ScarletNX log",
+                                          k.skipped.text)
                              : rei_strdup("Attach the game's ScarletNX log (.log, .txt, .gz or .zip), and screenshots "
                                           "if you have them. `@Tracer help` says more.");
         e = said(text);
@@ -804,6 +810,132 @@ static cJSON* updated(Tracer* t, const TrMessage* m, long id, const char* note, 
     return e;
 }
 
+/* the answer to a reply that brings nothing to report id, a message of which it replies to: the report's link, as
+   that message made it or added to it already. NULL for m again (it made the report, or was answered with it) */
+static cJSON* known(Tracer* t, const TrMessage* m, long id) {
+    StReport r;
+    char *text, *title, *cut, *url;
+    cJSON* e;
+    if (st_report_of(t->store, m->id)) return NULL; /* the gateway's event again, after a resume */
+    if (st_get(t->store, id, &r, NULL, NULL) != 1) {
+        text = rei_format("There is no report #%ld.", id);
+        e = said(text);
+        free(text);
+        return e;
+    }
+    title = rei_format("Report #%ld: %s", id, r.title);
+    cut = plain(title, 250);
+    text = rei_format("The message you replied to is report #%ld's already. To add to it, reply with logs, screenshots "
+                      "or words.",
+                      id);
+    url = rei_format("%s/r/%ld/", t->url, id);
+    e = embed(cut, text, TONE_SAID);
+    jset(e, "url", url);
+    free(url);
+    free(text);
+    free(cut);
+    free(title);
+    st_report_free(&r);
+    return e;
+}
+
+/* what Discord's answer to the bot's GET of the message m replies to says when it is no message: owned */
+static char* not_given(int status, const char* why) {
+    if (status == 404) return rei_strdup("The message you replied to is gone (Discord answered 404), so no report.");
+    if (status == 403)
+        return rei_format("Discord does not let me read the message you replied to (it answered 403: %.200s): I need "
+                          "the Read Message History permission in this channel.",
+                          why ? why : "no reason given");
+    if (!status)
+        return rei_format("Discord did not answer when I asked for the message you replied to (%.200s): try again "
+                          "later, please.",
+                          why ? why : "no reason given");
+    return rei_format("Discord answered %d when I asked for the message you replied to (%.200s): try again later, "
+                      "please.",
+                      status, why ? why : "no reason given");
+}
+
+/* m, a reply that brings no file, made a report of the message it replies to, in the same channel */
+static cJSON* from_reply(Tracer* t, const TrMessage* m, const char* note, long* report) {
+    TrMessage of;
+    char *json, *why = NULL, *text, *words;
+    int status = 0;
+    cJSON* e;
+    if (st_report_of(t->store, m->id)) return NULL; /* the gateway's event again, after a resume */
+    if (m->reply_guild && m->reply_guild != m->guild) {
+        text =
+            rei_format("The message you replied to is in another server (%llu): I make a report of a message in this "
+                       "channel only.",
+                       (unsigned long long)m->reply_guild);
+        e = said(text);
+        free(text);
+        return e;
+    }
+    if (m->reply_channel && m->reply_channel != m->channel) {
+        text = rei_format("The message you replied to is in <#%llu>, not this channel: I make a report of a message in "
+                          "the channel I am asked in only. Reply to it there.",
+                          (unsigned long long)m->reply_channel);
+        e = said(text);
+        free(text);
+        return e;
+    }
+    json = t->message(t->discord_ctx, m->channel, m->reply_to, &status, &why);
+    if (status != 200 || !json || !tr_message_of(json, strlen(json), &of)) {
+        if (status == 200) { /* an answer that is no message */
+            free(why);
+            why = rei_format("its answer is no message: %.120s", json ? json : "nothing");
+            status = -1;
+        }
+        text = status == -1 ? rei_format("Discord's answer for the message you replied to is no message (%s): try "
+                                         "again later, please.",
+                                         why)
+                            : not_given(status, why);
+        rei_log("message %llu, which %llu replied to, was not read: %d, %s", (unsigned long long)m->reply_to,
+                (unsigned long long)m->id, status, why ? why : "no reason given");
+        free(json);
+        free(why);
+        e = said(text);
+        free(text);
+        return e;
+    }
+    free(json);
+    free(why);
+    why = NULL;
+    if (of.bot) {
+        tr_message_free(&of);
+        return said("The message you replied to is a bot's or a webhook's, not a report: reply to the message that has "
+                    "the log.");
+    }
+    if (!of.nfiles) { /* none, or none that Discord shows the bot */
+        int sees = t->content_intent ? t->content_intent(t->discord_ctx, &why) : -1;
+        if (sees == 1)
+            text =
+                rei_strdup("The message you replied to has no file, so it has no ScarletNX log to make a report of.");
+        else if (!sees)
+            text = rei_strdup("I can't see the files of the message you replied to: Discord shows a bot the files of a "
+                              "message that mentions it, and of other messages only with the Message Content intent, "
+                              "which I don't have. Send the log again with a mention of me.");
+        else
+            text = rei_format("Discord shows me no file in the message you replied to, and did not say whether it "
+                              "would show me one (%.200s): send the log again with a mention of me.",
+                              why ? why : "no reason given");
+        free(why);
+        tr_message_free(&of);
+        e = said(text);
+        free(text);
+        return e;
+    }
+    of.guild = m->guild;
+    of.channel = m->channel;
+    words = tr_words(of.content);
+    e = reported(t, m, &of, *words ? words : note, report);
+    if (*report && st_link(t->store, m->id, *report))
+        rei_log("report #%ld: reply %llu not linked to it", *report, (unsigned long long)m->id);
+    free(words);
+    tr_message_free(&of);
+    return e;
+}
+
 cJSON* tr_answer(Tracer* t, const TrMessage* m, long* report) {
     char* note;
     long number, target;
@@ -826,8 +958,13 @@ cJSON* tr_answer(Tracer* t, const TrMessage* m, long* report) {
                        : said("Which report? `@Tracer delete 12`, or a reply to the report with `@Tracer delete`.");
             break;
         case TR_ADD: e = updated(t, m, target, note, report); break;
-        case TR_REPORT: /* a reply to a report adds to it */
-            e = target ? updated(t, m, target, note, report) : reported(t, m, note, report);
+        case TR_REPORT: /* a reply to a report adds to it; a reply alone to another message makes a report of it */
+            if (target)
+                e = m->nfiles || *note ? updated(t, m, target, note, report) : known(t, m, target);
+            else if (m->reply_to && !m->nfiles && t->message)
+                e = from_reply(t, m, note, report);
+            else
+                e = reported(t, m, m, note, report);
             break;
     }
     free(note);

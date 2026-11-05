@@ -1,19 +1,24 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright 2026 the ScarletNX contributors
-"""Discord (its REST API and its gateway) and GitHub as the bots reach them, over TLS on 127.0.0.1:443, for
-test_gateway.sh, which runs a bot in a network namespace whose /etc/hosts sends discord.com, gateway.discord.gg and
-api.github.com here.
+"""Discord (its REST API, its gateway and its CDN) and GitHub as the bots reach them, over TLS on 127.0.0.1:443, for
+test_gateway.sh, which runs a bot in a network namespace whose /etc/hosts sends discord.com, gateway.discord.gg,
+cdn.discordapp.com and api.github.com here.
 
     python3 -I fake_discord.py CERT KEY DROP_AFTER|cards
 
 The gateway sends HELLO, answers IDENTIFY with READY and each heartbeat with its ACK. Half a second after DROP_AFTER
-(github: the first GitHub request, which is held open, never answered; ready: READY) it closes with 1001, as Discord
-going away, and from then on GET /gateway/bot gets its connection closed with no answer.
+(github: the first GitHub request, which is held open, never answered; ready: READY; replies: Tracer's answers to two
+replies, below) it closes with 1001, as Discord going away, and from then on GET /gateway/bot gets its connection
+closed with no answer.
+
+replies: once READY is sent, someone's reply that mentions the bot and brings no file, to message 50 of channel 6,
+which has a ScarletNX log and no mention (the REST API gives it; the CDN, its log); once the bot has answered it,
+another person's reply to the same message.
 
 cards, for reiwimsy --fix-cards: the nightly channel 5 holds two of the bot's cards saying "Building" from five hours
 ago, a commit inside a push (B) and that push's head (C), whose build failed; one of its cards saying something else,
 and someone else's. GitHub answers what drawing C asks; Discord's channel listing, PATCH and DELETE work on that
-channel. Each step is a line on stderr.
+channel. Each step is a line on stderr, each message a bot posts too.
 """
 
 import asyncio
@@ -26,11 +31,52 @@ import sys
 import time
 
 CERT, KEY, DROP_AFTER = sys.argv[1], sys.argv[2], sys.argv[3]
-if DROP_AFTER not in ("github", "ready", "cards"):
-    sys.exit(f"fake_discord.py: DROP_AFTER is {DROP_AFTER!r}, not github, ready or cards")
+if DROP_AFTER not in ("github", "ready", "replies", "cards"):
+    sys.exit(f"fake_discord.py: DROP_AFTER is {DROP_AFTER!r}, not github, ready, replies or cards")
 ME = {"id": "100", "username": "FakeBot", "discriminator": "0", "bot": True}
 cue = asyncio.Event()  # what the drop waits for
+posted = asyncio.Queue()  # each message a bot posts, its JSON
 broken = False
+# the message the replies reply to: a person's, with a log, mentioning no one; the log, as the CDN serves it
+LOG = (
+    "[   0.00] ScarletNX - Fake Game\n"
+    "[   0.00] build: ScarletNX main 1234abc (clang 23.1.3, Linux x86_64)\n"
+    "[   0.30] game: 0100aaaabbbb0000, version 1.0.0\n"
+    "[   1.00] [game] loading /home/someone/save.bin\n"
+)
+LOG_PATH = "/attachments/6/51/game.log"
+LOGGED = {
+    "id": "50",
+    "channel_id": "6",
+    "author": {"id": "7", "username": "someone"},
+    "content": "it crashes at the title screen",
+    "mentions": [],
+    "attachments": [
+        {
+            "id": "51",
+            "filename": "game.log",
+            "size": len(LOG),
+            "url": "https://cdn.discordapp.com" + LOG_PATH,
+            "content_type": "text/plain; charset=utf-8",
+        }
+    ],
+}
+
+
+def reply(message, author):
+    """a reply to message 50 by author, mentioning the bot and nothing else, as MESSAGE_CREATE's data"""
+    return {
+        "id": message,
+        "channel_id": "6",
+        "guild_id": "5",
+        "type": 19,
+        "author": {"id": author, "username": "helper" + author},
+        "member": {"roles": []},
+        "content": "<@" + ME["id"] + ">",
+        "mentions": [ME],
+        "attachments": [],
+        "message_reference": {"message_id": "50", "channel_id": "6", "guild_id": "5"},
+    }
 
 
 def say(line):
@@ -47,10 +93,10 @@ async def request_of(reader):
     return method, target, headers, body
 
 
-def answer(writer, obj, status="200 OK"):
-    data = json.dumps(obj).encode()
+def answer(writer, obj, status="200 OK", kind="application/json"):
+    data = obj.encode() if isinstance(obj, str) else json.dumps(obj).encode()
     writer.write(
-        b"HTTP/1.1 %s\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n" % (status.encode(), len(data))
+        b"HTTP/1.1 %s\r\nContent-Type: %s\r\nContent-Length: %d\r\n\r\n" % (status.encode(), kind.encode(), len(data))
         + data
     )
 
@@ -174,8 +220,22 @@ async def gateway(reader, writer, headers):
         await writer.drain()
         writer.close()
 
+    async def replies():
+        for seq, (message, author) in enumerate((("60", "8"), ("61", "9")), start=2):
+            send({"op": 0, "t": "MESSAGE_CREATE", "s": seq, "d": reply(message, author)})
+            await writer.drain()
+            say(f"gateway: MESSAGE_CREATE {message}, a reply by {author} to message 50")
+            try:
+                said = await asyncio.wait_for(posted.get(), 30)
+            except TimeoutError:
+                say(f"discord: no answer to {message} in 30 s")
+                break
+            say(f"discord: answered {json.dumps(said)}")
+        cue.set()
+
     send({"op": 10, "d": {"heartbeat_interval": 41250}, "s": None, "t": None})
     dropping = asyncio.ensure_future(drop())
+    replying = None
     try:
         while True:
             opcode, data = await frame_of(reader)
@@ -192,12 +252,16 @@ async def gateway(reader, writer, headers):
                 say("gateway: READY")
                 if DROP_AFTER == "ready":
                     cue.set()
+                elif DROP_AFTER == "replies" and not replying:
+                    replying = asyncio.ensure_future(replies())
             elif op == 1:
                 send({"op": 11, "d": None, "s": None, "t": None})
             await writer.drain()
     except (asyncio.IncompleteReadError, ConnectionError):
         pass
     dropping.cancel()
+    if replying:
+        replying.cancel()
 
 
 async def serve(reader, writer):
@@ -238,8 +302,19 @@ async def serve(reader, writer):
                         },
                     },
                 )
+            elif host == "cdn.discordapp.com":
+                say(f"cdn: {method} {target}")
+                answer(writer, LOG if target == LOG_PATH else "", kind="text/plain")
             elif target.startswith("/api/v10/users/@me"):
                 answer(writer, ME)
+            elif target.startswith("/api/v10/applications/@me"):
+                answer(writer, {"id": ME["id"], "flags": 1 << 19})  # the Message Content intent, limited
+            elif method == "GET" and target == "/api/v10/channels/6/messages/50":
+                say(f"discord: {method} {target}")
+                answer(writer, LOGGED)
+            elif method == "POST" and target == "/api/v10/channels/6/messages":
+                posted.put_nowait(json.loads(body))
+                answer(writer, {"id": str(900 + posted.qsize())})
             elif "/emojis" in target:
                 answer(writer, {"items": []})
             else:

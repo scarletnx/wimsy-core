@@ -44,6 +44,14 @@ struct Tracer {
        (main.c's, without the bot's token), or here by tr_take when take is NULL. 0, or -1 with why (owned) */
     int (*take)(void* ctx, Tracer* t, const TrMessage* m, Taken* k, char** why);
     void* take_ctx;
+    /* message id of channel as Discord has it now (GET channels/C/messages/ID): its JSON (owned) and Discord's status,
+       or NULL, status 0 and why (owned) when Discord did not answer. NULL for none: a reply that brings no file is then
+       asked for one, as any message without a log is */
+    char* (*message)(void* ctx, u64 channel, u64 id, int* status, char** why);
+    /* whether Discord shows the bot the files of a message that does not mention it (the Message Content intent): 1,
+       0, or -1 with why (owned) when Discord did not say */
+    int (*content_intent)(void* ctx, char** why);
+    void* discord_ctx;
 };
 
 /* m's attachments downloaded through t's get and read: the logs unpacked, their home folders as ~, their dumps and
@@ -67,7 +75,10 @@ char* tr_missed(const cJSON* summary);
 /* the reply to m, a message that mentions the bot: an embed (owned), or NULL for a message already handled (the
    gateway sends a message again after a resume). *report is the report it made or updated, 0 for none: the reply,
    once posted, is given to tr_replied. A reply to a report's message (its own, an update, the bot's answer) adds to
-   that report, as "add 12" does: for the person who sent it, or an administrator */
+   that report, as "add 12" does: for the person who sent it, or an administrator; with nothing to add, it is answered
+   with the report's link. A reply to another message of the same channel that brings no file of its own makes a
+   report of that message (t->message): its files, its author as the one who sent it, its words as the note (else the
+   reply's); the hourly limit counts the one who asked */
 cJSON* tr_answer(Tracer* t, const TrMessage* m, long* report);
 /* each kept log summarized again, each report's facts drawn again from its first log, and its game named or filed
    again, when the log summary or the list of names differs from the one that made them (version: TR_LOGSCAN and the

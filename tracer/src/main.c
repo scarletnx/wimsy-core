@@ -222,6 +222,46 @@ static int administers(void* ctx, u64 guild, u64 user, const u64* roles, int nro
     return yes;
 }
 
+/* GET channels/C/messages/ID, for a reply that asks for a report of the message it replies to: the message's JSON
+   (owned) and Discord's status; NULL, 0 and why when Discord did not answer */
+static char* message_got(void* ctx, u64 channel, u64 id, int* status, char** why) {
+    char* url = rei_format(DC_API "channels/%llu/messages/%llu", (unsigned long long)channel, (unsigned long long)id);
+    RgAnswer a;
+    (void)ctx;
+    rh_fetch(&discord_auth, "GET", url, NULL, NULL, &a);
+    free(url);
+    *status = a.status;
+    *why = a.error ? rei_strdup(a.error) : a.status != 200 && a.body ? rei_format("%.200s", a.body) : NULL;
+    free(a.etag);
+    free(a.error);
+    return a.body;
+}
+#define CONTENT_INTENT 0xc0000UL /* the application's flags of the Message Content intent: approved, or limited */
+/* whether Discord shows the bot the files of the messages that do not mention it, by its application's flags: 1, 0,
+   or -1 with why when Discord did not say */
+static int content_intent(void* ctx, char** why) {
+    RgAnswer a;
+    cJSON* app;
+    int yes = -1;
+    (void)ctx;
+    *why = NULL;
+    rh_fetch(&discord_auth, "GET", DC_API "applications/@me", NULL, NULL, &a);
+    if (a.status == 200 && (app = cJSON_Parse(a.body))) {
+        const cJSON* flags = cJSON_GetObjectItemCaseSensitive(app, "flags");
+        if (cJSON_IsNumber(flags))
+            yes = ((unsigned long)flags->valuedouble & CONTENT_INTENT) != 0;
+        else
+            *why = rei_strdup("GET applications/@me answered no flags");
+        cJSON_Delete(app);
+    } else
+        *why = a.status ? rei_format("GET applications/@me answered %d: %.200s", a.status, a.body ? a.body : "nothing")
+                        : rei_format("GET applications/@me: %s", a.error ? a.error : "no answer");
+    free(a.body);
+    free(a.etag);
+    free(a.error);
+    return yes;
+}
+
 static void typing(u64 channel) {
     char* url = rei_format(DC_API "channels/%llu/typing", (unsigned long long)channel);
     RgAnswer a;
@@ -375,6 +415,19 @@ int main(int argc, char** argv) {
     tracer.administers = administers;
     tracer.issues = &issues;
     tracer.age = &age;
+    tracer.message = message_got;
+    tracer.content_intent = content_intent;
+    { /* what a reply alone to a message with a log gets, said once at the start; asked again at each such reply */
+        char* why;
+        int sees = content_intent(NULL, &why);
+        rei_log("replies: a reply that mentions me with no file makes a report of the message it replies to; %s",
+                sees == 1 ? "Discord shows me that message's files (the Message Content intent is on)"
+                : !sees   ? "Discord does not show me that message's files, as the Message Content intent is off: "
+                            "such a reply is told to send the log with a mention"
+                : why     ? why
+                          : "Discord did not say whether it shows me that message's files");
+        free(why);
+    }
     {
         char* said = tr_issues_said(&issues);
         rei_log("%s", said);

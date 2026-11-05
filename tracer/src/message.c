@@ -16,7 +16,8 @@ static u64 id_of(const cJSON* o, const char* key) {
     return *end ? 0 : v;
 }
 
-int tr_message(const char* json, size_t len, u64 self, TrMessage* m) {
+/* the message in json into *m, people's and bots' alike (m->bot): 1, or 0 with nothing owned for no message */
+static int parsed(const char* json, size_t len, u64 self, TrMessage* m) {
     cJSON* d = cJSON_ParseWithLength(json, len);
     const cJSON *author = cJSON_GetObjectItemCaseSensitive(d, "author"), *each;
     const char* content = jstr(d, "content");
@@ -27,6 +28,8 @@ int tr_message(const char* json, size_t len, u64 self, TrMessage* m) {
     m->guild = id_of(d, "guild_id");
     m->author = id_of(author, "id");
     m->reply_to = id_of(cJSON_GetObjectItemCaseSensitive(d, "message_reference"), "message_id");
+    m->reply_channel = id_of(cJSON_GetObjectItemCaseSensitive(d, "message_reference"), "channel_id");
+    m->reply_guild = id_of(cJSON_GetObjectItemCaseSensitive(d, "message_reference"), "guild_id");
     { /* a reply to the bot's answer: Discord sends that message with it, its embed linking the report */
         const cJSON* to = cJSON_GetObjectItemCaseSensitive(d, "referenced_message");
         const char* url = jstr(cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(to, "embeds"), 0), "url");
@@ -36,7 +39,8 @@ int tr_message(const char* json, size_t len, u64 self, TrMessage* m) {
         if (self && id_of(cJSON_GetObjectItemCaseSensitive(to, "author"), "id") == self && v > 0 && !strcmp(end, "/"))
             m->reply_report = v;
     }
-    ok = cJSON_IsObject(author) && !jbool(author, "bot") && !jstr(d, "webhook_id") && m->id && m->channel && m->author;
+    ok = cJSON_IsObject(author) && m->id && m->channel && m->author;
+    m->bot = jbool(author, "bot") || jstr(d, "webhook_id");
     if (!ok) {
         memset(m, 0, sizeof *m);
         cJSON_Delete(d);
@@ -63,6 +67,15 @@ int tr_message(const char* json, size_t len, u64 self, TrMessage* m) {
     cJSON_Delete(d);
     return 1;
 }
+
+int tr_message(const char* json, size_t len, u64 self, TrMessage* m) {
+    if (!parsed(json, len, self, m)) return 0;
+    if (!m->bot) return 1;
+    tr_message_free(m);
+    return 0;
+}
+
+int tr_message_of(const char* json, size_t len, TrMessage* m) { return parsed(json, len, 0, m); }
 
 void tr_message_free(TrMessage* m) {
     int i;
@@ -137,17 +150,14 @@ static size_t mention(const char* s, u64* id) {
     return s[i] == '>' ? i + 1 : 0;
 }
 
-TrVerb tr_command(const char* content, char** note, long* number) {
+/* content's words, its mentions left out, its lines and spaces made one space each; owned */
+static char* plain_words(const char* content) {
     Buf text = {0};
     const char* s;
-    char *t, *end;
-    size_t n;
     int space = 0;
-    TrVerb verb = TR_REPORT;
-    *note = NULL;
-    *number = 0;
-    for (s = content; *s;) { /* the mentions left out, the lines and spaces made one space each */
+    for (s = content; *s;) {
         u64 id;
+        size_t n;
         if ((n = mention(s, &id))) {
             s += n;
             space = 1;
@@ -160,7 +170,26 @@ TrVerb tr_command(const char* content, char** note, long* number) {
             buf_addn(&text, s++, 1);
         }
     }
-    t = buf_take(&text);
+    return buf_take(&text);
+}
+/* t cut to TR_NOTE bytes where no UTF-8 sequence is split */
+static char* cut_note(char* t) {
+    size_t n = strlen(t);
+    if (n > TR_NOTE) {
+        n = TR_NOTE;
+        while (n && ((unsigned char)t[n] & 0xc0) == 0x80) --n;
+        t[n] = 0;
+    }
+    return t;
+}
+
+char* tr_words(const char* content) { return cut_note(plain_words(content ? content : "")); }
+
+TrVerb tr_command(const char* content, char** note, long* number) {
+    char *t = plain_words(content), *end;
+    TrVerb verb = TR_REPORT;
+    *note = NULL;
+    *number = 0;
     if (!strcasecmp(t, "help")) {
         free(t);
         return TR_HELP;
@@ -188,12 +217,6 @@ TrVerb tr_command(const char* content, char** note, long* number) {
             verb = TR_ADD;
         }
     }
-    n = strlen(t);
-    if (n > TR_NOTE) { /* cut where no UTF-8 sequence is split */
-        n = TR_NOTE;
-        while (n && ((unsigned char)t[n] & 0xc0) == 0x80) --n;
-        t[n] = 0;
-    }
-    *note = t;
+    *note = cut_note(t);
     return verb;
 }
