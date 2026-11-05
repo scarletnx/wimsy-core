@@ -114,10 +114,11 @@ In a job of its own, on each pull request and each push to main, the bots built 
   makes report #1 of the message they reply to (Discord's REST API gives it, the fake CDN its log, which the site
   keeps with its home folder as `~`), the second is told that message is report #1 already. A mention asking for help
   in channel 7 goes unanswered with `TRACER_CHANNELS=6`, and is answered with `TRACER_CHANNELS=all` (`tracer-all`).
-- `zombie` (ReiWimsy) and `tracer-zombie`: a heartbeat a second; the first connection sends READY, then leaves its
-  heartbeats unanswered. The bot has to leave it as a zombie and keep the next connection until the gateway closes,
-  though its ACKs come 0.3 s after each heartbeat (a Concord whose heartbeat timer still fires every millisecond from
-  the zombie leaves it a millisecond after READY).
+- `zombie` (ReiWimsy) and `tracer-zombie`: a heartbeat a second; the first connection sends READY and the first
+  kilobyte of a 60000-byte frame, then nothing, its heartbeats unanswered. The bot has to leave it as a zombie, identify
+  on the next connection (a Concord that reads that one's HELLO as the dead frame's tail waits forever) and keep it
+  until the gateway closes, though its ACKs come 0.3 s after each heartbeat (a Concord whose heartbeat timer still
+  fires every millisecond from the zombie leaves it a millisecond after READY).
 - `reiwimsy --fix-cards` on a nightly channel holding two cards that say "Building": its dry run changes nothing,
   `--apply` deletes the one of a commit inside a push and redraws the push's head with its failed build, and a second
   `--apply` finds nothing to do.

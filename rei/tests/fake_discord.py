@@ -11,7 +11,8 @@ The gateway sends HELLO, answers IDENTIFY with READY and each heartbeat with its
 replies, below; zombie: below) it closes with 1001, as Discord going away, and from then on GET /gateway/bot gets its
 connection closed with no answer.
 
-zombie: a heartbeat every second. The first connection sends READY, then leaves its heartbeats unanswered, which the
+zombie: a heartbeat every second. The first connection sends READY and the first kilobyte of a 60000-byte
+MESSAGE_CREATE, then nothing, its heartbeats unanswered: a connection that stalls in the middle of a frame, which the
 bot has to take for a zombie and leave. Each later one ACKs each heartbeat 0.3 s after it, as Discord's round trip, and
 its second ACK is DROP_AFTER. Each connection, its READY, heartbeats and ACKs are lines, numbered by connection.
 
@@ -187,8 +188,9 @@ def cards_discord(writer, method, target, body):
     return False
 
 
-def frame(opcode, payload):
-    n = len(payload)
+def frame(opcode, payload, size=None):
+    """a frame of payload; size, when given, is the length its header announces, of which payload is the start"""
+    n = len(payload) if size is None else size
     if n < 126:
         return struct.pack("!BB", 0x80 | opcode, n) + payload
     return struct.pack("!BBH", 0x80 | opcode, 126, n) + payload
@@ -284,7 +286,11 @@ async def gateway(reader, writer, headers):
                 ready["application"] = {"id": ME["id"], "flags": 0}
                 send({"op": 0, "t": "READY", "s": 1, "d": ready})
                 say(f"gateway: connection {n}: READY" if DROP_AFTER == "zombie" else "gateway: READY")
-                if DROP_AFTER == "ready":
+                if DROP_AFTER == "zombie" and n == 1:
+                    start = json.dumps({"op": 0, "t": "MESSAGE_CREATE", "s": 2, "d": {"content": "x" * 60000}})
+                    writer.write(frame(1, start[:1000].encode(), 60000))
+                    say("gateway: connection 1: 1000 bytes of a 60000-byte frame, and nothing more")
+                elif DROP_AFTER == "ready":
                     cue.set()
                 elif DROP_AFTER == "replies" and not replying:
                     replying = asyncio.ensure_future(replies())

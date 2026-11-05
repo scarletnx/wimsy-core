@@ -6,9 +6,9 @@
 # once it has answered two replies that mention it and bring no file (the first makes a report of the message they
 # reply to, with that message's log; the second is told that it is that report already). Each has to end with status
 # 1, which daemon(8) starts it again from, saying that Concord's GET gateway/bot failed and what Discord answers it
-# now. zombie (ReiWimsy) and tracer-zombie: a heartbeat a second, the first connection's heartbeats unanswered, the
-# next ones ACKing 0.3 s after each heartbeat (fake_discord.py's zombie): the bot leaves the first as a zombie,
-# identifies on the second and keeps it until the drop, two ACKs on. fix-cards: reiwimsy --fix-cards on a nightly channel with two cards saying "Building" (fake_discord.py's
+# now. zombie (ReiWimsy) and tracer-zombie: a heartbeat a second, the first connection stalled in the middle of a frame
+# and its heartbeats unanswered, the next ones ACKing 0.3 s after each heartbeat (fake_discord.py's zombie): the bot
+# leaves the first as a zombie, identifies on the second and keeps it until the drop, two ACKs on. fix-cards: reiwimsy --fix-cards on a nightly channel with two cards saying "Building" (fake_discord.py's
 # cards): the dry run changes nothing, --apply deletes the one of a commit inside a push and redraws the push's head
 # with its failed build, and a second --apply finds nothing to do. Tracer answers only in its channel 6 there, and a
 # mention in channel 7 goes unanswered; tracer-all is the same with TRACER_CHANNELS=all, which answers that one too.
@@ -146,9 +146,10 @@ if [ "$drop_after" = zombie ]; then
 	if ! grep -q '^gateway: connection 1: heartbeat, unanswered$' "$tmp/fake.log"; then
 		failed="it sent no heartbeat on its first connection"
 	elif ! grep -q '^gateway: connection 2$' "$tmp/fake.log"; then
-		failed="it never left its first connection, its heartbeats unanswered"
+		failed="it never left its first connection, stalled in the middle of a frame with its heartbeats unanswered"
 	elif ! grep -q '^gateway: connection 2: READY$' "$tmp/fake.log"; then
-		failed="it never identified on its second connection"
+		failed="it never identified on its second connection: the HELLO after the frame the first one left unfinished \
+went unread"
 	elif grep -q '^gateway: connection 3$' "$tmp/fake.log"; then
 		failed="it left its second connection right after READY, before the ACK of the heartbeat READY sent could come"
 	fi
@@ -193,5 +194,5 @@ fi
 [ "$drop_after" = replies ] && echo "$program: a reply alone made report #1 of the message it replies to, and a second was told so"
 [ "$program" = tracer ] && echo "tracer: the mention in channel 7, which TRACER_CHANNELS=6 leaves out, went unanswered"
 [ "$program" = tracer-all ] && echo "tracer-all: TRACER_CHANNELS=all answered the mention in channel 7 with its help"
-[ "$drop_after" = zombie ] && echo "$program: left the zombie connection, identified on the next and kept it"
+[ "$drop_after" = zombie ] && echo "$program: left the connection stalled mid-frame, identified on the next, kept it"
 echo "$program: ended with 1 when its gateway stopped: $(grep "$said" "$tmp/bot.log")"

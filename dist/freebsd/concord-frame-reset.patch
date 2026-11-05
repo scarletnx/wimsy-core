@@ -1,0 +1,35 @@
+From 4115bb670415dc0b9aad2271e9d06ff9e7bf251b Mon Sep 17 00:00:00 2001
+From: AO55 <AO55@reden-emu.dev>
+Date: Thu, 5 Nov 2026 10:04:26 -0300
+Subject: [PATCH] fix(websockets): a new connection starts with no frame of the
+ last one's
+
+A connection closed in the middle of a frame (a zombie's, a reconnection's) left the bytes that frame still expected in the handle, and the next connection's first frames went into it as its tail: HELLO was never read, IDENTIFY never sent, and the gateway waited forever with nothing to time it out. ws_start now drops what the last connection left unfinished.
+
+Signed-off-by: AO55 <AO55@reden-emu.dev>
+---
+ core/websockets.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/core/websockets.c b/core/websockets.c
+index 79736df..1d06c45 100644
+--- a/core/websockets.c
++++ b/core/websockets.c
+@@ -886,6 +886,14 @@ ws_start(struct websockets *ws)
+         return NULL;
+     }
+ 
++    /* a frame the last connection left unfinished is not this one's: the
++     * bytes it still expected would take this connection's first frames
++     * (HELLO) as its tail */
++    ws->bytesleft = 0;
++    ws->is_continued = false;
++    ws->exp_msg_type = 0;
++    ws->msg_len = 0;
++
+     if (!ws->ehandle) ws->ehandle = _ws_ehandle_init(ws);
+     curl_multi_add_handle(ws->mhandle, ws->ehandle);
+ 
+-- 
+2.56.0
+
