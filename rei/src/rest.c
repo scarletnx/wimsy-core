@@ -150,18 +150,29 @@ int dc_remove(Dc* d, u64 channel, u64 message) {
     free(path);
     return said;
 }
-int dc_history(Dc* d, u64 channel, u64 before, u64* ids, int* webhook, int* mine, int max) {
+cJSON* dc_messages(Dc* d, u64 channel, u64 before, int max) {
     char* path =
         before ? rei_format("channels/%llu/messages?limit=%d&before=%llu", (unsigned long long)channel,
                             max > 100 ? 100 : max, (unsigned long long)before)
                : rei_format("channels/%llu/messages?limit=%d", (unsigned long long)channel, max > 100 ? 100 : max);
     RgAnswer a = {0};
     cJSON* list = NULL;
+    if (ask(d, "GET", path, NULL, &a) == 200) list = cJSON_Parse(a.body);
+    if (!cJSON_IsArray(list)) {
+        said_wrong("GET", path, &a);
+        cJSON_Delete(list);
+        list = NULL;
+    }
+    answer_free(&a);
+    free(path);
+    return list;
+}
+int dc_history(Dc* d, u64 channel, u64 before, u64* ids, int* webhook, int* mine, int max) {
+    cJSON* list = dc_messages(d, channel, before, max);
     const cJSON* m;
     int n = -1;
     u64 self = dc_self(d);
-    if (ask(d, "GET", path, NULL, &a) == 200) list = cJSON_Parse(a.body);
-    if (cJSON_IsArray(list)) {
+    if (list) {
         n = 0;
         cJSON_ArrayForEach(m, list) {
             if (n == max) break;
@@ -170,11 +181,8 @@ int dc_history(Dc* d, u64 channel, u64 before, u64* ids, int* webhook, int* mine
             mine[n] = self && id_of(cJSON_GetObjectItemCaseSensitive(m, "author"), "id") == self;
             ++n;
         }
-    } else
-        said_wrong("GET", path, &a);
+    }
     cJSON_Delete(list);
-    answer_free(&a);
-    free(path);
     return n;
 }
 char* dc_said(Dc* d, const char* path) {

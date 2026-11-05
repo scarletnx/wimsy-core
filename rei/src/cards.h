@@ -31,6 +31,8 @@ typedef struct {
     /* up to max messages of channel older than before (0: from the newest), newest first: each one's id, whether a
        webhook sent it, whether this bot did. Their count, or -1 on a failure */
     int (*history)(void* ctx, u64 channel, u64 before, u64* ids, int* webhook, int* mine, int max);
+    /* the same messages as Discord gives them (id, author, embeds): owned, or NULL on a failure. cd_fix's alone */
+    cJSON* (*messages)(void* ctx, u64 channel, u64 before, int max);
 } CdDiscord;
 
 typedef struct {
@@ -92,6 +94,15 @@ int cd_downloads(Buf* b, const cJSON* release);
 char* cd_mascot(const char* repo);
 /* the hash of an embed without its time, as hex */
 void cd_hash(const cJSON* embed, char out[17]);
+
+/* the nightlies' cards that say "Building" for ever, which the rounds made before a push had one card: among the
+   CD_HISTORY newest messages of the nightly channel, those self (the bot's user id) sent that say "Building main at"
+   a commit. A commit no push's Build ran for (a commit inside a push) never gets one: its card is deleted. A push's
+   head is drawn again (cd_nightly) and edited when it says something else now. Left: main's head, a card under an hour
+   old, one older than the builds GitHub lists. Each card said in the log, then the counts; apply 0 does nothing but
+   say. The cards' list is not used. 0 when every change asked was made, 1 when one failed, -1 when the channel or
+   GitHub did not answer what the fix needs (nothing done) */
+int cd_fix(Cards* c, u64 self, int apply);
 
 /* what lasts across a restart: the cards, the builds and releases seen, since, head, the channels purged */
 cJSON* cd_save(const Cards* c);

@@ -48,6 +48,18 @@ It runs as the service `reiwimsy` (`dist/freebsd/reiwimsy.rc`): daemon(8) runs `
 `reiwimsy` and starts it again when it stops, its output in syslog (tag `reiwimsy`, `/var/log/messages`), its env file
 exported to it by rc.subr. Installing it: [Install](./INSTALL.md#reiwimsy).
 
+Before a push to main had one card of its own, the rounds left cards that say "Building" for ever: one for each commit
+inside a push, which no build runs for, and pushes' heads whose card was forgotten before their build ended. Once:
+
+    service -j discordbots reiwimsy fixcards          # says what it would do of each, and the counts; changes nothing
+    service -j discordbots reiwimsy fixcards apply    # does it
+
+It runs `reiwimsy --fix-cards [--apply]` as the bot's user with its env file, beside the running bot (it keeps no
+state): among the nightly channel's 1000 newest messages, the bot's own cards that say "Building main at" a commit.
+One no push's build ran for is deleted; a push's head is drawn again and edited when it says something else now (its
+build published, failed or cancelled). Main's head, a card under an hour old and one older than the builds GitHub lists
+keep saying "Building", each said with why. A second run finds nothing to do.
+
 It stops when its gateway does, and its last line says why. Concord calls any failure of the `GET gateway/bot` that
 starts a session "Bad authentication token", a timeout too, so the bot asks Discord again and ends that line with the
 answer: `asked again, Discord answers 200` (the network back, the token good), `401: ...` (the token refused), or `0: `

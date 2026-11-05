@@ -482,8 +482,9 @@ static void rest_tests(void) {
 /* ---- the cards ---- */
 typedef struct {
     u64 channel, message;
-    char* description;
+    char* description; /* the embed, as JSON */
     int removed;
+    u64 author; /* 0: the bot */
 } Sent;
 static Sent sent[256];
 static int nsent, cd_edits, cd_removes, edit_gone, remove_fails;
@@ -519,6 +520,32 @@ static int c_remove(void* ctx, u64 channel, u64 message) {
     if (remove_fails) return remove_fails; /* Discord's status */
     if (s) s->removed = 1;
     return 0;
+}
+/* the channel's messages as Discord gives them, from those sent there and not removed, the newest first; the bot's
+   own user id FIX_SELF */
+#define FIX_SELF 4242
+static cJSON* c_messages(void* ctx, u64 channel, u64 before, int max) {
+    cJSON* list = cJSON_CreateArray();
+    u64 last = before ? before : (u64)-1;
+    (void)ctx;
+    while (cJSON_GetArraySize(list) < max) {
+        int i, best = -1;
+        for (i = 0; i < nsent; ++i)
+            if (sent[i].channel == channel && !sent[i].removed && sent[i].message < last &&
+                (best < 0 || sent[i].message > sent[best].message))
+                best = i;
+        if (best < 0) break;
+        {
+            char* json = rei_format("{\"id\":\"%llu\",\"author\":{\"id\":\"%llu\"},\"embeds\":[%s]}",
+                                    (unsigned long long)sent[best].message,
+                                    (unsigned long long)(sent[best].author ? sent[best].author : FIX_SELF),
+                                    sent[best].description);
+            cJSON_AddItemToArray(list, cJSON_Parse(json));
+            free(json);
+        }
+        last = sent[best].message;
+    }
+    return list;
 }
 static int history_calls;
 static int c_history(void* ctx, u64 channel, u64 before, u64* ids, int* webhook, int* mine, int max) {
@@ -581,7 +608,7 @@ static void updated(Cards* c, const char* listed) {
 }
 static void cards_tests(void) {
     Cards c;
-    CdDiscord dc = {NULL, c_post, c_edit, c_remove, c_history};
+    CdDiscord dc = {NULL, c_post, c_edit, c_remove, c_history, c_messages};
     char* listing;
     forget();
     now_is = 1760954400; /* 2025-10-20T10:00:00Z */
@@ -776,7 +803,7 @@ static void gh_shas(const char* path, const char* body) {
    commits inside a push, which no build runs for; the head now has one before GitHub's activity lists its push */
 static void nightly_pushes(void) {
     Cards c;
-    CdDiscord dc = {NULL, c_post, c_edit, c_remove, c_history};
+    CdDiscord dc = {NULL, c_post, c_edit, c_remove, c_history, c_messages};
     int before;
     char x;
     forget();
@@ -825,11 +852,158 @@ static void nightly_pushes(void) {
     forget();
 }
 
+/* a Discord message id for a message posted at when (seconds), n apart from others of that second */
+static u64 posted_id(double when, int n) { return (((u64)(when * 1000) - 1420070400000ULL) << 22) + (u64)n; }
+/* a message in channel 5, by author (0: the bot), its embed's JSON with each @x a commit (shas); its id */
+static u64 card_posted(double when, int n, u64 author, const char* embed) {
+    sent[nsent].channel = 5;
+    sent[nsent].message = posted_id(when, n);
+    sent[nsent].description = shas(embed);
+    sent[nsent].removed = 0;
+    sent[nsent].author = author;
+    return sent[nsent++].message;
+}
+static u64 building_card(double when, int n, char x) {
+    char* embed = rei_format("{\"title\":\"Nightly 2026-11-04 (%c%c%c%c%c%c%c)\",\"description\":\"Building main at "
+                             "[`%c%c%c%c%c%c%c`](https://github.com/o/r/commit/@%c), committed 2026-11-04.\"}",
+                             x, x, x, x, x, x, x, x, x, x, x, x, x, x, x);
+    u64 id = card_posted(when, n, 0, embed);
+    free(embed);
+    return id;
+}
+/* the cards the rounds left saying "Building": a commit inside a push deleted, a push's head drawn again with how its
+   build ended, the rest said and left; a dry run first does nothing, and a second run finds nothing to do */
+static void fix_cards(void) {
+    Cards c;
+    CdDiscord dc = {NULL, c_post, c_edit, c_remove, c_history, c_messages};
+    double now = 1793847600; /* 2026-11-05T03:00:00Z */
+    u64 b, cc, d, e, f, gg, h, one, theirs, built;
+    int edits_before, removes;
+    const char* x;
+    forget();
+    now_is = now;
+    rg_init(&g, "o/r", NULL, fake, NULL);
+    cd_init(&c, &g, dc, 0, 0, 5);
+    b = building_card(now - 5 * 3600 + 60, 0, 'b');  /* inside the push @a to @c */
+    cc = building_card(now - 5 * 3600 + 62, 0, 'c'); /* that push's head: its build failed */
+    d = building_card(now - 4 * 3600 + 60, 0, 'd');  /* inside the push @c to @e */
+    e = building_card(now - 4 * 3600 + 62, 0, 'e');  /* its head: published */
+    f = building_card(now - 3 * 3600 + 60, 0, 'f');  /* the push @e to @f: still building */
+    gg = building_card(now - 2 * 3600 + 60, 0, '7'); /* main's head now */
+    h = building_card(now - 600, 0, '8');            /* ten minutes old, no push listed yet */
+    one = building_card(now - 9.5 * 3600, 0, '1');   /* before the pushes listed, from 17:00 */
+    theirs = card_posted(now - 4 * 3600 + 70, 0, 9999,
+                         "{\"description\":\"Building main at [`2222222`](https://github.com/o/r/commit/@2)\"}");
+    built = card_posted(now - 4 * 3600 + 80, 0, 0,
+                        "{\"description\":\"Built from main at [`3333333`](https://github.com/o/r/commit/@3)\"}");
+    gh_shas("repos/o/r/commits/main", "{\"sha\":\"@7\"}");
+    /* the pushes' builds: 100 a page, so GitHub may hold older than the last, from 17:00 */
+    {
+        Buf runs = {0};
+        int i;
+        buf_add(&runs, "{\"workflow_runs\":[{\"head_sha\":\"@7\",\"created_at\":\"2026-11-05T01:00:05Z\"},"
+                       "{\"head_sha\":\"@f\",\"created_at\":\"2026-11-05T00:00:05Z\"},"
+                       "{\"head_sha\":\"@e\",\"created_at\":\"2026-11-04T23:00:05Z\"},"
+                       "{\"head_sha\":\"@c\",\"created_at\":\"2026-11-04T22:00:05Z\"}");
+        for (i = 0; i < 96; ++i) buf_add(&runs, ",{\"head_sha\":\"@a\",\"created_at\":\"2026-11-04T17:00:05Z\"}");
+        buf_add(&runs, "]}");
+        gh_shas("repos/o/r/actions/workflows/build.yml/runs?branch=main&event=push&per_page=100&page=1", runs.text);
+        buf_free(&runs);
+    }
+    gh("repos/o/nightly/releases?per_page=100&page=1",
+       "[{\"tag_name\":\"nightly-2026-11-04-eeeeeee\",\"name\":\"Nightly 2026-11-04 (eeeeeee)\",\"html_url\":"
+       "\"https://n/e\",\"published_at\":\"2026-11-04T23:20:00Z\",\"body\":\"its notes\",\"assets\":[]}]");
+    for (x = "cdef7"; *x; ++x) {
+        char* commit = rei_format("repos/o/r/commits/@%c", *x);
+        gh_shas(commit, "{\"commit\":{\"committer\":{\"date\":\"2026-11-04T22:00:00Z\"}}}");
+        free(commit);
+    }
+    gh_shas("repos/o/r/actions/workflows/build.yml/runs?head_sha=@c&per_page=100&page=1",
+            "{\"workflow_runs\":[{\"id\":71,\"event\":\"push\",\"status\":\"completed\",\"conclusion\":\"failure\","
+            "\"created_at\":\"2026-11-04T22:00:05Z\",\"html_url\":\"https://r/71\"}]}");
+    gh_shas("repos/o/r/actions/workflows/build.yml/runs?head_sha=@e&per_page=100&page=1",
+            "{\"workflow_runs\":[{\"id\":72,\"event\":\"push\",\"status\":\"completed\",\"conclusion\":\"success\","
+            "\"created_at\":\"2026-11-04T23:00:05Z\"}]}");
+    gh("repos/o/r/actions/runs/72/jobs?per_page=100&page=1", "{\"jobs\":[]}");
+    gh_shas("repos/o/r/actions/workflows/build.yml/runs?head_sha=@f&per_page=100&page=1",
+            "{\"workflow_runs\":[{\"id\":73,\"event\":\"push\",\"status\":\"in_progress\","
+            "\"created_at\":\"2026-11-05T00:00:05Z\"}]}");
+    gh("repos/o/r/actions/runs/71/jobs?per_page=100&page=1", "{\"jobs\":[]}");
+    gh("repos/o/r/actions/runs/73/jobs?per_page=100&page=1", "{\"jobs\":[]}");
+    /* the dry run: said, nothing done */
+    edits_before = cd_edits;
+    removes = cd_removes;
+    CHECK(cd_fix(&c, FIX_SELF, 0) == 0);
+    CHECK(cd_edits == edits_before && cd_removes == removes && !sent_of(b)->removed && !sent_of(d)->removed);
+    HAS(sent_of(cc)->description, "Building main at");
+    /* done: the two inside pushes deleted, the two ended heads drawn again, the rest as they were */
+    CHECK(cd_fix(&c, FIX_SELF, 1) == 0);
+    CHECK(cd_removes == removes + 2 && cd_edits == edits_before + 2);
+    CHECK(sent_of(b)->removed && sent_of(d)->removed);
+    HAS(sent_of(cc)->description, "Not published: the build of [`ccccccc`]");
+    HAS(sent_of(e)->description, "Built from main at [`eeeeeee`]");
+    CHECK(!sent_of(f)->removed && !sent_of(gg)->removed && !sent_of(h)->removed && !sent_of(one)->removed);
+    HAS(sent_of(f)->description, "Building main at");
+    HAS(sent_of(gg)->description, "Building main at");
+    CHECK(!sent_of(theirs)->removed && !sent_of(built)->removed);
+    /* again: nothing to do */
+    CHECK(cd_fix(&c, FIX_SELF, 1) == 0);
+    CHECK(cd_removes == removes + 2 && cd_edits == edits_before + 2);
+    /* how a build that published nothing ended, in its words: failed, was cancelled, or GitHub's own */
+    {
+        static const char* const ended[][2] = {{"failure", "failed ([run]"},
+                                               {"cancelled", "was cancelled ([run]"},
+                                               {"timed_out", "ended as timed_out ([run]"}};
+        char* head = shas("@c");
+        int k;
+        for (k = 0; k < 3; ++k) {
+            char* run = rei_format("{\"workflow_runs\":[{\"id\":71,\"event\":\"push\",\"status\":\"completed\","
+                                   "\"conclusion\":\"%s\",\"created_at\":\"2026-11-04T22:00:05Z\"}]}",
+                                   ended[k][0]);
+            cJSON* drawn;
+            gh_shas("repos/o/r/actions/workflows/build.yml/runs?head_sha=@c&per_page=100&page=1", run);
+            drawn = cd_nightly(&c, head);
+            HAS(jstr(drawn, "description"), ended[k][1]);
+            cJSON_Delete(drawn);
+            free(run);
+        }
+        /* built, and older than the oldest nightly kept: none of it is kept now, which is all the card can know */
+        gh_shas("repos/o/r/actions/workflows/build.yml/runs?head_sha=@c&per_page=100&page=1",
+                "{\"workflow_runs\":[{\"id\":71,\"event\":\"push\",\"status\":\"completed\",\"conclusion\":"
+                "\"success\",\"created_at\":\"2026-11-04T22:00:05Z\"}]}");
+        gh_shas(
+            "repos/o/nightly/releases?per_page=100&page=1",
+            "[{\"tag_name\":\"nightly-2026-11-04-eeeeeee\",\"name\":\"Nightly 2026-11-04 (eeeeeee)\",\"html_url\":"
+            "\"https://n/e\",\"published_at\":\"2026-11-04T23:20:00Z\",\"body\":\"from /commits/@e\",\"assets\":[]}]");
+        gh_shas("repos/o/r/compare/@c...@e", "{\"status\":\"ahead\",\"commits\":[]}");
+        gh_shas("repos/o/r/compare/@e...@c", "{\"status\":\"behind\",\"commits\":[]}");
+        cJSON_Delete(c.nightlies);
+        c.nightlies = NULL;
+        {
+            cJSON* drawn = cd_nightly(&c, head);
+            HAS(jstr(drawn, "description"), "; no nightly of it is kept now: o/nightly keeps the newest 30.");
+            cJSON_Delete(drawn);
+        }
+        free(head);
+    }
+    /* the channel not answering: nothing done, said */
+    {
+        CdDiscord silent = {NULL, c_post, c_edit, c_remove, c_history, NULL};
+        Cards none;
+        cd_init(&none, &g, silent, 0, 0, 5);
+        CHECK(cd_fix(&none, FIX_SELF, 1) == -1);
+        cd_free(&none);
+    }
+    cd_free(&c);
+    rg_free(&g);
+    forget();
+}
+
 /* more nightlies' cards than are kept, the newest first in the array as forgotten cards' places leave them: the oldest
    messages go, the newest stay */
 static void nightly_sweep(void) {
     Cards c;
-    CdDiscord dc = {NULL, c_post, c_edit, c_remove, c_history};
+    CdDiscord dc = {NULL, c_post, c_edit, c_remove, c_history, c_messages};
     Buf state = {0};
     cJSON* saved;
     int i, newest = 0, oldest = 0, most = 2 * CD_KEEP + 1;
@@ -881,7 +1055,7 @@ static void run_is(Cards* c, const char* status) {
 /* a pull request's card: its state, its commits, its builds */
 static void pr_card(void) {
     Cards c;
-    CdDiscord dc = {NULL, c_post, c_edit, c_remove, c_history};
+    CdDiscord dc = {NULL, c_post, c_edit, c_remove, c_history, c_messages};
     cJSON* e;
     int open;
     double closed;
@@ -1328,6 +1502,7 @@ int main(void) {
     cards_tests();
     nightly_pushes();
     nightly_sweep();
+    fix_cards();
     pr_card();
     state_tests();
     event_tests();

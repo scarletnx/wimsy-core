@@ -841,7 +841,7 @@ static int ancestor(Cards* c, const char* sha, const char* newer) {
 }
 cJSON* cd_nightly(Cards* c, const char* sha) {
     char *url = rei_format(SERVER "/%s", c->gh->repo), *commit = rei_format("%s/commit/%s", url, sha), tail[16],
-         previous[41] = "", date[11] = "", *link, *title, *footer;
+         previous[41] = "", oldest[41] = "", date[11] = "", *link, *title, *footer;
     cJSON *head, *run, *jobs, *fields = cJSON_CreateArray(), *e;
     const cJSON *r, *own = NULL, *older_first = NULL;
     const char* built = "";
@@ -874,6 +874,12 @@ cJSON* cd_nightly(Cards* c, const char* sha) {
             break;
         }
     }
+    /* the commit of the oldest nightly kept: a commit before it may have had one, gone since */
+    cJSON_ArrayForEach(r, c->nightlies) if (prefix(S(jstr(r, "tag_name")), "nightly-")) {
+        char from[41];
+        commit_in(jstr(r, "body"), from);
+        if (*from) snprintf(oldest, sizeof oldest, "%s", from);
+    }
     run = build_of(c, sha);
     jobs = jobs_of(c, run);
     link = rei_strdup(commit);
@@ -885,10 +891,22 @@ cJSON* cd_nightly(Cards* c, const char* sha) {
     } else if (!run || strcmp(S(jstr(run, "status")), "completed"))
         buf_printf(&b, "Building main at [`%.7s`](%s), committed %s.", sha, commit, date);
     else if (strcmp(S(jstr(run, "conclusion")), "success")) {
-        buf_printf(&b, "Not published: the build of [`%.7s`](%s) failed ([run](%s)).", sha, commit,
+        const char* ended = S(jstr(run, "conclusion"));
+        char* how = !strcmp(ended, "failure")     ? rei_strdup("failed")
+                    : !strcmp(ended, "cancelled") ? rei_strdup("was cancelled")
+                                                  : rei_format("ended as %s", *ended ? ended : "nothing GitHub said");
+        buf_printf(&b, "Not published: the build of [`%.7s`](%s) %s ([run](%s)).", sha, commit, how,
                    S(jstr(run, "html_url")));
+        free(how);
         color = AMBER;
         built = "not published";
+    } else if (*oldest && ancestor(c, sha, oldest)) {
+        buf_printf(&b,
+                   "Built from main at [`%.7s`](%s), committed %s; no nightly of it is kept now: %s keeps the newest "
+                   "%d.",
+                   sha, commit, date, c->gh->nightly, CD_KEEP);
+        color = CLOSED;
+        built = "no nightly kept";
     } else if (*previous && older_first && ancestor(c, sha, previous)) {
         buf_printf(&b, "Not published: [%s](%s), of a newer commit, came first.", S(jstr(older_first, "name")),
                    S(jstr(older_first, "html_url")));
@@ -1364,6 +1382,180 @@ void cd_round(Cards* c) {
     for (i = 0; i < c->ncards; ++i)
         if (c->cards[i].dirty) draw(c, &c->cards[i], start);
     sweep(c, start);
+}
+
+/* ---- the cards left saying "Building" ---- */
+#define FIX_PAGES 10   /* the pages of 100 builds of main's pushes cd_fix reads, at most */
+#define FIX_YOUNG 3600 /* a card younger than this may be a push whose build GitHub does not list yet */
+
+typedef struct {
+    u64 message;
+    char sha[41];
+    double posted;
+} Stuck;
+/* when a Discord message was posted, from its id */
+static double posted_at(u64 message) { return (double)((message >> 22) + 1420070400000ULL) / 1000; }
+/* the commit a nightly's card says it is building, the 40 hex digits of its link; "" for a card saying anything else */
+static void building(const char* description, char out[41]) {
+    const char* at = strstr(S(description), "/commit/");
+    out[0] = 0;
+    if (prefix(S(description), "Building main at ") && at && strspn(at + 8, "0123456789abcdef") >= 40)
+        snprintf(out, 41, "%.40s", at + 8);
+}
+/* the Build runs of the pushes to main, newest first, back past since or FIX_PAGES pages: an array (owned), or NULL;
+   *from the time of the oldest one when there may be older, 0 when GitHub listed them all */
+static cJSON* pushes_of(Cards* c, double since, double* from) {
+    cJSON* all = cJSON_CreateArray();
+    int page, n = 0;
+    *from = 0;
+    for (page = 1; page <= FIX_PAGES; ++page) {
+        char* path = rei_format("repos/%s/actions/workflows/build.yml/runs?branch=main&event=push&per_page=100&page=%d",
+                                c->gh->repo, page);
+        cJSON* got = rg_get(c->gh, path, NULL);
+        cJSON* runs = cJSON_GetObjectItemCaseSensitive(got, "workflow_runs");
+        free(path);
+        if (!cJSON_IsArray(runs)) {
+            cJSON_Delete(got);
+            cJSON_Delete(all);
+            return NULL;
+        }
+        n = cJSON_GetArraySize(runs);
+        if (n) *from = seconds_of(jstr(cJSON_GetArrayItem(runs, n - 1), "created_at"));
+        while (cJSON_GetArraySize(runs)) cJSON_AddItemToArray(all, cJSON_DetachItemFromArray(runs, 0));
+        cJSON_Delete(got);
+        if (n < 100 || *from < since) break;
+    }
+    if (n < 100) *from = 0;
+    return all;
+}
+int cd_fix(Cards* c, u64 self, int apply) {
+    Stuck* stuck = NULL;
+    int nstuck = 0, cap = 0, read = 0, i, deleted = 0, redrawn = 0, failed = 0, head_now = 0, young = 0, old = 0,
+        building_still = 0, result;
+    u64 before = 0;
+    double now = rei_now(), oldest = now, from;
+    char head[41], when[32];
+    cJSON *got, *pushes;
+    const char* would = apply ? "" : "would be ";
+    if (!c->nightly || !c->dc.messages) {
+        rei_log("fix-cards: no nightly channel (REIWIMSY_CARDS_NIGHTLY), nothing to look through");
+        return -1;
+    }
+    while (read < CD_HISTORY) { /* the channel's newest messages, ours that say "Building main at" a commit */
+        cJSON* list = c->dc.messages(c->dc.ctx, c->nightly, before, 100);
+        const cJSON* m;
+        int n = cJSON_GetArraySize(list);
+        if (!list) {
+            rei_log("fix-cards: the nightly channel's messages did not come (after %d read): nothing done", read);
+            free(stuck);
+            return -1;
+        }
+        cJSON_ArrayForEach(m, list) {
+            const cJSON* e = cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(m, "embeds"), 0);
+            u64 author = strtoull(S(jstr(cJSON_GetObjectItemCaseSensitive(m, "author"), "id")), NULL, 10);
+            char sha[41];
+            before = strtoull(S(jstr(m, "id")), NULL, 10);
+            ++read;
+            building(jstr(e, "description"), sha);
+            if (author == self && *sha && before) {
+                if (nstuck == cap) {
+                    Stuck* more;
+                    cap = cap ? 2 * cap : 64;
+                    more = realloc(stuck, (size_t)cap * sizeof *more);
+                    if (!more) abort();
+                    stuck = more;
+                }
+                stuck[nstuck].message = before;
+                snprintf(stuck[nstuck].sha, sizeof stuck->sha, "%s", sha);
+                stuck[nstuck].posted = posted_at(before);
+                if (stuck[nstuck].posted < oldest) oldest = stuck[nstuck].posted;
+                ++nstuck;
+            }
+            if (read == CD_HISTORY) break;
+        }
+        cJSON_Delete(list);
+        if (n < 100) break;
+    }
+    {
+        char* path = rei_format("repos/%s/commits/main", c->gh->repo);
+        got = rg_get(c->gh, path, NULL);
+        free(path);
+    }
+    snprintf(head, sizeof head, "%s", S(jstr(got, "sha")));
+    cJSON_Delete(got);
+    pushes = strlen(head) == 40 ? pushes_of(c, oldest, &from) : NULL;
+    if (!pushes) {
+        rei_log("fix-cards: GitHub did not give main's head or its pushes' builds: nothing done of %d cards saying "
+                "Building",
+                nstuck);
+        free(stuck);
+        return -1;
+    }
+    cJSON_Delete(c->nightlies);
+    c->nightlies = NULL;
+    iso_of(from, when);
+    for (i = 0; i < nstuck; ++i) {
+        const Stuck* k = &stuck[i];
+        const cJSON* p;
+        char posted[32];
+        int pushed = 0, said;
+        iso_of(k->posted, posted);
+        cJSON_ArrayForEach(p, pushes) pushed |= !strcmp(S(jstr(p, "head_sha")), k->sha);
+        if (!strcmp(k->sha, head)) {
+            ++head_now;
+            rei_log("fix-cards: nightly %.7s, message %llu of %s, still says Building: main's head now", k->sha,
+                    (unsigned long long)k->message, posted);
+        } else if (now - k->posted < FIX_YOUNG) {
+            ++young;
+            rei_log("fix-cards: nightly %.7s, message %llu of %s, still says Building: under an hour old", k->sha,
+                    (unsigned long long)k->message, posted);
+        } else if (k->posted < from + FIX_YOUNG) {
+            ++old;
+            rei_log("fix-cards: nightly %.7s, message %llu of %s, still says Building: older than the builds GitHub "
+                    "lists, from %s",
+                    k->sha, (unsigned long long)k->message, posted, when);
+        } else if (!pushed) {
+            said = apply ? c->dc.remove(c->dc.ctx, c->nightly, k->message) : 0;
+            if (said && said != 404) {
+                ++failed;
+                rei_log("fix-cards: nightly %.7s, message %llu of %s, not deleted: Discord answered %d", k->sha,
+                        (unsigned long long)k->message, posted, said);
+            } else {
+                ++deleted;
+                rei_log("fix-cards: nightly %.7s, message %llu of %s, %sdeleted: no push's build ran for it, a "
+                        "commit inside a push",
+                        k->sha, (unsigned long long)k->message, posted, would);
+            }
+        } else {
+            cJSON* e = cd_nightly(c, k->sha);
+            const char* text = jstr(e, "description");
+            if (!e) {
+                ++failed;
+                rei_log("fix-cards: nightly %.7s, message %llu of %s, not drawn: GitHub did not give all it shows",
+                        k->sha, (unsigned long long)k->message, posted);
+            } else if (prefix(S(text), "Building main at ")) {
+                ++building_still;
+                rei_log("fix-cards: nightly %.7s, message %llu of %s, still says Building: its build has not ended",
+                        k->sha, (unsigned long long)k->message, posted);
+            } else if ((said = apply ? c->dc.edit(c->dc.ctx, c->nightly, k->message, e) : 0) && said != 404) {
+                ++failed;
+                rei_log("fix-cards: nightly %.7s, message %llu of %s, not edited: Discord answered %d", k->sha,
+                        (unsigned long long)k->message, posted, said);
+            } else {
+                ++redrawn;
+                rei_log("fix-cards: nightly %.7s, message %llu of %s, %sredrawn: %.*s", k->sha,
+                        (unsigned long long)k->message, posted, would, (int)strcspn(S(text), "\n"), S(text));
+            }
+            cJSON_Delete(e);
+        }
+    }
+    result = failed ? 1 : 0;
+    rei_log("fix-cards: %d messages read, %d of ours saying Building: %d %sdeleted, %d %sredrawn, %d failed; still "
+            "saying Building: %d main's head, %d under an hour old, %d older than the builds listed, %d still building",
+            read, nstuck, deleted, would, redrawn, would, failed, head_now, young, old, building_still);
+    cJSON_Delete(pushes);
+    free(stuck);
+    return result;
 }
 
 cJSON* cd_save(const Cards* c) {

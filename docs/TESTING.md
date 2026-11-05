@@ -10,8 +10,9 @@ What CI runs on each pull request and each push to main. No network and no Disco
 - ReiWimsy (`rei/tests/test_rei.c`, no Concord): the parsing, the gateway's events (read from their JSON: Concord
   decodes none of them, as its decoder crashes on messages of 2 to 3 KB) and the messages waiting for an answer, the
   replies and their edits, GitHub's ETags and pages, Discord's waits and answers, the cards (drawn, posted, edited,
-  moved to the end at their activity, deleted a day after they close, posted again when deleted by hand), the state
-  file.
+  moved to the end at their activity, deleted a day after they close, posted again when deleted by hand, a nightly's
+  for each push, the newest kept), the fix of the cards left saying "Building" (a dry run, then each kind of card, then
+  a run with nothing to do), the state file.
 - AccordWimsy (`accordwimsy/tests/test_aw.c`), against a fake GitHub and a fake Forgejo and git on bare repositories:
   the env file and its refusals, the first pass (repositories, branches and tags, labels, every number, a missing one,
   a pull request), a pass with nothing new (GitHub asked from where the last stopped, the Forgejo written to only for
@@ -48,7 +49,9 @@ And in a job of its own, on each pull request and each push to main, the bots bu
 ReiWimsy comes up, its rounds wait inside a GitHub request held open, then the gateway closes and Discord's
 `GET /gateway/bot` gets no answer: Concord's `discord_run` returns, and the bot has to end with status 1 (daemon(8)
 starts it again), not on a signal, saying that Concord's `GET gateway/bot` failed and what Discord answers it now.
-Tracer the same, its gateway closed once it is up. Linux only, with no network: the bot runs in a mount and network
+Tracer the same, its gateway closed once it is up. And `reiwimsy --fix-cards` on a nightly channel holding two cards
+that say "Building": its dry run changes nothing, `--apply` deletes the one of a commit inside a push and redraws the
+push's head with its failed build, and a second `--apply` finds nothing to do. Linux only, with no network: the bot runs in a mount and network
 namespace of its own, and a user namespace when the test is not run by root (as root where the system keeps user
 namespaces from users), whose `/etc/hosts` sends Discord and GitHub to the fake and whose CA bundle, libcurl's
 (`curl-config --ca`), holds only the CA the test makes. It needs util-linux, iproute2, python3, openssl and libcurl's
