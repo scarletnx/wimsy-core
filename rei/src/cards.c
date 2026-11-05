@@ -1180,35 +1180,40 @@ static void mark_releases(Cards* c, int first) {
     c->nreleases = c->capreleases = n;
 }
 
-/* main's new commits since the last round, its first parents, each a nightly's card (the newest ten at most) */
+/* the pushes to main since the last round, each its head's nightly card, the oldest first: GitHub's activity of main
+   (each push, the commit it moved main to), newest first, back to the head last seen, CD_PUSHES at most. The head now
+   has its card before the activity lists its push. A commit inside a push gets none: only a push's head is built, and
+   its card would say "Building" for ever */
 static void mark_head(Cards* c) {
-    char* path;
+    char *path, heads[CD_PUSHES][41], key[56];
     cJSON* got;
     const char* sha;
+    int n = 0, i;
     if (!c->nightly) return;
     path = rei_format("repos/%s/commits/main", c->gh->repo);
     got = rg_get(c->gh, path, NULL);
     free(path);
     sha = S(jstr(got, "sha"));
     if (strlen(sha) == 40 && *c->head && strcmp(sha, c->head)) {
-        char* cmp_path = rei_format("repos/%s/compare/%s...%s", c->gh->repo, c->head, sha);
-        cJSON* cmp = rg_get(c->gh, cmp_path, NULL);
-        const cJSON* commits = cJSON_GetObjectItemCaseSensitive(cmp, "commits");
-        char at[41], key[56];
-        int made = 0;
-        free(cmp_path);
-        snprintf(at, sizeof at, "%s", sha);
-        while (strcmp(at, c->head) && made < 10) {
-            const cJSON *commit = NULL, *k;
-            cJSON_ArrayForEach(k, commits) if (!strcmp(S(jstr(k, "sha")), at)) commit = k;
-            snprintf(key, sizeof key, "nightly-%s", at);
-            dirty(c, key);
-            ++made;
-            if (!commit) break; /* not in the comparison (main forced back): only the newest */
-            snprintf(at, sizeof at, "%s",
-                     S(jstr(cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(commit, "parents"), 0), "sha")));
+        cJSON* pushes;
+        const cJSON* p;
+        path = rei_format("repos/%s/activity?ref=refs/heads/main&per_page=%d", c->gh->repo, CD_PUSHES);
+        pushes = rg_get(c->gh, path, NULL);
+        free(path);
+        snprintf(heads[n++], sizeof *heads, "%s", sha);
+        cJSON_ArrayForEach(p, pushes) {
+            const char* after = S(jstr(p, "after"));
+            int seen = 0;
+            if (!strcmp(after, c->head) || n == CD_PUSHES) break;
+            for (i = 0; i < n; ++i) seen |= !strcmp(heads[i], after);
+            if (strlen(after) == 40 && strspn(after, "0") < 40 && !seen)
+                snprintf(heads[n++], sizeof *heads, "%s", after);
         }
-        cJSON_Delete(cmp);
+        cJSON_Delete(pushes);
+        for (i = n - 1; i >= 0; --i) {
+            snprintf(key, sizeof key, "nightly-%s", heads[i]);
+            dirty(c, key);
+        }
     }
     if (strlen(sha) == 40) snprintf(c->head, sizeof c->head, "%s", sha);
     cJSON_Delete(got);

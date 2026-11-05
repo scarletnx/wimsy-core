@@ -755,6 +755,76 @@ static void cards_tests(void) {
     forget();
 }
 
+/* s with each @x written out as the commit of 40 x's; owned */
+static char* shas(const char* s) {
+    Buf b = {0};
+    int i;
+    for (; *s; ++s)
+        if (*s == '@' && s[1])
+            for (++s, i = 0; i < 40; ++i) buf_addn(&b, s, 1);
+        else
+            buf_addn(&b, s, 1);
+    return buf_take(&b);
+}
+static void gh_shas(const char* path, const char* body) {
+    char *p = shas(path), *b = shas(body);
+    gh(p, b);
+    free(p);
+    free(b);
+}
+/* main moved by pushes of several commits each: a nightly's card for each push's head, the oldest first, none for the
+   commits inside a push, which no build runs for; the head now has one before GitHub's activity lists its push */
+static void nightly_pushes(void) {
+    Cards c;
+    CdDiscord dc = {NULL, c_post, c_edit, c_remove, c_history};
+    int before;
+    char x;
+    forget();
+    rg_init(&g, "o/r", NULL, fake, NULL);
+    cd_init(&c, &g, dc, 0, 0, 3);
+    cards_fixtures("open", "null"); /* main at @a, the first round learns it */
+    now_is += 30;
+    cd_round(&c);
+    CHECK(c.head[0] == 'a' && strlen(c.head) == 40);
+    for (x = 'b'; x <= 'g'; ++x) { /* each commit as cd_nightly asks for it, with no build yet */
+        char *commit = rei_format("repos/o/r/commits/@%c", x),
+             *runs = rei_format("repos/o/r/actions/workflows/build.yml/runs?head_sha=@%c&per_page=100&page=1", x);
+        gh_shas(commit, "{\"commit\":{\"committer\":{\"date\":\"2026-11-04T20:56:45Z\"}}}");
+        gh_shas(runs, "{\"workflow_runs\":[]}");
+        free(commit);
+        free(runs);
+    }
+    /* two pushes since: @a to @c (@b, @c), then @c to @e (@d, @e) */
+    gh_shas("repos/o/r/commits/main", "{\"sha\":\"@e\"}");
+    gh_shas("repos/o/r/activity?ref=refs/heads/main&per_page=10",
+            "[{\"after\":\"@e\",\"before\":\"@c\"},{\"after\":\"@c\",\"before\":\"@a\"},"
+            "{\"after\":\"@a\",\"before\":\"@9\"}]");
+    gh_shas("repos/o/r/compare/@a...@e", "{\"commits\":[{\"sha\":\"@b\",\"parents\":[{\"sha\":\"@a\"}]},"
+                                         "{\"sha\":\"@c\",\"parents\":[{\"sha\":\"@b\"}]},"
+                                         "{\"sha\":\"@d\",\"parents\":[{\"sha\":\"@c\"}]},"
+                                         "{\"sha\":\"@e\",\"parents\":[{\"sha\":\"@d\"}]}]}");
+    before = nsent;
+    now_is += 30;
+    cd_round(&c);
+    CHECK(nsent == before + 2 && c.ncards == 2);
+    HAS(sent[before].description, "\"title\":\"Nightly 2026-11-04 (ccccccc)\"");
+    HAS(sent[before + 1].description, "\"title\":\"Nightly 2026-11-04 (eeeeeee)\"");
+    HAS(sent[before + 1].description, "Building main at");
+    /* main at @g, the activity a push behind (@e to @f only): @f's card, then @g's */
+    gh_shas("repos/o/r/commits/main", "{\"sha\":\"@g\"}");
+    gh_shas("repos/o/r/activity?ref=refs/heads/main&per_page=10",
+            "[{\"after\":\"@f\",\"before\":\"@e\"},{\"after\":\"@e\",\"before\":\"@c\"}]");
+    before = nsent;
+    now_is += 30;
+    cd_round(&c);
+    CHECK(nsent == before + 2 && c.ncards == 4);
+    HAS(sent[before].description, "(fffffff)");
+    HAS(sent[before + 1].description, "(ggggggg)");
+    cd_free(&c);
+    rg_free(&g);
+    forget();
+}
+
 /* more nightlies' cards than are kept, the newest first in the array as forgotten cards' places leave them: the oldest
    messages go, the newest stay */
 static void nightly_sweep(void) {
@@ -1256,6 +1326,7 @@ int main(void) {
     github_tests();
     rest_tests();
     cards_tests();
+    nightly_pushes();
     nightly_sweep();
     pr_card();
     state_tests();

@@ -17,8 +17,10 @@ It reads the text of messages only to find those numbers, and sends GitHub's API
 and logs nothing said, and pings no one.
 
 The bot asks GitHub's API every 30 s, with ETags (an unchanged answer costs nothing of GitHub's 5000 an hour): the
-issues and pull requests updated, the builds that run and their jobs, the nightly releases, main's head. A card that
-could not be drawn whole waits for the next round, as it was. The first round on a channel deletes the cards a webhook
+issues and pull requests updated, the builds that run and their jobs, the nightly releases, main's head and the pushes
+that moved it (each push to main, not each commit it brings, has a nightly's card: only its head is built). A card
+that could not be drawn whole waits for the next round, as it was. It follows the 60 newest nightlies' cards; an older
+one stays as it was last drawn. The first round on a channel deletes the cards a webhook
 posted there before, and messages of its own no card keeps; people's messages stay.
 
 Its settings, a line each of its env file, `/usr/local/etc/reiwimsy.env` (the package puts
