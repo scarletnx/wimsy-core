@@ -19,6 +19,8 @@ its second ACK is DROP_AFTER. Each connection, its READY, heartbeats and ACKs ar
 unready: a heartbeat every second, the first connection's unanswered; each later one is closed, with no CLOSE frame,
 once the bot sends IDENTIFY. Nothing is dropped: the bot has to end on its own, its session never ready again.
 
+stalled: unready's first connection, then each GET /gateway/bot after the first held open with no answer.
+
 replies: once READY is sent, a mention asking for help in channel 7 (which Tracer answers only with
 TRACER_CHANNELS=all), then someone's reply that mentions the bot and brings no file, to message 50 of channel 6, which
 has a ScarletNX log and no mention (the REST API gives it; the CDN, its log); once the bot has answered it, another
@@ -40,13 +42,16 @@ import sys
 import time
 
 CERT, KEY, DROP_AFTER = sys.argv[1], sys.argv[2], sys.argv[3]
-if DROP_AFTER not in ("github", "ready", "replies", "cards", "zombie", "unready"):
-    sys.exit(f"fake_discord.py: DROP_AFTER is {DROP_AFTER!r}, not github, ready, replies, cards, zombie or unready")
+if DROP_AFTER not in ("github", "ready", "replies", "cards", "zombie", "unready", "stalled"):
+    sys.exit(
+        f"fake_discord.py: DROP_AFTER is {DROP_AFTER!r}, not github, ready, replies, cards, zombie, unready or stalled"
+    )
 ME = {"id": "100", "username": "FakeBot", "discriminator": "0", "bot": True}
 cue = asyncio.Event()  # what the drop waits for
 posted = asyncio.Queue()  # each message a bot posts, its JSON
 broken = False
 connections = 0  # the gateway connections made so far
+asked = 0  # the GET /gateway/bot asked so far
 # the message the replies reply to: a person's, with a log, mentioning no one; the log, as the CDN serves it
 LOG = (
     "[   0.00] ScarletNX - Fake Game\n"
@@ -270,7 +275,7 @@ async def gateway(reader, writer, headers):
         if acks == 2:
             cue.set()
 
-    beating = DROP_AFTER in ("zombie", "unready")  # a heartbeat a second, each connection numbered
+    beating = DROP_AFTER in ("zombie", "unready", "stalled")  # a heartbeat a second, each connection numbered
     if beating:
         say(f"gateway: connection {n}")
     send({"op": 10, "d": {"heartbeat_interval": 1000 if beating else 41250}, "s": None, "t": None})
@@ -316,6 +321,7 @@ async def gateway(reader, writer, headers):
 
 
 async def serve(reader, writer):
+    global asked
     try:
         while True:
             method, target, headers, body = await request_of(reader)
@@ -337,6 +343,11 @@ async def serve(reader, writer):
                 await reader.read()  # until the client goes
                 return
             if target.startswith("/api/v10/gateway/bot"):
+                asked += 1
+                if DROP_AFTER == "stalled" and asked > 1:
+                    say(f"discord: GET /gateway/bot {asked}, held with no answer")
+                    await reader.read()  # until the client goes
+                    return
                 if broken:
                     say("discord: GET /gateway/bot, its connection closed")
                     return

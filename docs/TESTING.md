@@ -122,7 +122,8 @@ In a job of its own, on each pull request and each push to main, the bots built 
 - `unready` (ReiWimsy) and `tracer-unready`: a heartbeat a second, the first connection's unanswered, and each later
   one closed with no CLOSE frame once the bot sends IDENTIFY, its session never ready again, which Concord waits out
   forever: the bot has to end with status 1 on its own, saying its session was last seen ready longer ago than three
-  heartbeat intervals.
+  heartbeat intervals. `stalled` (ReiWimsy) the same, once the first connection is left each `GET /gateway/bot` held
+  with no answer, which Concord also waits on forever.
 - `reiwimsy --fix-cards` on a nightly channel holding two cards that say "Building": its dry run changes nothing,
   `--apply` deletes the one of a commit inside a push and redraws the push's head with its failed build, and a second
   `--apply` finds nothing to do.
@@ -133,7 +134,7 @@ sends Discord, its CDN and GitHub to the fake and whose CA bundle, libcurl's (`c
 the test makes. It needs util-linux, iproute2, python3, openssl and libcurl's headers. One by hand:
 
     sh rei/tests/test_gateway.sh PROGRAM BINARY    # one of reiwimsy, tracer, tracer-all, zombie, tracer-zombie,
-                                                   # unready, tracer-unready, fix-cards
+                                                   # unready, tracer-unready, stalled, fix-cards
 
 ## The themes
 
