@@ -21,12 +21,7 @@
 </style>
 <div role="main" aria-label="{{if .IsSigned}}{{ctx.Locale.Tr "dashboard"}}{{else}}{{ctx.Locale.Tr "home"}}{{end}}" class="page-content home">
 	<div class="sx-home">
-		{{- $logo := "sepia" -}}
-		{{- with .Context -}}
-		{{- $c := .GetSiteCookie "sws_theme" -}}
-		{{- if or (eq $c "wimsy") (eq $c "fuddles") (eq $c "default") -}}{{- $logo = $c -}}{{- end -}}
-		{{- end }}
-		<img class="sx-wimsy" src="{{AssetUrlPrefix}}/img/sws/logo-{{$logo}}.svg" width="512" height="512" alt="Wimsy, the mascot of ScarletNX, in the theme's colours">
+		<img class="sx-wimsy" src="{{AssetUrlPrefix}}/img/wimsy.svg" width="512" height="512" alt="Wimsy, the mascot of ScarletNX">
 		<ul class="sx-row sx-top">
 			<li><a href="https://github.com/scarletnx/ScarletNX">Source code</a></li>
 			<li><a href="https://github.com/scarletnx/nightly/releases/latest">Nightly release</a></li>
