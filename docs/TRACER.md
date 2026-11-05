@@ -7,12 +7,12 @@
 the game reports that people send it on Discord and draws them as a static site, grouped by game.
 
 A message that mentions it with a ScarletNX log attached becomes a report. Its files are read by a worker: the bot runs
-itself again (`tracer --report`) for each message, without its settings or its token in the environment, within 1 GiB
-of memory, 120 s of processor, 600 s in all and 128 MiB a file, so that a file that crashes or stalls its reader costs
-that report alone. A worker runs as the bot's user, and the bot keeps its own memory and environment, where its tokens
-are, from debuggers of that user (not dumpable on Linux, `PROC_TRACE_CTL` on FreeBSD: no ptrace, no
-`/proc/<pid>/environ` or `kern.proc.env`), so that a worker a file took over cannot read them; it does not start
-without that. The worker's answer is checked before any of its files moves from the work folder (`work/` beside
+itself again (`tracer --report`) for each message that has files, without its settings or its token in the
+environment, within 1 GiB of memory, 120 s of processor, 600 s in all and 128 MiB a file, so that a file that crashes
+or stalls its reader costs that report alone. A worker runs as the bot's user, and the bot keeps its own memory and
+environment, where its tokens are, from debuggers of that user (not dumpable on Linux, `PROC_TRACE_CTL` on FreeBSD:
+no ptrace, no `/proc/<pid>/environ` or `kern.proc.env`), so that a worker a file took over cannot read them; it does not
+start without that. The worker's answer is checked before any of its files moves from the work folder (`work/` beside
 the database) into the site. A report keeps:
 
 - Its logs (`.log`, `.txt`, or one packed in a `.gz` or a `.zip`; 3 at most, 64 MiB each) are downloaded from Discord,
