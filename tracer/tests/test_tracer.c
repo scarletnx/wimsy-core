@@ -598,6 +598,20 @@ static void test_public_log(void) {
         CHECK(n == strlen(shown));
         free(shown);
     }
+    { /* a home folder's name goes whole, spaces and all, as take_log puts ~ in a log for the site: with the summary of
+         before ScarletNX #986 (7bde830fb), C:\Users\John Smith\x reached a public report as ~ Smith\x */
+        static const char homes[] = "[   1.04] saved in C:\\Users\\John Smith\\AppData\\x.sav\n"
+                                    "[   1.05] loading /home/Ana Maria/games/x.nsp\n"
+                                    "[   1.06] saved in C:\\Users\\John Smith\n";
+        char* tilded = snx_logscan_tilde(homes, sizeof homes - 1, &n);
+        SAME(tilded, "[   1.04] saved in ~\\AppData\\x.sav\n"
+                     "[   1.05] loading ~/games/x.nsp\n"
+                     "[   1.06] saved in ~\n");
+        LACKS(tilded, "Smith");
+        LACKS(tilded, "Maria");
+        CHECK(tilded && n == strlen(tilded));
+        free(tilded);
+    }
     /* each prefix the log summary's dump() leaves out is left out here: a prefix added there fails this until it is */
     source = read_file("third_party/logscan/common/utilities/logscan.c", NULL);
     where = source ? strstr(source, "static int dump(Span line)") : NULL;
