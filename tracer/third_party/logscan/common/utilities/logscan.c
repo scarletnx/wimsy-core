@@ -170,29 +170,62 @@ static size_t utf8_len(const unsigned char* p, size_t n) {
     return len;
 }
 
-/* How long the home folder's part is at s: "/home/<user>", "/var/home/<user>" (Silverblue's), "/Users/<user>",
-   "/media/<user>" and "/run/media/<user>" (the drives a desktop mounts for its user, where games often are),
-   "C:\Users\<user>" (either slash, any case), Android's "/data/user/<n>/<package>"; 0 elsewhere. The player's account
-   name stays out of a public report */
+static int is_sep(char c) { return c == '/' || c == '\\'; }
+/* a drive at s, "C:\" or "C:/", or WSL's "/mnt/c/": the length before its separator, 0 for none */
+static size_t drive_at(Span s) {
+    if (s.n >= 3 && snx_is_alpha(s.p[0]) && s.p[1] == ':' && is_sep(s.p[2])) return 2;
+    if (s.n >= 7 && starts(s, "/mnt/") && snx_is_alpha(s.p[5]) && s.p[6] == '/') return 6;
+    return 0;
+}
+/* "\Users\" at s, either slash: its length, 0 for none. In any case after a drive, Windows' names having none;
+   elsewhere only as macOS and Windows write it, the data folder's own users/ being no home */
+static size_t users_at(Span s, int any_case) {
+    if (s.n < 7 || !is_sep(s.p[0]) || !is_sep(s.p[6])) return 0;
+    for (size_t k = 0; k < 5; k++)
+        if (any_case ? snx_to_lower(s.p[1 + k]) != "users"[k] : s.p[1 + k] != "Users"[k]) return 0;
+    return 7;
+}
+/* a byte no account's name holds on the systems the runtime runs on: a control, a line's end among them, or one that
+   Windows refuses in a name, passwd's ':' with them. A space is a name's: Windows' often hold one */
+static int ends_name(char c) { return (unsigned char)c < 0x20 || c == 0x7f || strchr("\"*+,:;<=>?[]|", c); }
+/* the length of the account's folder at s, past a home's prefix: up to the separator its path goes on with. A name
+   that no separator follows cannot be told from the words after it, which go with it to the line's end or the first
+   byte no name holds, its last blanks left out; a blank, then a separator or a drive, starts another path */
+static size_t name_len(Span s) {
+    size_t i, end = 0;
+    if (!s.n || s.p[0] == ' ') return 0;
+    for (i = 0; i < s.n && !ends_name(s.p[i]) && !is_sep(s.p[i]); i++) {
+        if (s.p[i] != ' ')
+            end = i + 1;
+        else if (i + 1 < s.n && (is_sep(s.p[i + 1]) || drive_at(skip(s, i + 1))))
+            break;
+    }
+    return end;
+}
+
+/* How long the home folder's part is at s: "/home/<user>", "/usr/home/<user>" (FreeBSD's), "/var/home/<user>"
+   (Silverblue's), "/Users/<user>", "/media/<user>" and "/run/media/<user>" (the drives a desktop mounts for its user,
+   where games often are), "C:\Users\<user>" (either slash) and WSL's "/mnt/c/Users/<user>", "\Users\<user>" on a
+   share or another volume, Android's "/data/user/<n>/<package>"; 0 elsewhere. The player's account name stays out of
+   a public report, spaces and all */
 static size_t home_at(Span s) {
-    static const char* const homes[] = {"/home/", "/var/home/", "/Users/", "/run/media/", "/media/"};
-    size_t i = 0, k;
-    if (!s.n || (s.p[0] != '/' && !snx_is_alpha(s.p[0]))) return 0;
-    for (k = 0; k < sizeof homes / sizeof homes[0] && !i; k++)
+    static const char* const homes[] = {"/home/", "/usr/home/", "/var/home/", "/run/media/", "/media/"};
+    size_t i = 0, k, drive;
+    if (!s.n || (!is_sep(s.p[0]) && !snx_is_alpha(s.p[0]))) return 0;
+    for (k = 0; k < sizeof homes / sizeof homes[0] && !i && s.p[0] == '/'; k++)
         if (starts(s, homes[k])) i = strlen(homes[k]);
-    if (!i && s.n > 9 && snx_is_alpha(s.p[0]) && s.p[1] == ':' && (s.p[2] == '\\' || s.p[2] == '/') &&
-        (s.p[8] == '\\' || s.p[8] == '/')) {
-        for (k = 0; k < 5 && snx_to_lower(s.p[3 + k]) == "users"[k]; k++) {}
-        if (k == 5) i = 9;
+    if (!i) {
+        drive = drive_at(s);
+        k = users_at(skip(s, drive), drive != 0);
+        if (k) i = drive + k;
     }
     if (!i && starts(s, "/data/user/")) {
         i = 11 + dec_run(skip(s, 11));
         if (i == 11 || i >= s.n || s.p[i] != '/') return 0;
         i++;
     }
-    if (!i || i >= s.n || s.p[i] == '/' || s.p[i] == '\\' || snx_is_blank(s.p[i])) return 0;
-    while (i < s.n && s.p[i] != '/' && s.p[i] != '\\' && !snx_is_blank(s.p[i])) i++;
-    return i;
+    k = i ? name_len(skip(s, i)) : 0;
+    return k ? i + k : 0;
 }
 
 /* room for n more bytes in the pool: 0, or -1 out of memory, the pool as it was. Its offsets are unsigned */
@@ -453,8 +486,8 @@ static int marker(Span line, Marker* m) {
 }
 
 /* ============================================================ the scan */
-/* A game log is all of itself. The launcher's Share Log file (src/gui/main.c's share_log) starts with snx_build_info's
-   line, "ScarletNX <branch> <commit> (<compiler>, <system>)", then its message and sections: the last run's output
+/* A game log is all of itself. The launcher's Share Log file (src/gui/main.c's share_log) starts with
+   snx_build_log_line's line, "ScarletNX <branch> <commit>, committed <YYYY-MM-DD> (<compiler>, <system>)", then its message and sections: the last run's output
    under "== the last run: <path> ==" and the newest game log under "== <path> ==", which can come alone, without the
    run's. The game log's lines are scanned, else the run's output when it had none. The newest game log can be another game's, one played before: the run's
    output is kept while it is read, and stands for itself when its title ID is not the game log's */
@@ -479,9 +512,18 @@ static void header(SnxLogScan* s, Span title) {
     s->title = add(s, title);
 }
 
-/* "build: ScarletNX <branch> <commit> (<compiler>, <system>)" or the launcher's line without "build: " */
+/* "YYYY-MM-DD", a month 01 to 12 and a day 01 to 31 */
+static int is_day(Span s) {
+    if (s.n != 10) return 0;
+    for (size_t i = 0; i < 10; i++)
+        if (i == 4 || i == 7 ? s.p[i] != '-' : s.p[i] < '0' || s.p[i] > '9') return 0;
+    return (s.p[5] == '0' ? s.p[6] != '0' : s.p[5] == '1' && s.p[6] <= '2') &&
+           (s.p[8] == '0' ? s.p[9] != '0' : s.p[8] < '3' || (s.p[8] == '3' && s.p[9] <= '1'));
+}
+/* "build: ScarletNX <branch> <commit>, committed <YYYY-MM-DD> (<compiler>, <system>)", a build before the day had no
+   ", committed ...", or the launcher's line without "build: " */
 static int build_line(SnxLogScan* s, Span line) {
-    Span rest = line;
+    Span rest = line, day;
     if (!take_lit(&rest, "ScarletNX ") || !rest.n || rest.p[rest.n - 1] != ')') return 0;
     long sp = find(rest, " ");
     if (sp <= 0) return 0;
@@ -490,9 +532,13 @@ static int build_line(SnxLogScan* s, Span line) {
     sp = find(rest, " (");
     if (sp <= 0) return 0;
     Span commit = span(rest.p, (size_t)sp);
+    long at = find(commit, ", committed ");
+    day = at > 0 ? skip(commit, (size_t)at + 12) : span(commit.p, 0);
+    if (at > 0) commit.n = (size_t)at;
     s->build = add(s, line);
     s->branch = add(s, branch);
     s->commit = add(s, commit);
+    s->committed = is_day(day) || (day.n == 7 && starts(day, "unknown")) ? add(s, day) : 0;
     return 1;
 }
 
@@ -1637,6 +1683,35 @@ static void md_sym(Buf* b, const SnxLogScan* s, const SnxLogSym* sym, SnxDemangl
     }
     free(plain);
 }
+/* the days from 1970-01-01 to y-m-d of the Gregorian calendar (Howard Hinnant's days_from_civil) */
+static long days_from_civil(long y, long m, long d) {
+    long era, yoe, doy;
+    y -= m <= 2;
+    era = (y >= 0 ? y : y - 399) / 400;
+    yoe = y - era * 400;
+    doy = (153 * (m > 2 ? m - 3 : m + 9) + 2) / 5 + d - 1;
+    return era * 146097 + yoe * 365 + yoe / 4 - yoe / 100 + doy - 719468;
+}
+/* "`<branch> <commit>`, committed <day>", and when the run's time is known (written) and the day is one, ", <n> days
+   before this run", by the days of the UTC calendar */
+static void md_build_age(Buf* b, const SnxLogScan* s) {
+    Buf name = {0};
+    const char* day = snx_logscan_text(s, s->committed);
+    long long began = s->written - (s->centiseconds > 0 ? s->centiseconds / 100 : 0);
+    put(&name, snx_logscan_text(s, s->branch));
+    put(&name, " ");
+    put(&name, snx_logscan_text(s, s->commit));
+    md_code(b, name.p ? name.p : "");
+    free(name.p);
+    put(b, ", committed ");
+    put(b, day);
+    if (s->written > 0 && began >= 0 && strcmp(day, "unknown")) {
+        char age[64];
+        long days = (long)(began / 86400) - days_from_civil(atol(day), atol(day + 5), atol(day + 8));
+        sprintf(age, ", %ld %s before this run", days, days == 1 || days == -1 ? "day" : "days");
+        put(b, age);
+    }
+}
 static void md_fold_start(Buf* b, const char* summary) {
     put(b, "\n<details><summary>");
     put(b, summary);
@@ -1668,7 +1743,9 @@ char* snx_logscan_markdown(const SnxLogScan* s, const char* name, const char* he
         put(&b, "\n");
     }
     put(&b, "- **Build:** ");
-    if (s->build)
+    if (s->committed)
+        md_build_age(&b, s);
+    else if (s->build)
         md_code(&b, snx_logscan_text(s, s->build));
     else
         put(&b, "not in the log");

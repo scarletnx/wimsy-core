@@ -94,11 +94,16 @@ typedef struct {
 typedef struct SnxLogScan {
     char* pool; /* the texts, each terminated, grown as the scan adds them */
     size_t used, cap;
-    /* the header: the game log's lines, else the launcher's build line */
-    unsigned title, title_id, game_version, build, branch, commit, system, gpu, vulkan, driver;
+    /* the header: the game log's lines, else the launcher's build line, whose committed is the day the build's commit
+       was made as the line says it (YYYY-MM-DD, or unknown), 0 from a build that did not say it */
+    unsigned title, title_id, game_version, build, branch, commit, committed, system, gpu, vulkan, driver;
     int console;                               /* SNX_CONSOLE_* */
     unsigned launcher_build, launcher_message; /* the Share Log file's; launcher_build 0 for a game log */
     long centiseconds;                         /* the last line's time, -1 without one */
+    /* when the log was last written, in seconds since 1970 (UTC), which the log does not say: the caller's to set
+       after the scan, from the log's file as the run left it (the launcher's Share Log does), 0 for unknown. Less the
+       last line's time, the run began then: the markdown says how many days the build's commit is older */
+    long long written;
     int outcome;
     unsigned signature;
     /* the failure, when outcome isn't SNX_LOG_NONE: the marker's fields, then its report's */
@@ -183,7 +188,8 @@ const SnxLogSym* snx_logscan_function(const SnxLogScan* s);
 char* snx_logscan_json(const SnxLogScan* s, SnxDemangle demangle);
 char* snx_logscan_markdown(const SnxLogScan* s, const char* name, const char* heading, int brief, SnxDemangle demangle);
 /* the n bytes of text with each home folder's part as ~, as a report writes it (/home/<user>, C:\Users\<user>, Android's
-   /data/user/<n>/<package>...), allocated and ended by a 0, its length in *size; NULL out of memory */
+   /data/user/<n>/<package>..., the account's name whole, spaces and all), allocated and ended by a 0, its length in
+   *size; NULL out of memory */
 char* snx_logscan_tilde(const char* text, size_t n, size_t* size);
 /* scarletnx --scan-log: LOG... (- for stdin) [--format json|markdown] [--name NAME], a JSON object a line or a summary
    a log, NAME the markdown's title for a log without a title line (its path otherwise). argv[0] is the command's name */
