@@ -61,7 +61,7 @@ src/files.o: src/files.c src/files.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/files.c
 src/store.o: src/store.c src/store.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) $(SQLITE_CFLAGS) -c -o $@ src/store.c
-src/site.o: src/site.c src/site.h src/store.h src/tracer.h
+src/site.o: src/site.c src/site.h src/files.h src/store.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/site.c
 src/worker.o: src/worker.c src/worker.h src/report.h src/age.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/worker.c

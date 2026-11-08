@@ -524,6 +524,25 @@ static void test_unpack(void) {
     CHECK(tr_unpack("plain.txt", "text", 4, 3, &out, &why));
     free(why);
     buf_free(&out);
+    /* the name the unpacked text is saved as: never an archive's, as it is no archive any more */
+    {
+        static const char* const names[][2] = {
+            {"logs.zip", "logs.log"},
+            {"scarletnx-logs-2026-11-07.ZIP", "scarletnx-logs-2026-11-07.log"},
+            {"game.log.gz", "game.log"},
+            {"notes.TXT.gz", "notes.TXT"},
+            {"run.gz", "run.log"},
+            {"backup.tar.gz", "backup.tar.log"},
+            {"scarletnx.log", "scarletnx.log"},
+            {"plain.txt", "plain.txt"},
+            {".zip", ".zip"} /* no name before it: tr_unpack takes it as text, not a zip */};
+        size_t i;
+        for (i = 0; i < sizeof names / sizeof *names; ++i) {
+            char* got = tr_unpacked_name(names[i][0]);
+            SAME(got, names[i][1]);
+            free(got);
+        }
+    }
 }
 
 /* the log's summary as the bot makes it, owned */
@@ -2782,6 +2801,55 @@ static void test_age(void) {
     gql_answer = gql_body = NULL;
 }
 
+/* a log sent in a .zip or a .gz is kept as its text: the report page's Download saves that text under a name of a log,
+   never the archive's, which no program opens as one */
+static void test_archive_download(void) {
+    static char zip[1 << 16], gz[1 << 16];
+    size_t nzip, ngz;
+    TrMessage m;
+    StFile* files;
+    StReport r;
+    int nfiles;
+    char *t, *p, *rel, *data;
+    data = packed(1, "games/Some Game/scarletnx.log", LOG, &nzip); /* one buffer of packed's: copied before the next */
+    memcpy(zip, data, nzip);
+    data = packed(0, "data", LOG, &ngz);
+    memcpy(gz, data, ngz);
+    serve("https://cdn.discordapp.com/9/scarletnx-logs-2026-11-07.zip", zip, nzip);
+    serve("https://cdn.discordapp.com/9/game.log.gz", gz, ngz);
+    m = message(9500, 950, "<@99> from the launcher's Share Zip");
+    attach(&m, "scarletnx-logs-2026-11-07.zip", "https://cdn.discordapp.com/9/scarletnx-logs-2026-11-07.zip",
+           (double)nzip);
+    attach(&m, "game.log.gz", "https://cdn.discordapp.com/9/game.log.gz", (double)ngz);
+    t = answer_text(respond(&m));
+    HAS(t, "2 logs, 0 screenshots");
+    free(t);
+    CHECK(st_get(tracer.store, st_by_message(tracer.store, 9500), &r, &files, &nfiles) == 1);
+    CHECK(nfiles == 2);
+    if (nfiles == 2) {
+        SAME(files[0].name, "scarletnx-logs-2026-11-07.zip"); /* what was sent, as the page's heading and JSON say */
+        rel = rei_format("r/%ld/index.html", r.id);
+        p = page(rel);
+        HAS(p, "<h2>scarletnx-logs-2026-11-07.zip <small>");
+        CHECK(strstr(p, "\" download=\"scarletnx-logs-2026-11-07.log\">Download</a>") != NULL);
+        CHECK(strstr(p, "\" download=\"game.log\">Download</a>") != NULL);
+        LACKS(p, "download=\"scarletnx-logs-2026-11-07.zip\"");
+        LACKS(p, "download=\"game.log.gz\"");
+        free(p);
+        free(rel);
+        /* and the file the link names is the log's text, not a zip's bytes */
+        rel = rei_format("r/%ld/%s", r.id, files[0].path);
+        p = page(rel);
+        CHECK(p && strncmp(p, "PK", 2));
+        HAS(p, "ScarletNX - Some Game");
+        free(p);
+        free(rel);
+    }
+    st_report_free(&r);
+    st_files_free(files, nfiles);
+    tr_message_free(&m);
+}
+
 int main(int argc, char** argv) {
     char *db, *command;
     if (argc == 2) return as_worker(argv[1]);
@@ -2834,6 +2902,7 @@ int main(int argc, char** argv) {
         test_untraceable(argv[0]);
         test_issues();
         test_age();
+        test_archive_download();
     }
     st_close(tracer.store);
     if (getenv("TRACER_TEST_KEEP")) fprintf(stderr, "kept %s\n", site);

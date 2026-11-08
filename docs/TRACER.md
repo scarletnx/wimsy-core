@@ -185,7 +185,7 @@ Static files, drawn again where a report changes them, and all of them at each s
 | `index.html` | each game, its latest outcome, its reports' count; a search and a filter by outcome |
 | `all.html` | every report, the newest first |
 | `g/<key>.html` | a game's reports: `<key>` its title ID, or `n-` and its name's letters for a game known by name |
-| `r/<id>/` | a report: its facts, screenshots, and each log with its summary, to read or download |
+| `r/<id>/` | a report: its facts, screenshots, and each log with its summary, to read or download (a log sent in a `.zip` or a `.gz` is kept as its text and downloads as one: `logs.zip` as `logs.log`, `game.log.gz` as `game.log`) |
 | `api/` | the same as JSON: `games.json`, `reports.json`, `r/<id>.json` (a report with its logs' summaries and the notes added later); no Discord id |
 | `style.css`, `site.js`, `tracer.svg` | copied from `TRACER_ASSETS` at each start |
 

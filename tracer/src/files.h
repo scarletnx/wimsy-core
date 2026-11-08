@@ -36,6 +36,10 @@ int tr_ppm_png(const char* data, size_t n, Buf* out);
 /* a log as text: a .gz's or a .zip's (its first .log or .txt, else its first file) unpacked, any other name's bytes
    as they are, max bytes at most. 0, or -1 with why (owned) */
 int tr_unpack(const char* name, const char* data, size_t n, size_t max, Buf* out, char** why);
+/* the name the text tr_unpack made of name is saved as: a .gz's without its .gz ("game.log.gz" as "game.log"), with
+   .log after it when what is left is no .log or .txt; a .zip's with .log for its .zip ("logs.zip" as "logs.log"); any
+   other name as it is. The site keeps the text, never the archive. Owned */
+char* tr_unpacked_name(const char* name);
 
 /* the n bytes of text with each byte that is not part of valid UTF-8 as U+FFFD, and each NUL left out; owned */
 char* tr_utf8(const char* text, size_t n);

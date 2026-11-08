@@ -411,6 +411,20 @@ broken:
     return -1;
 }
 
+char* tr_unpacked_name(const char* name) {
+    size_t n = strlen(name);
+    if (ends(name, ".zip")) return rei_format("%.*s.log", (int)(n - 4), name);
+    if (ends(name, ".gz")) {
+        char* rest = rei_format("%.*s", (int)(n - 3), name);
+        char* named;
+        if (ends(rest, ".log") || ends(rest, ".txt")) return rest;
+        named = rei_format("%s.log", rest);
+        free(rest);
+        return named;
+    }
+    return rei_strdup(name);
+}
+
 char* tr_utf8(const char* text, size_t n) {
     const unsigned char* s = (const unsigned char*)text;
     Buf b = {0};

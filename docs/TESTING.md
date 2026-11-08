@@ -47,8 +47,8 @@ usage.
 temporary folder:
 
 - the events and what a message asks; which files are logs, screenshots and videos; the logs unpacked from a `.gz` and
-  a `.zip`; the screenshots' metadata taken out (PNG, JPEG, WebP, GIF) and broken ones refused; an MP4's place and
-  camera blanked; text made valid UTF-8;
+  a `.zip`, and the name each downloads as from the site (a log's, never the archive's); the screenshots' metadata
+  taken out (PNG, JPEG, WebP, GIF) and broken ones refused; an MP4's place and camera blanked; text made valid UTF-8;
 - the game a log names (and the older builds' titles, a garbled one, a name in another script); the crash report's
   dumps left out of a log as the log summary leaves them out; the games' names from the list (an update's and an
   add-on's ID, a report named at once, one named at the next start, a log's name first, a GBA game by its code, a

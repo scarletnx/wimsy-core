@@ -10,6 +10,8 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "files.h"
+
 /* ---- pieces of a page ---- */
 
 static void esc(Buf* b, const char* s) {
@@ -357,6 +359,7 @@ static void log_section(Buf* b, const StFile* f) {
     cJSON* s = f->summary ? cJSON_Parse(f->summary) : NULL;
     const cJSON *failure = cJSON_GetObjectItemCaseSensitive(s, "failure"), *frame;
     const char* file = f->path;
+    char* saved = tr_unpacked_name(f->name); /* the file is the log's text, also when it came in a .zip or a .gz */
     buf_add(b, "<section class=\"log\">\n<h2>");
     esc(b, f->name);
     buf_add(b, " <small>");
@@ -366,8 +369,9 @@ static void log_section(Buf* b, const StFile* f) {
     buf_add(b, "\">View the log</a> <a class=\"button quiet\" href=\"");
     esc(b, file);
     buf_add(b, "\" download=\"");
-    esc(b, f->name);
+    esc(b, saved);
     buf_add(b, "\">Download</a></p>\n");
+    free(saved);
     if (cJSON_IsObject(failure)) {
         const cJSON* fn = cJSON_GetObjectItemCaseSensitive(failure, "function");
         buf_add(b, "<div class=\"failure\">\n");
