@@ -769,9 +769,10 @@ static cJSON* probe_made(Tracer* t, const StReport* r, const Taken* k) {
     files = kept(k, "");
     add_field(e, "Kept", files);
     if (p->cut_cases || p->cut_notes) {
-        char* left = rei_format("the detail of %d service, net and pad cases and %d net notes, which can name the "
-                                "player",
-                                p->cut_cases, p->cut_notes);
+        char* left = rei_format("the detail of %d %s of the service, net and pad families (or of no family edenprobe "
+                                "names) and %d net %s, which can name the player",
+                                p->cut_cases, p->cut_cases == 1 ? "case" : "cases", p->cut_notes,
+                                p->cut_notes == 1 ? "note" : "notes");
         add_field(e, "Left out", left);
         free(left);
     }

@@ -111,7 +111,8 @@ one that is gone and one with no log are refused, each with why.
 
 [edenprobe](https://github.com/scarletnx/edenprobe) checks an emulator against the console, case by case. A report
 whose first log holds a run of it is the run's, kept apart from the games: in no game's list, nor `all.html` and
-`api/reports.json`. A run comes in three forms:
+`api/reports.json`, but on the site's Probe pages ([The site](#the-site)), by machine: the emulator, the driver and its
+version, the system. A run comes in three forms:
 
 - ScarletNX's log of the run, alone or in the launcher's Share Log zip, whose entry that holds a whole run is the one
   kept (else one a run begins in, else its first log, as for any zip): the machine from its header (`system:`, the
@@ -254,8 +255,12 @@ Static files, drawn again where a report changes them, and all of them at each s
 | `index.html` | each game, its latest outcome, its reports' count; a search and a filter by outcome |
 | `all.html` | every report, the newest first |
 | `g/<key>.html` | a game's reports: `<key>` its title ID, or `n-` and its name's letters for a game known by name |
-| `r/<id>/` | a report: its facts, screenshots, and each log with its summary, to read or download (a log sent in a `.zip` or a `.gz` is kept as its text and downloads as one: `logs.zip` as `logs.log`, `game.log.gz` as `game.log`) |
-| `api/` | the same as JSON: `games.json`, `reports.json`, `r/<id>.json` (a report with its logs' summaries and the notes added later); no Discord id |
+| `r/<id>/` | a report: its facts, screenshots, and each log with its summary, to read or download (a log sent in a `.zip` or a `.gz` is kept as its text and downloads as one: `logs.zip` as `logs.log`, `game.log.gz` as `game.log`); a run of edenprobe's has its counts and each case that did not pass |
+| `probe/index.html` | the runs of edenprobe: the machines (an emulator, a driver and its version, a system), each case that fails somewhere with its results on each machine, each suite's, and each run |
+| `probe/c/<key>.html` | a case of edenprobe: `<key>` 16 hex digits of its suite and name; its results on each machine, what the rules say of it, and its newest 200 failures and skips with their detail |
+| `probe/d/<driver>.html` | a driver, by the ban table's name (`radv`, `nvidia`; `unknown` for the console's reports): its machines, the cases that fail on it, its ban candidates, its runs |
+| `probe/candidates.html` | [what the runs say together](#what-the-runs-say-together): ban candidates with their draft lines, ScarletNX's own failures, regressions |
+| `api/` | the same as JSON: `games.json`, `reports.json`, `r/<id>.json` (a report with its logs' summaries and the notes added later, a run of edenprobe's with its run); `probe/matrix.json`, `probe/c/<key>.json`, `probe/d/<driver>.json`, `probe/candidates.json`; no Discord id |
 | `style.css`, `site.js`, `tracer.svg` | copied from `TRACER_ASSETS` at each start |
 
 The lists filter in the browser (`site.js`: by words, outcome, branch, GPU; kept in the address's `#`) and work

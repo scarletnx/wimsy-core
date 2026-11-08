@@ -89,7 +89,12 @@ temporary folder:
   a mixed end, no end, a range a passing version splits, another system's runs apart, the extensions every failing
   run has; ScarletNX's own failure on three drivers of five (no candidate then) and on both of two, and none on one or
   with a driver that passes; a regression, and none when the newest build passes once, the build before fails once,
-  or a published build after passes, a `-dirty` one left out.
+  or a published build after passes, a `-dirty` one left out;
+- the Probe pages over those runs: the matrix by machine, a case's page with its failures, a driver's, a run's report
+  page and JSON without the player; a ban candidate made of seven whole reports on three drivers, drawn with its draft
+  line on the candidates page and the driver's, given by the MCP server's `ban_candidates`, `probe_matrix` (by driver,
+  words, suite, failing or not) and `probe_case` (by key, by words, several, none, a key that is none), and gone with
+  its reports; a case no run names any more losing its page.
 
 `python3 scripts/test-rule-mutants.py` then changes `tracer/src/rules.c` one way at a time in a copy of the tree (a
 threshold one off, a comparison that lets one more in, a condition left out: 19 mutants) and expects `test_tracer

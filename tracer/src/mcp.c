@@ -18,7 +18,10 @@ static const char INSTRUCTIONS[] =
     "search_reports find reports; signatures groups the failures that happened in the same place, across games; "
     "get_report gives a report's facts and each log's summary (how the run ended and where, its frames, the service "
     "commands and what else the runtime missed, the last lines); read_log reads or searches the log itself; "
-    "get_screenshot shows a report's screenshot. Home folders in the logs are ~. A Switch log that failed has a symbolize "
+    "get_screenshot shows a report's screenshot. Runs of edenprobe (its cases on each emulator, driver and system) are "
+    "reports of their own: probe_matrix lists the cases by machine, probe_case gives a case's results and failures, "
+    "ban_candidates what the runs say together (drivers to ban, ScarletNX's own failures, regressions). "
+    "Home folders in the logs are ~. A Switch log that failed has a symbolize "
     "object in get_report: its title ID, game version and game addresses. ScarletNX's own MCP server (scarletnx "
     "--mcp), where a copy of the game is, names them: its find_game with that title_id, the game whose version is "
     "game_version, then its symbolize (or disassemble) with that game's path and the addresses. This server has no "
@@ -71,6 +74,40 @@ static const char TOOLS[] =
     "\"outcome\":{\"type\":\"string\",\"description\":\"only failures of this outcome\"},"
     "\"limit\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":200,\"description\":\"30 when not given\"}}},"
     "\"annotations\":{\"readOnlyHint\":true,\"openWorldHint\":false}}]";
+
+/* the tools of the runs of edenprobe, apart: each string of the list stays within C99's 4095 bytes */
+static const char PROBE_TOOLS[] =
+    "[{\"name\":\"probe_matrix\",\"title\":\"The runs of edenprobe by machine\",\"description\":\"edenprobe's "
+    "cases by machine (an emulator, a driver and its version, a system), from the runs sent to Tracer: the machines, "
+    "and each case's results on each of them as [pass, fail, skip, crashed], in the machines' order. Every version and "
+    "mode of edenprobe counted together.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{"
+    "\"query\":{\"type\":\"string\",\"description\":\"words the case's suite or name holds, in any case\"},"
+    "\"suite\":{\"type\":\"string\",\"description\":\"one suite: astc, tex8k, nifm...\"},"
+    "\"family\":{\"type\":\"string\",\"description\":\"one family: judge, cpu, graphics, fs, kernel, display, "
+    "video, audio, service, net, pad, game\"},"
+    "\"driver\":{\"type\":\"string\",\"description\":\"only the machines of this driver, by the ban table's name: "
+    "radv, nvidia, qualcomm, turnip, mali...\"},"
+    "\"emulator\":{\"type\":\"string\",\"description\":\"only this emulator's machines: ScarletNX, Eden, rEden, "
+    "console\"},"
+    "\"failing\":{\"type\":\"boolean\",\"description\":\"only the cases that fail or crash on a machine shown; "
+    "true when not given\"},"
+    "\"limit\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":1000,\"description\":\"100 when not given\"}}},"
+    "\"annotations\":{\"readOnlyHint\":true,\"openWorldHint\":false}},"
+    "{\"name\":\"probe_case\",\"title\":\"A case of edenprobe\",\"description\":\"One case of edenprobe: its "
+    "results on each machine, the rules' word on it, and its newest failures and skips, each with its report, machine "
+    "and detail. Given its key (16 hex digits, as probe_matrix names it), or words of its suite and name: words that "
+    "find several cases list them.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{"
+    "\"case\":{\"type\":\"string\",\"description\":\"the case's key\"},"
+    "\"query\":{\"type\":\"string\",\"description\":\"words its suite or name holds, in any case\"}}},"
+    "\"annotations\":{\"readOnlyHint\":true,\"openWorldHint\":false}},"
+    "{\"name\":\"ban_candidates\",\"title\":\"What the runs of edenprobe say\",\"description\":\"By fixed "
+    "rules over the runs: ban candidates (a case that fails on one driver's range of versions for several people and "
+    "passes on other drivers), each with its draft line for ScarletNX's ban table, its key left for a person; "
+    "ScarletNX's own failures (a case failing on most drivers); and regressions (a case a build broke on a driver). "
+    "Nothing is applied.\",\"inputSchema\":{\"type\":\"object\",\"properties\":{"
+    "\"driver\":{\"type\":\"string\",\"description\":\"only this driver's, by the ban table's name\"},"
+    "\"kind\":{\"type\":\"string\",\"description\":\"candidates, general or regressions; all three when not "
+    "given\"}}},\"annotations\":{\"readOnlyHint\":true,\"openWorldHint\":false}}]";
 
 /* ---- reading ---- */
 
@@ -576,6 +613,209 @@ static char* signatures(const Mcp* m, const cJSON* args, int* error) {
     return printed(out);
 }
 
+/* ---- the runs of edenprobe ---- */
+
+/* a case's key, as probe_case_key makes it: 16 hex digits */
+static int case_key(const char* s) { return s && strlen(s) == 16 && strspn(s, "0123456789abcdef") == 16; }
+
+static char* probe_matrix(const Mcp* m, const cJSON* args, int* error) {
+    cJSON *all = read_json(m->root, "api/probe/matrix.json"), *out, *machines, *cases, *c, *each;
+    const char *suite = jstr(args, "suite"), *family = jstr(args, "family"), *driver = jstr(args, "driver"),
+               *emulator = jstr(args, "emulator");
+    const cJSON* failing = cJSON_GetObjectItemCaseSensitive(args, "failing");
+    int only_failing = !cJSON_IsFalse(failing), limit = integer(args, "limit", 100, 1, 1000), matched = 0, i;
+    int* shown;
+    Words words;
+    char* why;
+    if (words_of(&words, jstr(args, "query"), &why)) {
+        words_free(&words);
+        cJSON_Delete(all);
+        *error = 1;
+        return why;
+    }
+    if (!all) {
+        words_free(&words);
+        *error = 1;
+        return rei_strdup("the site has no api/probe/matrix.json yet");
+    }
+    out = cJSON_CreateObject();
+    machines = cJSON_AddArrayToObject(out, "machines");
+    shown = calloc((size_t)cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(all, "machines")) + 1, sizeof *shown);
+    if (!shown) abort();
+    i = 0;
+    cJSON_ArrayForEach(each, cJSON_GetObjectItemCaseSensitive(all, "machines")) { /* the machines asked for */
+        shown[i] = (!driver || !*driver || same(jstr(each, "driver"), driver)) &&
+                   (!emulator || !*emulator || same(jstr(each, "emulator"), emulator));
+        if (shown[i]) cJSON_AddItemToArray(machines, cJSON_Duplicate(each, 1));
+        ++i;
+    }
+    cases = cJSON_AddArrayToObject(out, "cases");
+    cJSON_ArrayForEach(c, cJSON_GetObjectItemCaseSensitive(all, "cases")) {
+        const cJSON *results = cJSON_GetObjectItemCaseSensitive(c, "results"), *r;
+        cJSON *copy, *kept;
+        int bad = 0, any = 0;
+        if (!words_in(c, &words) || (suite && *suite && !same(jstr(c, "suite"), suite)) ||
+            (family && *family && !same(jstr(c, "family"), family)))
+            continue;
+        i = 0;
+        cJSON_ArrayForEach(r, results) {
+            if (shown[i]) {
+                any |= cJSON_GetArraySize(r) == 4 &&
+                       (cJSON_GetArrayItem(r, 0)->valuedouble + cJSON_GetArrayItem(r, 1)->valuedouble +
+                        cJSON_GetArrayItem(r, 2)->valuedouble + cJSON_GetArrayItem(r, 3)->valuedouble) > 0;
+                bad |= cJSON_GetArraySize(r) == 4 &&
+                       (cJSON_GetArrayItem(r, 1)->valuedouble + cJSON_GetArrayItem(r, 3)->valuedouble) > 0;
+            }
+            ++i;
+        }
+        if (!any || (only_failing && !bad)) continue;
+        if (matched++ >= limit) continue;
+        copy = cJSON_Duplicate(c, 1);
+        kept = cJSON_CreateArray();
+        i = 0;
+        cJSON_ArrayForEach(r, results) {
+            if (shown[i]) cJSON_AddItemToArray(kept, cJSON_Duplicate(r, 1));
+            ++i;
+        }
+        cJSON_ReplaceItemInObjectCaseSensitive(copy, "results", kept);
+        {
+            char* url = rei_format("%s/probe/c/%s.html", m->url, jstr(c, "case") ? jstr(c, "case") : "");
+            jset(copy, "url", url);
+            free(url);
+        }
+        cJSON_AddItemToArray(cases, copy);
+    }
+    cJSON_AddNumberToObject(out, "runs", jnum(all, "runs"));
+    cJSON_AddNumberToObject(out, "matched", matched);
+    if (matched > limit) cJSON_AddNumberToObject(out, "shown", limit);
+    jset(out, "results", "each case's results on each machine shown, in their order: [pass, fail, skip, crashed]");
+    free(shown);
+    cJSON_Delete(all);
+    words_free(&words);
+    return printed(out);
+}
+
+static char* probe_case(const Mcp* m, const cJSON* args, int* error) {
+    const char *key = jstr(args, "case"), *query = jstr(args, "query");
+    char *rel, *why, *url;
+    cJSON *c, *all, *list, *each, *out;
+    Words words;
+    int found = 0;
+    const char* only = NULL;
+    if (key && *key) {
+        if (!case_key(key)) {
+            *error = 1;
+            return rei_format("case=%.40s is not a case's key, 16 hex digits as probe_matrix names it", key);
+        }
+        only = key;
+    } else {
+        if (!query || !*query) {
+            *error = 1;
+            return rei_strdup("case, a case's key, or query, words of its suite and name, is needed");
+        }
+        if (words_of(&words, query, &why)) {
+            words_free(&words);
+            *error = 1;
+            return why;
+        }
+        if (!(all = read_json(m->root, "api/probe/matrix.json"))) {
+            words_free(&words);
+            *error = 1;
+            return rei_strdup("the site has no api/probe/matrix.json yet");
+        }
+        out = cJSON_CreateObject();
+        list = cJSON_AddArrayToObject(out, "cases");
+        cJSON_ArrayForEach(each, cJSON_GetObjectItemCaseSensitive(all, "cases")) {
+            cJSON* e;
+            if (!words_in(each, &words)) continue;
+            if (found++ < 20) {
+                e = cJSON_CreateObject();
+                jset(e, "case", jstr(each, "case"));
+                jset(e, "suite", jstr(each, "suite"));
+                jset(e, "name", jstr(each, "name"));
+                cJSON_AddItemToArray(list, e);
+                only = jstr(each, "case");
+            }
+        }
+        words_free(&words);
+        if (found != 1) { /* none, or several: the list */
+            cJSON_AddNumberToObject(out, "matched", found);
+            cJSON_Delete(all);
+            if (!found) {
+                cJSON_Delete(out);
+                *error = 1;
+                return rei_format("no case's suite or name holds %.200s", query);
+            }
+            return printed(out);
+        }
+        if (!case_key(only)) { /* the matrix's own key, held to the same as one asked for */
+            cJSON_Delete(out);
+            cJSON_Delete(all);
+            *error = 1;
+            return rei_strdup("the matrix names the case with no case's key");
+        }
+        rel = rei_format("api/probe/c/%s.json", only);
+        cJSON_Delete(out);
+        c = read_json(m->root, rel);
+        free(rel);
+        cJSON_Delete(all);
+        if (!c) {
+            *error = 1;
+            return rei_strdup("the case's page is not on the site");
+        }
+        url = rei_format("%s/probe/c/%s.html", m->url, jstr(c, "case") ? jstr(c, "case") : "");
+        jset(c, "url", url);
+        free(url);
+        return printed(c);
+    }
+    rel = rei_format("api/probe/c/%s.json", only);
+    c = read_json(m->root, rel);
+    free(rel);
+    if (!c) {
+        *error = 1;
+        return rei_format("there is no case %s", only);
+    }
+    url = rei_format("%s/probe/c/%s.html", m->url, only);
+    jset(c, "url", url);
+    free(url);
+    return printed(c);
+}
+
+static char* ban_candidates(const Mcp* m, const cJSON* args, int* error) {
+    cJSON *all = read_json(m->root, "api/probe/candidates.json"), *out, *each;
+    const char *driver = jstr(args, "driver"), *kind = jstr(args, "kind");
+    static const char* const kinds[] = {"candidates", "general", "regressions"};
+    size_t k;
+    if (kind && *kind && strcmp(kind, kinds[0]) && strcmp(kind, kinds[1]) && strcmp(kind, kinds[2])) {
+        cJSON_Delete(all);
+        *error = 1;
+        return rei_format("kind=%.40s is none of candidates, general, regressions", kind);
+    }
+    if (!all) {
+        *error = 1;
+        return rei_strdup("the site has no api/probe/candidates.json yet");
+    }
+    out = cJSON_CreateObject();
+    for (k = 0; k < sizeof kinds / sizeof *kinds; ++k) {
+        cJSON* list;
+        if (kind && *kind && strcmp(kind, kinds[k])) continue;
+        list = cJSON_AddArrayToObject(out, kinds[k]);
+        cJSON_ArrayForEach(each, cJSON_GetObjectItemCaseSensitive(all, kinds[k])) {
+            const cJSON *drivers = cJSON_GetObjectItemCaseSensitive(each, "drivers"), *d;
+            int mine = !driver || !*driver || same(jstr(each, "driver"), driver);
+            cJSON_ArrayForEach(d, drivers) mine |= cJSON_IsString(d) && same(d->valuestring, driver);
+            if (mine) cJSON_AddItemToArray(list, cJSON_Duplicate(each, 1));
+        }
+    }
+    {
+        char* url = rei_format("%s/probe/candidates.html", m->url);
+        jset(out, "url", url);
+        free(url);
+    }
+    cJSON_Delete(all);
+    return printed(out);
+}
+
 /* ---- JSON-RPC ---- */
 
 static char* answer(const cJSON* id, cJSON* result) {
@@ -617,11 +857,9 @@ static char* called(const Mcp* m, const cJSON* id, const cJSON* params) {
     static const struct {
         const char* name;
         char* (*run)(const Mcp*, const cJSON*, int*);
-    } tools[] = {{"list_games", list_games},
-                 {"search_reports", search_reports},
-                 {"get_report", get_report},
-                 {"read_log", read_log},
-                 {"signatures", signatures}};
+    } tools[] = {{"list_games", list_games}, {"search_reports", search_reports}, {"get_report", get_report},
+                 {"read_log", read_log},     {"signatures", signatures},         {"probe_matrix", probe_matrix},
+                 {"probe_case", probe_case}, {"ban_candidates", ban_candidates}};
     const char* name = jstr(params, "name");
     const cJSON* args = cJSON_GetObjectItemCaseSensitive(params, "arguments");
     size_t i;
@@ -686,8 +924,10 @@ char* mcp_handle(const Mcp* m, const char* body, size_t n, int* status) {
     else if (!strcmp(method, "ping"))
         text = answer(id, cJSON_CreateObject());
     else if (!strcmp(method, "tools/list")) {
-        cJSON* r = cJSON_CreateObject();
-        cJSON_AddItemToObject(r, "tools", cJSON_Parse(TOOLS));
+        cJSON *r = cJSON_CreateObject(), *tools = cJSON_Parse(TOOLS), *more = cJSON_Parse(PROBE_TOOLS), *each;
+        while ((each = cJSON_DetachItemFromArray(more, 0))) cJSON_AddItemToArray(tools, each);
+        cJSON_Delete(more);
+        cJSON_AddItemToObject(r, "tools", tools);
         text = answer(id, r);
     } else if (!strcmp(method, "tools/call"))
         text = called(m, id, params);

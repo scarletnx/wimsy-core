@@ -161,8 +161,8 @@ typedef struct {
     char *tier, *reason, *detail; /* owned; "" for none */
     double us;                    /* -1 for none */
 } StProbeDetail;
-/* each run's result of case name, the newest report first */
-int st_probe_details(Store* s, int name, StProbeDetail** details, int* n);
+/* the runs' results of case name but its passes, the newest report first, limit at most */
+int st_probe_details(Store* s, int name, int limit, StProbeDetail** details, int* n);
 void st_probe_details_free(StProbeDetail* details, int n);
 
 void st_report_free(StReport* r);

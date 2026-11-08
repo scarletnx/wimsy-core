@@ -1059,10 +1059,13 @@ static void row_detail(sqlite3_stmt* q, void* to) {
     d->detail = (text = text_of(q, 4)) ? text : rei_strdup("");
     d->us = sqlite3_column_type(q, 5) == SQLITE_NULL ? -1 : sqlite3_column_double(q, 5);
 }
-int st_probe_details(Store* s, int name, StProbeDetail** details, int* n) {
-    sqlite3_stmt* q = prepared(s, "SELECT report, result, tier, reason, detail, us FROM probe_cases WHERE name = ?"
-                                  " ORDER BY report DESC");
-    if (q) sqlite3_bind_int(q, 1, name);
+int st_probe_details(Store* s, int name, int limit, StProbeDetail** details, int* n) {
+    sqlite3_stmt* q = prepared(s, "SELECT report, result, tier, reason, detail, us FROM probe_cases WHERE name = ? AND"
+                                  " result != 0 ORDER BY report DESC LIMIT ?");
+    if (q) {
+        sqlite3_bind_int(q, 1, name);
+        sqlite3_bind_int(q, 2, limit);
+    }
     return rows(q, (void**)details, n, sizeof **details, row_detail);
 }
 void st_probe_details_free(StProbeDetail* details, int n) {

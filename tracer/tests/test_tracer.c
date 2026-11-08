@@ -1192,7 +1192,7 @@ static void test_mcp(void) {
     free(t);
     t = ask(&m, "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/list\"}", &status);
     o = cJSON_Parse(t);
-    CHECK(cJSON_GetArraySize(jpath(o, "result.tools")) == 6);
+    CHECK(cJSON_GetArraySize(jpath(o, "result.tools")) == 9); /* the reports' six, the runs' three */
     cJSON_Delete(o);
     HAS(t, "\"read_log\"");
     free(t);
@@ -3216,7 +3216,8 @@ static void test_probe_reports(void) {
            "crashed");
     HAS(t, "Report #");
     HAS(t, ": edenprobe 0.9.0 on ScarletNX");
-    HAS(t, "the detail of 3 service, net and pad cases and 1 net notes, which can name the player");
+    HAS(t, "the detail of 3 cases of the service, net and pad families (or of no family edenprobe names) and 1 net "
+           "note, which can name the player");
     HAS(t, "main 1234abc");
     free(t);
     tr_message_free(&m);
@@ -3340,7 +3341,7 @@ static void test_probe_reports(void) {
     attach(&m, "edenprobe.log", "https://cdn.discordapp.com/21/edenprobe.log", 10);
     t = answer_text(respond(&m));
     HAS(t, "edenprobe 0.9.0 on radv, Mesa 26.1.8 (Linux): 3 passed, 2 failed");
-    HAS(t, "the detail of 3 service, net and pad cases");
+    HAS(t, "the detail of 3 cases of the service, net and pad families");
     free(t);
     tr_message_free(&m);
     tracer.take = NULL;
@@ -3349,6 +3350,194 @@ static void test_probe_reports(void) {
     probe_free(&run);
     CHECK(waiting_files() == 0);
     (void)why;
+}
+
+/* a run of edenprobe on a machine: the driver's line (name, info, ID), the raw driverVersion, the system, the build's
+   commit and day, and the astc case's result */
+static char* machine_log(const char* driver, int id, const char* raw, const char* system, const char* commit,
+                         const char* day, const char* result) {
+    int pass = !strcmp(result, "pass");
+    return rei_format(
+        "[   0.00] ScarletNX - edenprobe\n"
+        "[   0.00] build: ScarletNX main %s, committed %s (clang 23.1.3, x86_64)\n"
+        "[   0.00] system: %s, Some CPU, 8 threads, 16 GB RAM\n"
+        "[   0.18] vulkan: the driver that runs: %s (driver ID %d)\n"
+        "[   0.18] vulkan: Some GPU, Vulkan 1.4.354, driver %s, graphics queue family 0\n"
+        "[   0.20] [game] {\"type\":\"note\",\"text\":\"edenprobe 0.9.0 (v0.9.0) starting\"}\n"
+        "[   0.20] [game] {\"type\":\"note\",\"text\":\"mode: quick, from the mode file; pictures of "
+        "failures only; families graphics\"}\n"
+        "[   0.21] [game] {\"type\":\"case\",\"suite\":\"astc\",\"name\":\"a 4x4 block decodes\",\"tier\":"
+        "\"exact\",\"result\":\"%s\",\"detail\":\"%s\"}\n"
+        "[   0.23] [game] {\"type\":\"summary\",\"passed\":%d,\"failed\":%d,\"skipped\":0,\"crashed\":0}\n",
+        commit, day, system, driver, id, raw, result, pass ? "" : "texel 0 reads 0000ffff", pass, !pass);
+}
+
+/* the Probe pages and their JSON over the runs test_probe_reports left, then a ban candidate made of whole reports,
+   drawn, given to the MCP server, and gone with its reports */
+static void test_probe_site(void) {
+    static const struct {
+        const char *driver, *raw, *system, *commit, *day, *result;
+        int id;
+        u64 poster;
+    } machines[] = {
+        {"radv, Mesa 26.1.0", "06801000", "'Some Linux' (Linux 6.1)", "aaaa111", "2026-11-01", "fail", 3, 980},
+        {"radv, Mesa 26.1.8", "06801008", "'Some Linux' (Linux 6.1)", "aaaa111", "2026-11-01", "fail", 3, 981},
+        {"radv, Mesa 26.1.8", "06801008", "'Some Linux' (Linux 6.1)", "bbbb222", "2026-11-02", "fail", 3, 980},
+        {"radv, Mesa 26.2.0", "06802000", "'Some Linux' (Linux 6.1)", "bbbb222", "2026-11-02", "pass", 3, 982},
+        {"NVIDIA, 621.14", "9b404000", "Windows 11 26H2", "aaaa111", "2026-11-01", "pass", 4, 983},
+        {"NVIDIA, 621.14", "9b404000", "Windows 11 26H2", "bbbb222", "2026-11-02", "pass", 4, 984},
+        {"Intel open-source Mesa driver, Mesa 25.3.5", "06403005", "'Some Linux' (Linux 6.1)", "bbbb222", "2026-11-03",
+         "pass", 6, 985},
+    };
+    static char logs[7][1200];
+    char *p, *t, *rel, key[17], url[80];
+    long ids[7];
+    Mcp mcp;
+    size_t i;
+    probe_case_key("astc", "a 4x4 block decodes", key);
+    mcp.root = site;
+    mcp.url = "https://reports.example";
+    /* the runs so far: the matrix, a case, a driver, the report's own page and JSON */
+    p = page("probe/index.html");
+    HAS(p, "<h1>Runs of edenprobe</h1>");
+    HAS(p, "<th>ScarletNX<br>radv 26.1.8<br>Linux</th>");
+    HAS(p, "<th>Eden<br>nvidia 580.95.05*<br>Windows</th>");
+    rel = rei_format("<a href=\"c/%s.html\">a 4x4 block decodes</a></td><td><span class=\"badge bad\">", key);
+    HAS(p, rel);
+    free(rel);
+    LACKS(p, "data-family=\"service\""); /* the account case is in no failing row: it passed */
+    free(p);
+    rel = rei_format("probe/c/%s.html", key);
+    p = page(rel);
+    HAS(p, "<h1>a 4x4 block decodes</h1>");
+    HAS(p, "<h2>By machine</h2>");
+    HAS(p, "texel 0 reads 00ff00ff, it holds ff0000ff");
+    free(p);
+    free(rel);
+    p = page("probe/d/radv.html");
+    HAS(p, "<h1>RADV</h1>");
+    HAS(p, "radv · VkDriverId 3");
+    free(p);
+    p = page("probe/candidates.html");
+    HAS(p, "<h2>Ban candidates <small>0</small></h2>");
+    free(p);
+    {
+        long id = st_by_message(tracer.store, 9600);
+        rel = rei_format("r/%ld/index.html", id);
+        p = page(rel);
+        HAS(p, "<h2>edenprobe <small>3 passed, 2 failed (astc 1, newsuite 1), 0 skipped, 1 crashed</small></h2>");
+        HAS(p, "<a href=\"../../probe/index.html\">Probe</a> / edenprobe 0.9.0 on ScarletNX</p>");
+        HAS(p, "<h3>Failed: 2</h3>");
+        HAS(p, "crashed: the program ended inside it");
+        LACKS(p, "nickname Someone");
+        free(p);
+        free(rel);
+        rel = rei_format("api/r/%ld.json", id);
+        p = page(rel);
+        HAS(p, "\"probe\":{");
+        HAS(p, "\"not_passed\":[");
+        LACKS(p, "Someone"); /* the JSON names no player either */
+        free(p);
+        free(rel);
+    }
+    /* a ban candidate from whole reports: radv fails it from 26.1.0 for two people and passes on 26.2.0, and NVIDIA
+       and ANV pass it */
+    for (i = 0; i < sizeof machines / sizeof *machines; ++i) {
+        char *log = machine_log(machines[i].driver, machines[i].id, machines[i].raw, machines[i].system,
+                                machines[i].commit, machines[i].day, machines[i].result),
+             name[32];
+        TrMessage m;
+        snprintf(logs[i], sizeof logs[i], "%s", log);
+        free(log);
+        snprintf(url, sizeof url, "https://cdn.discordapp.com/30/%zu.log", i);
+        serve(rei_strdup(url), logs[i], strlen(logs[i]));
+        m = message(9800 + (u64)i, machines[i].poster, "<@99>");
+        snprintf(name, sizeof name, "run%zu.log", i);
+        attach(&m, name, url, 10);
+        t = answer_text(respond(&m));
+        HAS(t, "edenprobe 0.9.0 on");
+        free(t);
+        tr_message_free(&m);
+        ids[i] = st_by_message(tracer.store, 9800 + (u64)i);
+        CHECK(ids[i] > 0);
+    }
+    p = page("probe/candidates.html");
+    HAS(p, "<h2>Ban candidates <small>1</small></h2>");
+    rel =
+        rei_format("&lt;key&gt; | off | radv | &gt;= 26.1.0 &lt; 26.2.0 | linux | * | fails edenprobe&#39;s astc case "
+                   "&quot;a 4x4 block decodes&quot; | Tracer #%ld, #%ld, #%ld; edenprobe 0.9.0 &quot;a 4x4 block "
+                   "decodes&quot; | edenprobe:astc: a 4x4 block decodes | ",
+                   ids[0], ids[1], ids[2]);
+    HAS(p, rel);
+    free(rel);
+    HAS(p, "3 reports from 2 people");
+    HAS(p, "3 reports of 2 other drivers");
+    free(p);
+    p = page("probe/d/radv.html");
+    HAS(p, "<h2>Ban candidates</h2>");
+    free(p);
+    p = page("api/probe/candidates.json");
+    HAS(p, "\"versions\":\">= 26.1.0 < 26.2.0\"");
+    free(p);
+    /* the MCP server's tools over it */
+    t = call(&mcp, "ban_candidates", "{\"driver\":\"radv\"}");
+    HAS(t, ">= 26.1.0 < 26.2.0");
+    HAS(t, "probe/candidates.html");
+    free(t);
+    t = call(&mcp, "ban_candidates", "{\"driver\":\"nvidia\",\"kind\":\"candidates\"}");
+    LACKS(t, "26.1.0");
+    LACKS(t, "regressions");
+    free(t);
+    t = call(&mcp, "ban_candidates", "{\"kind\":\"bans\"}");
+    HAS(t, "kind=bans is none of candidates, general, regressions");
+    HAS(t, "\"isError\":true");
+    free(t);
+    t = call(&mcp, "probe_matrix", "{\"driver\":\"radv\",\"query\":\"4x4\"}");
+    HAS(t, "\\\"name\\\":\\\"a 4x4 block decodes\\\"");
+    HAS(t, "\\\"driver\\\":\\\"radv\\\"");
+    LACKS(t, "\\\"driver\\\":\\\"nvidia\\\"");
+    free(t);
+    t = call(&mcp, "probe_matrix", "{\"suite\":\"clear\"}"); /* it passes everywhere: none failing */
+    HAS(t, "\\\"matched\\\":0");
+    free(t);
+    t = call(&mcp, "probe_matrix", "{\"suite\":\"clear\",\"failing\":false}");
+    HAS(t, "\\\"matched\\\":1");
+    free(t);
+    t = call(&mcp, "probe_case", "{\"query\":\"4x4 block\"}");
+    HAS(t, "\\\"family\\\":\\\"graphics\\\"");
+    HAS(t, "texel 0 reads 0000ffff");
+    free(t);
+    rel = rei_format("{\"case\":\"%s\"}", key);
+    t = call(&mcp, "probe_case", rel);
+    HAS(t, "\\\"name\\\":\\\"a 4x4 block decodes\\\"");
+    free(t);
+    free(rel);
+    t = call(&mcp, "probe_case", "{\"case\":\"../../etc/passwd\"}");
+    HAS(t, "is not a case's key");
+    free(t);
+    t = call(&mcp, "probe_case", "{\"query\":\"a\"}"); /* several: the list */
+    HAS(t, "\\\"matched\\\":");
+    free(t);
+    t = call(&mcp, "probe_case", "{\"query\":\"nonesuch\"}");
+    HAS(t, "no case's suite or name holds nonesuch");
+    free(t);
+    /* gone with their reports: the candidate, and a case no run names any more loses its page */
+    for (i = 0; i < sizeof machines / sizeof *machines; ++i) CHECK(tr_forget(&tracer, 9800 + (u64)i));
+    p = page("probe/candidates.html");
+    HAS(p, "<h2>Ban candidates <small>0</small></h2>");
+    free(p);
+    {
+        long left[] = {st_by_message(tracer.store, 9600), st_by_message(tracer.store, 9602),
+                       st_by_message(tracer.store, 9603), st_by_message(tracer.store, 9606)};
+        char* path;
+        for (i = 0; i < sizeof left / sizeof *left; ++i) CHECK(st_remove(tracer.store, left[i]) == 0);
+        CHECK(!site_probe(tracer.store, site));
+        rel = rei_format("probe/c/%s.html", key);
+        path = at(rel);
+        CHECK(!exists(path)); /* no run names the case now */
+        free(path);
+        free(rel);
+    }
 }
 
 /* a report kept before Tracer knew runs of edenprobe: the next start makes it the run's, its log cut */
@@ -3743,6 +3932,7 @@ int main(int argc, char** argv) {
         test_age();
         test_archive_download();
         test_probe_reports();
+        test_probe_site();
         test_probe_rescan();
     }
     st_close(tracer.store);

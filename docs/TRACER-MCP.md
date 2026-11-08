@@ -19,6 +19,9 @@ one either. It is built and packaged with Tracer ([Build](./BUILD.md#tracer)).
 | `read_log` | a log's lines with their numbers, from a line on or those that hold some text, and where to go on |
 | `get_screenshot` | one of a report's screenshots, as an image (8 MiB at most; a larger one is named by its address) |
 | `signatures` | the failures grouped by where they happened, across games, the most reported first |
+| `probe_matrix` | edenprobe's cases by machine (an emulator, a driver and its version, a system), each case's results on each as `[pass, fail, skip, crashed]`; by words, suite, family, driver, emulator, the failing cases alone (the default) or all |
+| `probe_case` | one case of edenprobe, by its key or by words of its suite and name (words that find several list them): its results on each machine and its newest failures and skips, each with its report, machine and detail |
+| `ban_candidates` | what the runs of edenprobe say together ([What the runs say together](./TRACER.md#what-the-runs-say-together)): ban candidates with their draft lines, ScarletNX's own failures and regressions; by driver and by kind |
 
 An agent adds it by its address, Claude Code with:
 
