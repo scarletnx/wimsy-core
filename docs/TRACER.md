@@ -57,7 +57,9 @@ for it). The worker's answer is checked before any of its files moves from the w
   IPv4 address but the loopback's written as `[ip]` and each e-mail address as `[email]` (a network game's log names the
   player's address and the other players'), and summarized: the game, its title ID and version, the build, the system
   and GPU, how the run ended and where, the service commands and what else the runtime missed, the last lines. A file
-  that is no ScarletNX log, nor a run of edenprobe, is named in the reply and not kept.
+  that is no ScarletNX log, nor a run of edenprobe, is named in the reply and not kept. A zip's names are read as
+  UTF-8 whatever the worker's locale (ScarletNX's Share Log flags each name so), in a locale it makes before it shuts
+  itself in; an entry whose name it cannot read is passed by, and the walk goes on.
 - Its screenshots (PNG, JPEG, WebP, GIF or PPM, read from their bytes; 8 at most, 25 MiB each) lose their metadata:
   EXIF and its place and camera, XMP, PNG's text and time, JPEG's and GIF's comments, a GIF's applications' data but
   its loop, and what follows a JPEG's or a GIF's end (a phone's motion photo video, a maker's trailer). A PPM, the

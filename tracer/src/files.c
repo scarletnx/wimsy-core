@@ -3,6 +3,7 @@
 #include "files.h"
 #include <archive.h>
 #include <archive_entry.h>
+#include <locale.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
@@ -343,6 +344,32 @@ int tr_ppm_png(const char* data, size_t n, Buf* out) {
     return 0;
 }
 
+/* the UTF-8 locale a zip's names are read in, made once and kept for the process's life; 0 where there is none */
+static locale_t utf8_locale(void) {
+    static locale_t utf8;
+    static int tried;
+    if (!tried) {
+        tried = 1;
+        utf8 = newlocale(LC_CTYPE_MASK, "C.UTF-8", (locale_t)0);
+        if (!utf8) utf8 = newlocale(LC_CTYPE_MASK, "en_US.UTF-8", (locale_t)0);
+    }
+    return utf8;
+}
+int tr_names_ready(void) { return utf8_locale() ? 0 : -1; }
+/* a zip's names read as UTF-8 by the calling thread, whatever the process's locale: in a worker's, C, libarchive gives
+   no name at all for an entry its zip flags as UTF-8 (miniz flags each one ScarletNX's Share Log writes) when the name
+   is no ASCII (a game's folder named with an accent), and says ARCHIVE_WARN. The locale before, for names_back; 0
+   where the system has no UTF-8 locale, the names then as libarchive gives them */
+static locale_t names_utf8(void) {
+    locale_t utf8 = utf8_locale();
+    return utf8 ? uselocale(utf8) : (locale_t)0;
+}
+static void names_back(locale_t was) {
+    if (was) uselocale(was);
+}
+/* whether archive_read_next_header gave an entry: ARCHIVE_WARN is one too, a name it could not convert among them */
+static int entry(int got) { return got == ARCHIVE_OK || got == ARCHIVE_WARN; }
+
 /* an archive of data read from memory, as a .zip or as a .gz of one file */
 static struct archive* opened(int zip, const char* data, size_t n) {
     struct archive* a = archive_read_new();
@@ -360,7 +387,14 @@ static struct archive* opened(int zip, const char* data, size_t n) {
     return a;
 }
 
+static int unpacked(const char* name, const char* data, size_t n, size_t max, Buf* out, char** why);
 int tr_unpack(const char* name, const char* data, size_t n, size_t max, Buf* out, char** why) {
+    locale_t was = names_utf8();
+    int rc = unpacked(name, data, n, max, out, why);
+    names_back(was);
+    return rc;
+}
+static int unpacked(const char* name, const char* data, size_t n, size_t max, Buf* out, char** why) {
     int zip = ends(name, ".zip"), wanted = -1, at = 0;
     struct archive* a;
     struct archive_entry* e;
@@ -381,7 +415,7 @@ int tr_unpack(const char* name, const char* data, size_t n, size_t max, Buf* out
         int text = -1, started = -1;
         size_t read = 0;
         if (!(a = opened(1, data, n))) goto broken;
-        for (at = 0; archive_read_next_header(a, &e) == ARCHIVE_OK; ++at) {
+        for (at = 0; entry(archive_read_next_header(a, &e)); ++at) {
             const char* inner = archive_entry_pathname(e);
             int marks, whole = 1;
             if (archive_entry_filetype(e) != AE_IFREG) continue;
@@ -412,7 +446,7 @@ int tr_unpack(const char* name, const char* data, size_t n, size_t max, Buf* out
         wanted = started >= 0 ? started : text >= 0 ? text : wanted;
     }
     if (!(a = opened(zip, data, n))) goto broken;
-    for (at = 0; archive_read_next_header(a, &e) == ARCHIVE_OK; ++at) {
+    for (at = 0; entry(archive_read_next_header(a, &e)); ++at) {
         if (zip && at != wanted) continue;
         while ((got = archive_read_data(a, piece, sizeof piece)) > 0) {
             if ((size_t)got > max - out->len) {

@@ -158,6 +158,45 @@ static char* packed(int zip, const char* inner, const char* text, size_t* n) {
     return out;
 }
 
+enum { ZIP_STORED = 1, ZIP_UTF8 = 2 };
+static unsigned le16_at(const char* p) { return (unsigned char)p[0] | (unsigned)(unsigned char)p[1] << 8; }
+static unsigned long le32_at(const char* p) { return le16_at(p) | (unsigned long)le16_at(p + 2) << 16; }
+/* a zip of n entries, entry i data[i]'s sizes[i] bytes (strlen's when sizes is NULL or it is 0): deflated or, with
+   ZIP_STORED, stored as they are (so that a test can find and break one's bytes); with ZIP_UTF8 each entry flagged as
+   holding a UTF-8 name (general purpose bit 11, in its central directory's record and its local header), as miniz
+   writes ScarletNX's Share Log, which libarchive writes in a UTF-8 locale alone. Its length */
+static size_t zip_bytes(char* out, size_t cap, const char* const* names, const char* const* data, const size_t* sizes,
+                        int n, int how) {
+    struct archive* a = archive_write_new();
+    size_t used = 0, at;
+    int i;
+    archive_write_set_format_zip(a);
+    if (how & ZIP_STORED) archive_write_set_format_option(a, "zip", "compression", "store");
+    archive_write_open_memory(a, out, cap, &used);
+    for (i = 0; i < n; ++i) {
+        struct archive_entry* e = archive_entry_new();
+        size_t len = sizes && sizes[i] ? sizes[i] : strlen(data[i]);
+        archive_entry_set_pathname_utf8(e, names[i]);
+        archive_entry_set_size(e, (la_int64_t)len);
+        archive_entry_set_filetype(e, AE_IFREG);
+        archive_entry_set_perm(e, 0644);
+        archive_write_header(a, e);
+        archive_write_data(a, data[i], len);
+        archive_entry_free(e);
+    }
+    archive_write_close(a);
+    archive_write_free(a);
+    if ((how & ZIP_UTF8) && used >= 22 && !memcmp(out + used - 22, "PK\5\6", 4)) { /* no comment: the end's 22 bytes */
+        at = le32_at(out + used - 22 + 16);                                        /* the central directory */
+        for (i = 0; i < (int)le16_at(out + used - 22 + 10) && at + 46 <= used && !memcmp(out + at, "PK\1\2", 4); ++i) {
+            size_t local = le32_at(out + at + 42);
+            out[at + 9] |= 0x08;
+            if (local + 30 <= used && !memcmp(out + local, "PK\3\4", 4)) out[local + 7] |= 0x08;
+            at += 46 + le16_at(out + at + 28) + le16_at(out + at + 30) + le16_at(out + at + 32);
+        }
+    }
+    return used;
+}
 static void test_message(void) {
     TrMessage m;
     const char* mention =
@@ -526,6 +565,24 @@ static void test_unpack(void) {
     CHECK(!tr_unpack("plain.txt", "text", 4, TR_LOG_MAX, &out, &why) && out.len == 4);
     CHECK(tr_unpack("plain.txt", "text", 4, 3, &out, &why));
     free(why);
+    { /* a Share Log zip as ScarletNX writes it, each name flagged UTF-8, a game's folder named with an accent before its
+         log: read through, in the C locale this test runs in as a worker does */
+        static char zip[1 << 16];
+        const char* names[] = {"games/Some G\xc3\xa1me [0100AAAABBBB0000]/old.dat",
+                               "games/Some G\xc3\xa1me [0100AAAABBBB0000]/2026-11-07_21-45-11.log"};
+        const char* texts[] = {"older bytes\n", LOG};
+        size_t k;
+        n = zip_bytes(zip, sizeof zip, names, texts, NULL, 2, ZIP_UTF8);
+        CHECK(!tr_unpack("scarletnx-logs-2026-11-07_21-46-12.zip", zip, n, TR_LOG_MAX, &out, &why));
+        CHECK(out.len == strlen(LOG) && !memcmp(out.text, LOG, out.len));
+        /* and one flagged UTF-8 whose name is none (a byte 0xff), which libarchive gives with ARCHIVE_WARN: passed by */
+        names[0] = "games/oldXname.dat";
+        n = zip_bytes(zip, sizeof zip, names, texts, NULL, 2, ZIP_UTF8);
+        for (k = 0; k + 18 <= n; ++k)
+            if (!memcmp(zip + k, "games/oldXname.dat", 18)) zip[k + 9] = (char)0xff;
+        CHECK(!tr_unpack("logs.zip", zip, n, TR_LOG_MAX, &out, &why));
+        CHECK(out.len == strlen(LOG) && !memcmp(out.text, LOG, out.len));
+    }
     buf_free(&out);
     /* the name the unpacked text is saved as: never an archive's, as it is no archive any more */
     {
@@ -800,7 +857,8 @@ static void test_reports(void) {
     HAS(p, "<h1>Report #1</h1>");
     /* the theme picker on every page, its links from the site's root however deep the page: the nginx answers them */
     HAS(p, "<body>\n<nav class=\"sws\" aria-label=\"Theme\">");
-    HAS(p, "<a href=\"/sws/fuddles\" referrerpolicy=\"same-origin\"><img src=\"/sws/logo-fuddles.svg\" alt=\"\">Fuddles</a>");
+    HAS(p,
+        "<a href=\"/sws/fuddles\" referrerpolicy=\"same-origin\"><img src=\"/sws/logo-fuddles.svg\" alt=\"\">Fuddles</a>");
     HAS(p, "<a href=\"/sws/dark\" referrerpolicy=\"same-origin\">Dark</a></nav>\n<header class=\"top\">");
     HAS(p, "<span class=\"badge missed\" title=\"Missed: 1 service command\">something missed</span>");
     HAS(p, "<dt>Missed</dt><dd>1 service command</dd>");
@@ -2283,6 +2341,23 @@ static void test_worker(const char* self_path) {
         free(log);
     }
     CHECK(waiting_files() == 0);
+    { /* a Share Log zip through the worker, shut in its folder: its names flagged UTF-8 as miniz writes them, a game's
+         folder named with an accent, read in the UTF-8 locale it made before it shut itself in */
+        static char zip[1 << 16];
+        const char* names[] = {"games/Some G\xc3\xa1me [0100AAAABBBB0000]/old.dat",
+                               "games/Some G\xc3\xa1me [0100AAAABBBB0000]/2026-11-07_21-45-11.log"};
+        const char* data[] = {"older bytes\n", LOG};
+        size_t n = zip_bytes(zip, sizeof zip, names, data, NULL, 2, ZIP_UTF8);
+        serve_file("https://cdn.discordapp.com/8/logs.zip", zip, n);
+        m = message(7008, 131, "<@99> a zip through the worker");
+        attach(&m, "scarletnx-logs-2026-11-07_21-46-12.zip", "https://cdn.discordapp.com/8/logs.zip", (double)n);
+        t = answer_text(respond(&m));
+        HAS(t, "1 log, 0 screenshots");
+        free(t);
+        tr_message_free(&m);
+        CHECK(st_by_message(tracer.store, 7008) > 0);
+        CHECK(waiting_files() == 0);
+    }
     /* a worker that crashes, one that never answers, and one that names a host file: nothing kept, nothing left */
     worker_argv[1] = "--crash";
     m = message(7002, 132, "<@99>");

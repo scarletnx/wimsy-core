@@ -47,7 +47,8 @@ usage.
 temporary folder:
 
 - the events and what a message asks; which files are logs, screenshots and videos; the logs unpacked from a `.gz` and
-  a `.zip`, and the name each downloads as from the site (a log's, never the archive's); the screenshots' metadata
+  a `.zip` (a name flagged UTF-8 read in the C locale, one that is no UTF-8 passed by), and the name each downloads as
+  from the site (a log's, never the archive's); the screenshots' metadata
   taken out (PNG, JPEG, WebP, GIF) and broken ones refused; an MP4's place and camera blanked; text made valid UTF-8;
 - the game a log names (and the older builds' titles, a garbled one, a name in another script); the crash report's
   dumps left out of a log as the log summary leaves them out; the games' names from the list (an update's and an
@@ -71,7 +72,8 @@ temporary folder:
   one that never answers, one gone before it reads, one that names a host file, one shut in its folder that tries the
   site, the database and /etc/passwd, one that answers without having shut itself in, one that reads the bot's
   environment before the bot keeps it from its user's debuggers and not after, the bot's descriptors closed in it, no
-  worker for a message without files;
+  worker for a message without files, a Share Log zip whose names are flagged UTF-8 and have accents, read once shut
+  in;
 - the MCP server over that site: its handshake and protocol versions, notifications, broken and unknown requests, each
   tool's filters, limits and errors, and a query's 16 words at most;
 - runs of edenprobe: edenprobe's families and which lose their detail, the drivers by the ban table's names and by

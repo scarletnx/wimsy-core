@@ -35,8 +35,13 @@ int tr_ppm_png(const char* data, size_t n, Buf* out);
 
 /* a log as text: a .gz's or a .zip's unpacked, any other name's bytes as they are, max bytes at most. Of a .zip, the
    entry that holds a whole run of edenprobe (probe.h), else one a run begins in, else its first .log, .txt or .jsonl,
-   else its first file; its entries are read in looking for the run up to 256 MiB in all. 0, or -1 with why (owned) */
+   else its first file; its entries are read in looking for the run up to 256 MiB in all. A zip's names are read as
+   UTF-8 whatever the process's locale. 0, or -1 with why (owned) */
 int tr_unpack(const char* name, const char* data, size_t n, size_t max, Buf* out, char** why);
+/* the UTF-8 locale a zip's names are read in, made now: before a worker shuts itself in its folder, where the locale's
+   files no longer open. 0, or -1 when the system has none (C.UTF-8, en_US.UTF-8): a zip's names that are no ASCII
+   are then lost */
+int tr_names_ready(void);
 /* the name the text tr_unpack made of name is saved as: a .gz's without its .gz ("game.log.gz" as "game.log"), with
    .log after it when what is left is no .log, .txt or .jsonl; a .zip's with .log for its .zip ("logs.zip" as
    "logs.log"); any other name as it is. The site keeps the text, never the archive. Owned */
