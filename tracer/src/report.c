@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <unistd.h>
 
 #include "common/utilities/demangle.h"
@@ -234,8 +235,8 @@ static cJSON* help(void) {
     return embed(
         "Tracer",
         "Mention me with a ScarletNX log attached (.log, .txt, .gz or .zip), and screenshots if you have "
-        "them. I keep them as a report on the site, grouped by game. The log says which game it is: when it "
-        "does not, write the game's name in the message.\n\n"
+        "them, attached or in the .zip. I keep them as a report on the site, grouped by game. The log says which "
+        "game it is: when it does not, write the game's name in the message.\n\n"
         "A run of edenprobe is a report of its own, apart from the games: ScarletNX's log of the run (alone, or in "
         "the Share Log zip), Eden's log of it, or its report.jsonl (the console's, as it names no machine). The "
         "detail of its service, net and pad cases is left out, as it can name you.\n\n"
@@ -334,6 +335,113 @@ static int stash(Taken* k, int dirfd, const char* data, size_t n) {
     return 0;
 }
 
+/* what a file of kind may weigh at most, and what it is called in a reply */
+static size_t max_of(TrKind kind) {
+    return kind == TR_LOG ? TR_LOG_MAX : kind == TR_VIDEO ? TR_VIDEO_MAX : TR_IMAGE_MAX;
+}
+static const char* kind_word(TrKind kind) { return kind == TR_LOG ? "log" : kind == TR_VIDEO ? "video" : "screenshot"; }
+/* why a file of kind that weighs bytes is not kept: "it is 30.2 MiB, over the 25 MiB a screenshot may be"; owned */
+static char* too_big(TrKind kind, double bytes) {
+    return rei_format("it is %.1f MiB, over the %zu MiB a %s may be", bytes / (1 << 20), max_of(kind) >> 20,
+                      kind_word(kind));
+}
+
+/* a screenshot, named name in the report; zip names the .zip it came in, for the reply, NULL for one attached */
+static void take_image(Taken* k, int dirfd, const char* name, const char* zip, Buf* got) {
+    const char* ext = tr_image_ext(got->text, got->len);
+    char* said = zip ? rei_format("%s in %s", name, zip) : rei_strdup(name);
+    size_t n;
+    StFile* f;
+    if (ext && !strcmp(ext, "ppm")) { /* a frame ScarletNX saved, as a PNG a browser shows */
+        Buf png = {0};
+        if (tr_ppm_png(got->text, got->len, &png)) {
+            skip(k, said, "a PPM that isn't whole, or of more than 255 a channel");
+            free(said);
+            return;
+        }
+        buf_free(got);
+        *got = png;
+        ext = "png";
+    }
+    n = ext ? tr_strip_image(got->text, got->len) : 0;
+    if (!n)
+        skip(k, said, "not a PNG, JPEG, WebP, GIF or PPM image");
+    else if (stash(k, dirfd, got->text, n))
+        skip(k, said, "it could not be written down");
+    else {
+        f = &k->files[k->n];
+        f->n = k->base + k->n + 1;
+        strcpy(f->kind, "image");
+        f->name = rei_strdup(name);
+        f->path = rei_format("%d.%s", f->n, ext);
+        f->bytes = (double)n;
+        ++k->n;
+        ++k->images;
+    }
+    free(said);
+}
+
+/* why the report has no room left for one more of kind, given what it had and what this message kept; NULL for room */
+static const char* full(const Taken* k, TrKind kind) {
+    if (kind == TR_LOG && k->logs_had + k->logs >= TR_LOGS) return "a report keeps 3 logs";
+    if (kind == TR_VIDEO && k->videos_had + k->videos >= TR_VIDEOS) return "a report keeps 2 videos";
+    if (kind == TR_IMAGE && k->images_had + k->images >= TR_IMAGES) return "a report keeps 8 screenshots";
+    return NULL;
+}
+
+/* the screenshots in the .zip a log came in, each taken as one attached is, under its entry's file name; those past
+   the report's room named in one line with that room, as a zip may hold many. A zip that does not open is said when
+   unsaid, as its log was not read */
+static void take_zip_images(Taken* k, int dirfd, const char* zip, const Buf* got, int unsaid) {
+    TrZipImages z;
+    Buf over = {0};
+    int more = 0;
+    if (tr_zip_images(&z, got->text, got->len)) {
+        if (unsaid) skip(k, zip, "it could not be unpacked");
+        return;
+    }
+    while (tr_zip_next(&z)) {
+        Buf image = {0};
+        char *said = rei_format("%s in %s", z.name, zip), *why;
+        if (full(k, TR_IMAGE)) {
+            if (more++ < 3) buf_printf(&over, "%s%s", over.len ? ", " : "", z.name);
+        } else if (z.size > (double)TR_IMAGE_MAX) {
+            why = too_big(TR_IMAGE, z.size);
+            skip(k, said, why);
+            free(why);
+        } else
+            switch (tr_zip_read(&z, TR_IMAGE_MAX, &image)) {
+                case 0: take_image(k, dirfd, z.name, zip, &image); break;
+                case 1:
+                    why = rei_format("it unpacks to over the %zu MiB a screenshot may be", TR_IMAGE_MAX >> 20);
+                    skip(k, said, why);
+                    free(why);
+                    break;
+                default: skip(k, said, "it could not be unpacked"); break;
+            }
+        buf_free(&image);
+        free(said);
+    }
+    if (more) {
+        char *names = more > 3 ? rei_format("%s and %d more in %s", over.text, more - 3, zip)
+                               : rei_format("%s in %s", over.text, zip),
+             *why = rei_format("a report keeps %d screenshots", TR_IMAGES);
+        skip(k, names, why);
+        free(why);
+        free(names);
+    }
+    if (z.broken) skip(k, zip, "it could not be unpacked to its end: no screenshot after that point is kept");
+    if (z.unnamed) {
+        char* why = rei_format("%d of its files have names this system cannot read: none of them is kept as a "
+                               "screenshot",
+                               z.unnamed);
+        skip(k, zip, why);
+        free(why);
+    }
+    buf_free(&over);
+    tr_zip_done(&z);
+}
+
 static void take_log(Taken* k, int dirfd, const TrAttachment* a, Buf* got) {
     Buf text = {0};
     char *why = NULL, *tilded, *shown, *summary, *cut;
@@ -349,6 +457,18 @@ static void take_log(Taken* k, int dirfd, const TrAttachment* a, Buf* got) {
     }
     if (!text.len) {
         skip(k, a->name, "it is empty");
+        return;
+    }
+    if (tr_image_ext(text.text, text.len)) { /* a picture, whatever its name says: never read as a log */
+        if (full(k, TR_IMAGE))
+            skip(k, a->name, full(k, TR_IMAGE));
+        else if (text.len > TR_IMAGE_MAX) {
+            why = too_big(TR_IMAGE, (double)text.len);
+            skip(k, a->name, why);
+            free(why);
+        } else
+            take_image(k, dirfd, a->name, NULL, &text);
+        buf_free(&text);
         return;
     }
     tilded = snx_logscan_tilde(text.text, text.len, &n);
@@ -408,39 +528,6 @@ static void take_log(Taken* k, int dirfd, const TrAttachment* a, Buf* got) {
     ++k->logs;
 }
 
-static void take_image(Taken* k, int dirfd, const TrAttachment* a, Buf* got) {
-    const char* ext = tr_image_ext(got->text, got->len);
-    size_t n;
-    if (ext && !strcmp(ext, "ppm")) { /* a frame ScarletNX saved, as a PNG a browser shows */
-        Buf png = {0};
-        if (tr_ppm_png(got->text, got->len, &png)) {
-            skip(k, a->name, "a PPM that isn't whole, or of more than 255 a channel");
-            return;
-        }
-        buf_free(got);
-        *got = png;
-        ext = "png";
-    }
-    n = ext ? tr_strip_image(got->text, got->len) : 0;
-    StFile* f;
-    if (!n) {
-        skip(k, a->name, "not a PNG, JPEG, WebP, GIF or PPM image");
-        return;
-    }
-    if (stash(k, dirfd, got->text, n)) {
-        skip(k, a->name, "it could not be written down");
-        return;
-    }
-    f = &k->files[k->n];
-    f->n = k->base + k->n + 1;
-    strcpy(f->kind, "image");
-    f->name = rei_strdup(a->name);
-    f->path = rei_format("%d.%s", f->n, ext);
-    f->bytes = (double)n;
-    ++k->n;
-    ++k->images;
-}
-
 /* an MP4 or a WebM, an MP4's place and camera blanked */
 static void take_video(Taken* k, int dirfd, const TrAttachment* a, Buf* got) {
     const char* ext = tr_video_ext(got->text, got->len);
@@ -474,15 +561,17 @@ static char* kept(const Taken* k, const char* more) {
 /* attachment a's kind and the bytes it may have at most */
 static TrKind kind_of(const TrAttachment* a, size_t* max) {
     TrKind kind = tr_kind(a->name, a->type);
-    *max = kind == TR_LOG ? TR_LOG_MAX : kind == TR_VIDEO ? TR_VIDEO_MAX : TR_IMAGE_MAX;
+    *max = max_of(kind);
     return kind;
 }
-/* why the report has no room left for one more of kind, given what it had and what this message kept; NULL for room */
-static const char* full(const Taken* k, TrKind kind) {
-    if (kind == TR_LOG && k->logs_had + k->logs >= TR_LOGS) return "a report keeps 3 logs";
-    if (kind == TR_VIDEO && k->videos_had + k->videos >= TR_VIDEOS) return "a report keeps 2 videos";
-    if (kind == TR_IMAGE && k->images_had + k->images >= TR_IMAGES) return "a report keeps 8 screenshots";
-    return NULL;
+static int zip_named(const char* name) {
+    size_t n = strlen(name);
+    return n > 4 && !strcasecmp(name + n - 4, ".zip");
+}
+/* why attachment a has no room in the report, NULL for room: a .zip has room while its log or its screenshots do */
+static const char* no_room(const Taken* k, const TrAttachment* a, TrKind kind) {
+    if (kind == TR_LOG && zip_named(a->name) && !full(k, TR_IMAGE)) return NULL;
+    return full(k, kind);
 }
 
 void tr_download(Tracer* t, Taken* k, const TrMessage* m, int dirfd, char* why[TR_FILES]) {
@@ -498,12 +587,12 @@ void tr_download(Tracer* t, Taken* k, const TrMessage* m, int dirfd, char* why[T
         why[i] = NULL;
         if (kind == TR_OTHER)
             why[i] = rei_strdup("not a log or a screenshot");
-        else if (full(k, kind)) /* full before this message: nothing of that kind is downloaded */
-            why[i] = rei_strdup(full(k, kind));
+        else if (no_room(k, a, kind)) /* full before this message: nothing of that kind is downloaded */
+            why[i] = rei_strdup(no_room(k, a, kind));
         else if (!from_discord(a->url))
             why[i] = rei_strdup("not a file on Discord");
         else if (a->size > (double)max)
-            why[i] = rei_format("over %zu MiB", max >> 20);
+            why[i] = too_big(kind, a->size);
         else if (t->get(t->ctx, a->url, max, &got, &failed)) {
             rei_log("a download failed: %s", failed ? failed : "no reason given");
             why[i] = rei_strdup("the download failed");
@@ -535,7 +624,7 @@ void tr_read(Taken* k, const TrMessage* m, int dirfd, char* why[TR_FILES]) {
         const TrAttachment* a = &m->files[i];
         size_t max;
         TrKind kind = kind_of(a, &max);
-        const char* no = why[i] ? why[i] : full(k, kind);
+        const char* no = why[i] ? why[i] : no_room(k, a, kind);
         char name[16], piece[65536];
         Buf got = {0};
         ssize_t r = 0;
@@ -552,12 +641,17 @@ void tr_read(Taken* k, const TrMessage* m, int dirfd, char* why[TR_FILES]) {
         if (!no && (fd < 0 || r < 0 || got.len > max)) no = "it could not be read back";
         if (no)
             skip(k, a->name, no);
-        else if (kind == TR_LOG)
-            take_log(k, dirfd, a, &got);
-        else if (kind == TR_VIDEO)
+        else if (kind == TR_LOG) {
+            int logged = !full(k, TR_LOG); /* else a .zip, for its screenshots alone */
+            if (logged)
+                take_log(k, dirfd, a, &got);
+            else
+                skip(k, a->name, full(k, TR_LOG));
+            if (zip_named(a->name)) take_zip_images(k, dirfd, a->name, &got, !logged);
+        } else if (kind == TR_VIDEO)
             take_video(k, dirfd, a, &got);
         else
-            take_image(k, dirfd, a, &got);
+            take_image(k, dirfd, a->name, NULL, &got);
         buf_free(&got);
         free(why[i]);
         why[i] = NULL;

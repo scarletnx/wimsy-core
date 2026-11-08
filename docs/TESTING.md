@@ -17,7 +17,7 @@
 What CI runs on each pull request and each push to main (`.github/workflows/test.yml`), with no network and no
 Discord:
 
-    make -C rei test && make -C accordwimsy test && make -C tracer test && python3 scripts/test-rule-mutants.py &&
+    make -C rei test && make -C accordwimsy test && make -C tracer test && python3 scripts/test-mutants.py &&
         sh scripts/test-install.sh && python3 scripts/test-check-docs.py && python3 scripts/check-docs.py &&
         sh scripts/test-check-theme.sh && sh scripts/check-theme.sh
 
@@ -47,9 +47,10 @@ usage.
 temporary folder:
 
 - the events and what a message asks; which files are logs, screenshots and videos; the logs unpacked from a `.gz` and
-  a `.zip` (a name flagged UTF-8 read in the C locale, one that is no UTF-8 passed by), and the name each downloads as
-  from the site (a log's, never the archive's); the screenshots' metadata
-  taken out (PNG, JPEG, WebP, GIF) and broken ones refused; an MP4's place and camera blanked; text made valid UTF-8;
+  a `.zip` (never one of its pictures, nor a Mac's fork; a name flagged UTF-8 read in the C locale, one that is no
+  UTF-8 passed by), and the name each downloads as from the site (a log's, never the archive's); a zip's screenshots
+  walked by name, without their folders, each read within its size; the screenshots' metadata taken out (PNG, JPEG,
+  WebP, GIF) and broken ones refused; an MP4's place and camera blanked; text made valid UTF-8;
 - the game a log names (and the older builds' titles, a garbled one, a name in another script); the crash report's
   dumps left out of a log as the log summary leaves them out; the games' names from the list (an update's and an
   add-on's ID, a report named at once, one named at the next start, a log's name first, a GBA game by its code, a
@@ -61,7 +62,11 @@ temporary folder:
   naming the game), deletion by the sender and the guild's administrators and by no one else; a reply alone that makes
   a report of the message it replies to (its files, its author, its words, the hourly limit of the one who asked) and
   its refusals (another channel or server, a bot's message, one gone or kept from the bot, one without files as the
-  Message Content intent shows it, one that is a report already);
+  Message Content intent shows it, one that is a report already); a Share Log zip's screenshots kept beside its log
+  (by their names, a PPM as a PNG, their metadata out, a broken one and a Mac's fork named or left), twelve of them
+  past the room of eight, an update with no room left, a picture attached as a log taken as a screenshot, a zip that
+  brings screenshots to a report full of logs, one too large said with its size, one whose bytes fail the zip's check;
+  the issue's screenshots as the site's pictures;
 - a database of the first schema upgraded, a deleted message, a report's number never reused, the hourly limit, the
   JSON with no Discord id, the channels it answers in (a list, `all`, none, and other words refused);
 - the issues an approval files, through a fake GitHub: an administrator's reaction files one, a second files none,
@@ -98,9 +103,12 @@ temporary folder:
   words, suite, failing or not) and `probe_case` (by key, by words, several, none, a key that is none), and gone with
   its reports; a case no run names any more losing its page.
 
-`python3 scripts/test-rule-mutants.py` then changes `tracer/src/rules.c` one way at a time in a copy of the tree (a
-threshold one off, a comparison that lets one more in, a condition left out: 19 mutants) and expects `test_tracer
---rules` to fail on each; a mutant it passes, or one whose text `rules.c` no longer has, fails it. About 10 s.
+`python3 scripts/test-mutants.py` then changes Tracer's code one way at a time in a copy of the tree, and expects its
+tests to fail on each: `tracer/src/rules.c` (a threshold one off, a comparison that lets one more in, a condition left
+out: 19 mutants, `test_tracer --rules`); what a report keeps of its files, in `files.c`, `report.c` and `issues.c` (a
+zip's screenshots, a picture never read as a log, the limits said with their values: 17 mutants, `test_tracer
+--files`); and the worker's locale for a zip's names, made before it shuts itself in (1 mutant,
+the whole suite). A mutant they pass, or one whose text its file no longer has once, fails it. About 30 s.
 
 `make -C tracer bench [RUNS=1000] [FOLDER=/tmp/tracer-bench]` (`tracer/tests/bench_probe.c`, built by `make test`,
 run by hand) keeps RUNS runs like edenprobe 0.9.0's graphics run (1069 cases) on fifteen machines in a new database in

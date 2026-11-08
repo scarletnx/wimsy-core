@@ -57,13 +57,22 @@ for it). The worker's answer is checked before any of its files moves from the w
   IPv4 address but the loopback's written as `[ip]` and each e-mail address as `[email]` (a network game's log names the
   player's address and the other players'), and summarized: the game, its title ID and version, the build, the system
   and GPU, how the run ended and where, the service commands and what else the runtime missed, the last lines. A file
-  that is no ScarletNX log, nor a run of edenprobe, is named in the reply and not kept. A zip's names are read as
+  that is no ScarletNX log, nor a run of edenprobe, is named in the reply and not kept. Of a `.zip`, the log is the
+  entry [a run of edenprobe](#a-run-of-edenprobe) is in, else its first `.log`, `.txt` or `.jsonl`, else its first
+  file that is no picture or video; never one of its pictures, nor a Mac's `__MACOSX/` fork. A zip's names are read as
   UTF-8 whatever the worker's locale (ScarletNX's Share Log flags each name so), in a locale it makes before it shuts
   itself in; an entry whose name it cannot read is passed by, and the walk goes on.
-- Its screenshots (PNG, JPEG, WebP, GIF or PPM, read from their bytes; 8 at most, 25 MiB each) lose their metadata:
-  EXIF and its place and camera, XMP, PNG's text and time, JPEG's and GIF's comments, a GIF's applications' data but
-  its loop, and what follows a JPEG's or a GIF's end (a phone's motion photo video, a maker's trailer). A PPM, the
-  frames ScarletNX's runtimes save (P6, 8 bits a channel), is kept as a PNG, which a browser shows.
+- Its screenshots (PNG, JPEG, WebP, GIF or PPM, read from their bytes; 8 at most, 25 MiB each), attached or in a `.zip`
+  beside its log (each entry named `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif` or `.ppm`, kept under its file's name
+  without the zip's folders; a Mac's `__MACOSX/` forks are none), lose their metadata: EXIF and its place and camera,
+  XMP, PNG's text and time, JPEG's and GIF's comments, a GIF's applications' data but its loop, and what follows a
+  JPEG's or a GIF's end (a phone's motion photo video, a maker's trailer). A PPM, the frames ScarletNX's runtimes save
+  (P6, 8 bits a channel; the capture key's `captures/screenshot_<when>.ppm`), is kept as a PNG, which a browser shows.
+  A file whose bytes are a picture is taken as a screenshot, whatever its name says: it is never read as a log. The
+  reply names the screenshots past the 8 with that room (`shot_9.png, shot_10.png, shot_11.png and 2 more in
+  logs.zip: a report keeps 8 screenshots`), and one too large with its size (`huge.png in logs.zip: it is 30.2 MiB, over
+  the 25 MiB a screenshot may be`), as it does a log or a video; and, on a system with no UTF-8 locale, how many of a
+  zip's files had names it could not read.
 - Its videos (MP4 or WebM, read from their bytes; 2 at most, 100 MiB each) are played on the report's page. An MP4's
   place, time and camera (its udta and meta boxes whole, where a phone keeps them under its own keys, XMP's uuid box,
   and ©xyz, loci, ©mak and ©mod wherever else they are) are blanked where they are, as free boxes of zeros, so that
@@ -91,7 +100,8 @@ for it). The worker's answer is checked before any of its files moves from the w
 
 A reply to any of a report's messages (the one that sent it, an update, Tracer's answer, also one it posted before it
 kept them, whose link names the report) that mentions Tracer adds its logs, screenshots, videos and words to it, as
-`@Tracer add 12` does, within the same limits (3 logs and 8 screenshots a report). Only the person who sent the report,
+`@Tracer add 12` does, within the same limits (3 logs and 8 screenshots a report; a `.zip` brings its screenshots while
+the report has room for them, though its logs are full). Only the person who sent the report,
 the owner and administrators of the server it was sent in and `TRACER_ADMINS` add to it; anyone else is asked for a
 report of their own, which goes with the same game. A report its logs did not name takes the name a later log of the
 same title ID gives. Words added later are shown under the report's note, each with its date.
@@ -159,7 +169,8 @@ When the log summary or the list of names changes (`scripts/sync-logscan.sh`, `s
 report keeps of its logs (`TR_FACTS`), the next start summarizes each kept log again, draws each report's facts again
 from its first log, files a report whose first log now names another game under that game, names one its logs don't
 name from the list, makes a report whose first log holds a run of edenprobe the run's, and takes out of each kept log
-what a run's lines would say of the player.
+what a run's lines would say of the player. A report keeps no zip, only its log and
+screenshots: a zip's screenshots sent before Tracer read them are not found again, and are added by a reply with them.
 
 ## Commands
 
@@ -179,8 +190,10 @@ A report becomes a GitHub issue once a server's administrator approves it: with 
 administrator of the server it was sent in (or one of `TRACER_ADMINS`) reacts to one of its messages (the one that sent
 it, an update, Tracer's answer) with the approval's emoji, `TRACER_ISSUES_EMOJI`, the check mark by default. Tracer
 opens the issue in that repository with what the site shows of the report: its facts and its first log's summary (home
-folders as `~`, addresses as `[ip]` and `[email]`, no dumps), each of a log's or a player's words in a code block,
-where GitHub links no `@name` and no `#number`, and the report's page. The issue's number goes into the database, onto
+folders as `~`, addresses as `[ip]` and `[email]`, no dumps), each of a log's or a player's words in a code block, where
+GitHub links no `@name` and no `#number`, the report's page, and its screenshots, each the site's picture 320 pixels wide linked to it and named by its number in the report (a file's
+name is a player's words). GitHub's API takes no file for an issue: its image proxy fetches each picture from the site,
+so the site must answer it. The issue's number goes into the database, onto
 the report's page and its JSON, and into a short reply on Discord. A report is filed once: a second approval opens no
 other issue, and one GitHub refused (its status and message in the reply) is tried again by the next approval. Anyone
 else's reaction, and another emoji, are left as they are. GitHub is asked from the bot's own process, with a 30 s
@@ -257,7 +270,7 @@ Static files, drawn again where a report changes them, and all of them at each s
 | `index.html` | each game, its latest outcome, its reports' count; a search and a filter by outcome |
 | `all.html` | every report, the newest first |
 | `g/<key>.html` | a game's reports: `<key>` its title ID, or `n-` and its name's letters for a game known by name |
-| `r/<id>/` | a report: its facts, screenshots, and each log with its summary, to read or download (a log sent in a `.zip` or a `.gz` is kept as its text and downloads as one: `logs.zip` as `logs.log`, `game.log.gz` as `game.log`); a run of edenprobe's has its counts and each case that did not pass |
+| `r/<id>/` | a report: its facts, its screenshots (each shown small, and opened whole by a click), and each log with its summary, to read or download (a log sent in a `.zip` or a `.gz` is kept as its text and downloads as one: `logs.zip` as `logs.log`, `game.log.gz` as `game.log`); a run of edenprobe's has its counts and each case that did not pass |
 | `probe/index.html` | the runs of edenprobe: the machines (an emulator, a driver and its version, a system), each case that fails somewhere with its results on each machine, each suite's, and each run |
 | `probe/c/<key>.html` | a case of edenprobe: `<key>` 16 hex digits of its suite and name; its results on each machine, what the rules say of it, and its newest 200 failures and skips with their detail |
 | `probe/d/<driver>.html` | a driver, by the ban table's name (`radv`, `nvidia`; `unknown` for the console's reports): its machines, the cases that fail on it, its ban candidates, its runs |

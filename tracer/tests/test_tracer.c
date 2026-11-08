@@ -89,7 +89,7 @@ typedef struct {
     const char* data;
     size_t n;
 } Served;
-static Served served[32];
+static Served served[64];
 static int nserved, downloads;
 static void serve(const char* url, const char* data, size_t n) {
     if (nserved == (int)(sizeof served / sizeof *served)) { /* room for more: a test past it wrote over what follows */
@@ -197,6 +197,18 @@ static size_t zip_bytes(char* out, size_t cap, const char* const* names, const c
     }
     return used;
 }
+static size_t chunk(char* to, const char* type, const char* data, size_t n);
+/* a PNG whose text chunk says said (under 200 bytes), as a phone's or an editor's would: its length */
+static size_t small_png(char* to, const char* said) {
+    size_t n = 8;
+    memcpy(to, "\x89PNG\r\n\x1a\n", 8);
+    n += chunk(to + n, "IHDR", "0123456789abc", 13);
+    n += chunk(to + n, "tEXt", said, strlen(said));
+    n += chunk(to + n, "IDAT", "pixels", 6);
+    n += chunk(to + n, "IEND", "", 0);
+    return n;
+}
+
 static void test_message(void) {
     TrMessage m;
     const char* mention =
@@ -565,6 +577,30 @@ static void test_unpack(void) {
     CHECK(!tr_unpack("plain.txt", "text", 4, TR_LOG_MAX, &out, &why) && out.len == 4);
     CHECK(tr_unpack("plain.txt", "text", 4, 3, &out, &why));
     free(why);
+    { /* a zip's log is none of its pictures, whatever else it holds, nor a Mac's resource fork */
+        static char zip[1 << 16];
+        char png[128];
+        size_t npng = small_png(png, "x");
+        const char* names[] = {"shot.png", "clip.mp4", "__MACOSX/._notes.dat", "notes.dat"};
+        const char* bytes[] = {png, "a video", "\0\5\26\7fork", "some notes\n"};
+        const size_t sizes[] = {npng, 0, 8, 0};
+        const char* forked[] = {"__MACOSX/._game.log", "game.log"};
+        const char* texts[] = {"the fork's bytes\n", LOG};
+        n = zip_bytes(zip, sizeof zip, names, bytes, sizes, 4, 0);
+        CHECK(!tr_unpack("logs.zip", zip, n, TR_LOG_MAX, &out, &why));
+        SAME(out.text, "some notes\n");
+        n = zip_bytes(zip, sizeof zip, names, bytes, sizes, 3, 0);
+        CHECK(tr_unpack("logs.zip", zip, n, TR_LOG_MAX, &out, &why));
+        SAME(why, "logs.zip holds no log, only pictures or videos");
+        free(why);
+        n = zip_bytes(zip, sizeof zip, names + 2, bytes + 2, sizes + 2, 1, 0);
+        CHECK(tr_unpack("logs.zip", zip, n, TR_LOG_MAX, &out, &why));
+        SAME(why, "logs.zip holds no file");
+        free(why);
+        n = zip_bytes(zip, sizeof zip, forked, texts, NULL, 2, 0);
+        CHECK(!tr_unpack("logs.zip", zip, n, TR_LOG_MAX, &out, &why));
+        CHECK(out.len == strlen(LOG) && !memcmp(out.text, LOG, out.len));
+    }
     { /* a Share Log zip as ScarletNX writes it, each name flagged UTF-8, a game's folder named with an accent before its
          log: read through, in the C locale this test runs in as a worker does */
         static char zip[1 << 16];
@@ -603,6 +639,59 @@ static void test_unpack(void) {
             free(got);
         }
     }
+}
+
+/* a zip's screenshots: by their names, in its order, without their folders, a Mac's forks and other files left out,
+   each read within the bytes it may have */
+static void test_zip_images(void) {
+    static char zip[1 << 16];
+    char png[128];
+    size_t npng = small_png(png, "x"), n, cut;
+    const char* names[] = {"summary.txt",
+                           "captures/screenshot_1.png",
+                           "__MACOSX/captures/._screenshot_1.png",
+                           "frame.PPM",
+                           "clip.mp4",
+                           "captura_\xc3\xa9.JPG",
+                           "old/notes.log",
+                           "deep/er/back.gif"};
+    const char* data[] = {"text\n",  png,     "fork", "P6\n1 1\n255\nRGB", "a video", "\xff\xd8\xff jpeg",
+                          "a log\n", "GIF89a"};
+    const size_t sizes[] = {0, npng, 0, 0, 0, 0, 0, 0};
+    TrZipImages z;
+    Buf out = {0};
+    n = zip_bytes(zip, sizeof zip, names, data, sizes, 8, ZIP_UTF8);
+    CHECK(!tr_zip_images(&z, zip, n));
+    CHECK(tr_zip_next(&z) == 1);
+    SAME(z.name, "screenshot_1.png");
+    CHECK(z.size == (double)npng);
+    CHECK(!tr_zip_read(&z, TR_IMAGE_MAX, &out) && out.len == npng && !memcmp(out.text, png, npng));
+    CHECK(tr_zip_next(&z) == 1);
+    SAME(z.name, "frame.PPM");
+    CHECK(tr_zip_read(&z, 13, &out) == 1 && !out.len); /* 14 bytes, one past its max: none of them */
+    CHECK(tr_zip_next(&z) == 1);
+    SAME(z.name, "captura_\xc3\xa9.JPG"); /* its UTF-8 name, in the C locale a worker runs in */
+    CHECK(tr_zip_next(&z) == 1);          /* the one before not read: passed by */
+    SAME(z.name, "back.gif");
+    CHECK(!tr_zip_read(&z, 6, &out) && out.len == 6); /* its max exactly */
+    CHECK(!tr_zip_next(&z) && !z.name && !z.broken);
+    tr_zip_done(&z);
+    CHECK(tr_zip_images(&z, "not a zip at all", 16) == -1);
+    /* a zip cut short in its second picture: the first whole, the second unread, the end said */
+    {
+        const char* two[] = {"a.png", "b.png"};
+        const char* pngs[] = {png, png};
+        const size_t both[] = {npng, npng};
+        n = zip_bytes(zip, sizeof zip, two, pngs, both, 2, ZIP_STORED);
+        for (cut = 30; cut < n && memcmp(zip + cut, "b.png", 5); ++cut) continue; /* b.png's local header's name */
+        CHECK(cut < n);
+        CHECK(!tr_zip_images(&z, zip, cut + 5 + 20));
+        CHECK(tr_zip_next(&z) == 1 && !tr_zip_read(&z, TR_IMAGE_MAX, &out) && out.len == npng);
+        if (tr_zip_next(&z) == 1) CHECK(tr_zip_read(&z, TR_IMAGE_MAX, &out) == -1);
+        CHECK(!tr_zip_next(&z) && z.broken);
+        tr_zip_done(&z);
+    }
+    buf_free(&out);
 }
 
 /* the log's summary as the bot makes it, owned */
@@ -925,7 +1014,7 @@ static void test_reports(void) {
     HAS(t, "notes.txt: not a ScarletNX log");
     HAS(t, "gone.log: the download failed");
     HAS(t, "elsewhere.log: not a file on Discord");
-    HAS(t, "huge.log: over 64 MiB");
+    HAS(t, "huge.log: it is 953.7 MiB, over the 64 MiB a log may be");
     free(t);
     tr_message_free(&m);
 
@@ -2342,20 +2431,28 @@ static void test_worker(const char* self_path) {
     }
     CHECK(waiting_files() == 0);
     { /* a Share Log zip through the worker, shut in its folder: its names flagged UTF-8 as miniz writes them, a game's
-         folder named with an accent, read in the UTF-8 locale it made before it shut itself in */
+         folder and a screenshot named with an accent, read in the UTF-8 locale it made before it shut itself in */
         static char zip[1 << 16];
-        const char* names[] = {"games/Some G\xc3\xa1me [0100AAAABBBB0000]/old.dat",
-                               "games/Some G\xc3\xa1me [0100AAAABBBB0000]/2026-11-07_21-45-11.log"};
-        const char* data[] = {"older bytes\n", LOG};
-        size_t n = zip_bytes(zip, sizeof zip, names, data, NULL, 2, ZIP_UTF8);
+        const char* names[] = {"games/Some G\xc3\xa1me [0100AAAABBBB0000]/2026-11-07_21-45-11.log",
+                               "captura_\xc3\xa9.png", "screenshot_20261107_214134.png"};
+        const char* data[] = {LOG, png, png};
+        const size_t sizes[] = {0, npng, npng};
+        size_t n = zip_bytes(zip, sizeof zip, names, data, sizes, 3, ZIP_UTF8);
+        StReport r;
+        StFile* files;
+        int nfiles;
         serve_file("https://cdn.discordapp.com/8/logs.zip", zip, n);
         m = message(7008, 131, "<@99> a zip through the worker");
         attach(&m, "scarletnx-logs-2026-11-07_21-46-12.zip", "https://cdn.discordapp.com/8/logs.zip", (double)n);
         t = answer_text(respond(&m));
-        HAS(t, "1 log, 0 screenshots");
+        HAS(t, "1 log, 2 screenshots");
+        LACKS(t, "cannot read");
         free(t);
         tr_message_free(&m);
-        CHECK(st_by_message(tracer.store, 7008) > 0);
+        CHECK(st_get(tracer.store, st_by_message(tracer.store, 7008), &r, &files, &nfiles) == 1 && nfiles == 3);
+        if (nfiles == 3) SAME(files[1].name, "captura_\xc3\xa9.png");
+        st_report_free(&r);
+        st_files_free(files, nfiles);
         CHECK(waiting_files() == 0);
     }
     /* a worker that crashes, one that never answers, and one that names a host file: nothing kept, nothing left */
@@ -2926,6 +3023,218 @@ static void test_archive_download(void) {
     st_report_free(&r);
     st_files_free(files, nfiles);
     tr_message_free(&m);
+}
+
+/* the screenshots a player puts in the launcher's Share Log zip, beside its logs (report 66's: five PNGs at its root):
+   kept with the log, by their entry's names, a PPM as a PNG, metadata out, past the report's room named with that
+   room; a picture never read as a log; on the issue as the site's images */
+static void test_zip_reports(void) {
+    static char share[1 << 16], many[1 << 16], more[1 << 16], late[1 << 16], big[1 << 16], broken[1 << 16];
+    static char game_log[sizeof LOG + 512], png[128], photo[128], names_of[12][16];
+    static const char ppm[] = "P6\n2 2\n255\nRGBrgbRGBrgb";
+    size_t npng = small_png(png, "GPS 52.1N"), nphoto = small_png(photo, "a photo"), n;
+    TrMessage m;
+    StReport r;
+    StFile* files;
+    int nfiles, i;
+    long a, b;
+    char *t, *p, *rel;
+    snprintf(game_log, sizeof game_log, "%s", LOG);
+    { /* the Share Log zip: the game's log first, the launcher's, five pictures at its root (one a PPM in a folder, one
+         no picture at all), a Mac's fork, the summary */
+        const char* names[] = {"games/Some G\xc3\xa1me [0100AAAABBBB0000]/2026-11-07_21-45-11.log",
+                               "launcher/last-run.log",
+                               "screenshot_20261107_214134.png",
+                               "screenshot_20261107_214311.png",
+                               "captures/screenshot_20261107_214321.ppm",
+                               "__MACOSX/._screenshot_20261107_214134.png",
+                               "broken.png",
+                               "summary.txt"};
+        const char* data[] = {game_log, "the run's output\n", png, photo, ppm, "fork", "no picture", "== summary ==\n"};
+        const size_t sizes[] = {0, 0, npng, nphoto, sizeof ppm - 1, 0, 0, 0};
+        n = zip_bytes(share, sizeof share, names, data, sizes, 8, ZIP_UTF8); /* as miniz writes it */
+        serve("https://cdn.discordapp.com/66/scarletnx-logs-2026-11-07_21-46-12.zip", share, n);
+    }
+    m = message(9900, 990, "<@99> images in .zip");
+    attach(&m, "scarletnx-logs-2026-11-07_21-46-12.zip",
+           "https://cdn.discordapp.com/66/scarletnx-logs-2026-11-07_21-46-12.zip", (double)n);
+    t = answer_text(respond(&m));
+    HAS(t, "1 log, 3 screenshots");
+    HAS(t, "broken.png in scarletnx-logs-2026-11-07_21-46-12.zip: not a PNG, JPEG, WebP, GIF or PPM image");
+    LACKS(t, "._screenshot");
+    free(t);
+    tr_message_free(&m);
+    a = st_by_message(tracer.store, 9900);
+    CHECK(st_get(tracer.store, a, &r, &files, &nfiles) == 1);
+    CHECK(nfiles == 4);
+    if (nfiles == 4) {
+        SAME(files[0].kind, "log");
+        SAME(files[1].name, "screenshot_20261107_214134.png");
+        SAME(files[1].path, "2.png");
+        SAME(files[2].name, "screenshot_20261107_214311.png");
+        SAME(files[3].name, "screenshot_20261107_214321.ppm");
+        SAME(files[3].path, "4.png");
+    }
+    st_report_free(&r);
+    st_files_free(files, nfiles);
+    rel = rei_format("r/%ld/1.log", a);
+    p = page(rel);
+    HAS(p, "ScarletNX - Some Game"); /* the game's log, no picture */
+    LACKS(p, "\x89PNG");
+    free(p);
+    free(rel);
+    rel = rei_format("%s/r/%ld/2.png", site, a);
+    p = read_file(rel, &n);
+    CHECK(p && n > 8 && !memcmp(p, "\x89PNG", 4) && !found(p, n, "GPS"));
+    free(p);
+    free(rel);
+    rel = rei_format("%s/r/%ld/4.png", site, a);
+    p = read_file(rel, NULL);
+    CHECK(p && !memcmp(p, "\x89PNG", 4));
+    free(p);
+    free(rel);
+    rel = rei_format("r/%ld/index.html", a);
+    p = page(rel);
+    HAS(p, "<h2>Screenshots</h2>");
+    HAS(p, "<a href=\"2.png\"><img src=\"2.png\" alt=\"screenshot_20261107_214134.png\" loading=\"lazy\"></a>");
+    HAS(p, "<img src=\"4.png\" alt=\"screenshot_20261107_214321.ppm\"");
+    free(p);
+    free(rel);
+
+    /* approved: the issue shows the screenshots as the site's images, each linked to its own */
+    {
+        TrIssues is;
+        TrReaction rr;
+        memset(&is, 0, sizeof is);
+        is.repo = "o/r";
+        is.emoji = "\xe2\x9c\x85";
+        is.fetch = fake_github;
+        tracer.issues = &is;
+        rr = reaction(88, 33, 9900, "\xe2\x9c\x85");
+        rr.roles[rr.nroles++] = 5;
+        t = answer_text(tr_approved(&tracer, &rr));
+        HAS(t, "is issue #345 now");
+        free(t);
+        tr_reaction_free(&rr);
+        tracer.issues = NULL;
+        p = rei_format(
+            "<a href=\\\"https://reports.example/r/%ld/2.png\\\"><img src=\\\"https://reports.example/r/%ld/2.png\\\" "
+            "width=\\\"320\\\" alt=\\\"Screenshot 2\\\"></a>",
+            a, a);
+        HAS(gh_body, p);
+        free(p);
+        p = rei_format("r/%ld/4.png\\\" width=\\\"320\\\" alt=\\\"Screenshot 4\\\">", a);
+        HAS(gh_body, p);
+        free(p);
+        LACKS(gh_body, "screenshot_20261107"); /* a file's name is a player's words: outside the code block, none */
+    }
+
+    /* twelve pictures: eight kept, the rest named in one line with the room; an update with two more, no room left */
+    {
+        const char* names[13];
+        const char* data[13];
+        size_t sizes[13];
+        names[0] = "scarletnx.log";
+        data[0] = game_log;
+        sizes[0] = 0;
+        for (i = 0; i < 12; ++i) {
+            snprintf(names_of[i], sizeof names_of[i], "shot_%d.png", i + 1);
+            names[i + 1] = names_of[i];
+            data[i + 1] = png;
+            sizes[i + 1] = npng;
+        }
+        n = zip_bytes(many, sizeof many, names, data, sizes, 13, 0);
+        serve("https://cdn.discordapp.com/66/many.zip", many, n);
+        n = zip_bytes(more, sizeof more, names + 1, data + 1, sizes + 1, 2, 0);
+        serve("https://cdn.discordapp.com/66/more.zip", more, n);
+    }
+    m = message(9901, 990, "<@99>");
+    attach(&m, "many.zip", "https://cdn.discordapp.com/66/many.zip", 100);
+    t = answer_text(respond(&m));
+    HAS(t, "1 log, 8 screenshots");
+    HAS(t, "shot_9.png, shot_10.png, shot_11.png and 1 more in many.zip: a report keeps 8 screenshots");
+    free(t);
+    tr_message_free(&m);
+    b = st_by_message(tracer.store, 9901);
+    m = message(9902, 990, "<@99>");
+    m.reply_to = 9901;
+    attach(&m, "more.zip", "https://cdn.discordapp.com/66/more.zip", 100);
+    t = answer_text(respond(&m));
+    HAS(t, "Nothing was added to report #");
+    HAS(t, "more.zip: more.zip holds no log, only pictures or videos");
+    HAS(t, "shot_1.png, shot_2.png in more.zip: a report keeps 8 screenshots");
+    free(t);
+    tr_message_free(&m);
+
+    /* a log attached whose bytes are a picture: a screenshot, never read as a log */
+    serve("https://cdn.discordapp.com/66/photo.log", photo, nphoto);
+    serve("https://cdn.discordapp.com/66/game.log", game_log, strlen(game_log));
+    m = message(9903, 991, "<@99>");
+    attach(&m, "game.log", "https://cdn.discordapp.com/66/game.log", 100);
+    attach(&m, "photo.log", "https://cdn.discordapp.com/66/photo.log", 100);
+    t = answer_text(respond(&m));
+    HAS(t, "1 log, 1 screenshot");
+    LACKS(t, "photo.log: not a ScarletNX log");
+    free(t);
+    tr_message_free(&m);
+    b = st_by_message(tracer.store, 9903);
+    CHECK(st_get(tracer.store, b, &r, &files, &nfiles) == 1 && nfiles == 2);
+    if (nfiles == 2) {
+        SAME(files[1].kind, "image");
+        SAME(files[1].name, "photo.log");
+        SAME(files[1].path, "2.png");
+    }
+    st_report_free(&r);
+    st_files_free(files, nfiles);
+
+    /* the report's three logs in: a later zip's log has no room, its screenshots do; one over 25 MiB says how much */
+    m = message(9904, 991, "<@99>");
+    m.reply_to = 9903;
+    attach(&m, "second.log", "https://cdn.discordapp.com/66/game.log", 100);
+    attach(&m, "third.log", "https://cdn.discordapp.com/66/game.log", 100);
+    free(answer_text(respond(&m)));
+    tr_message_free(&m);
+    {
+        size_t huge_n = TR_IMAGE_MAX + ((size_t)1 << 20);
+        char* huge = calloc(1, huge_n);
+        const char* names[] = {"scarletnx.log", "late.png", "huge.png"};
+        const char* data[] = {game_log, png, huge};
+        const size_t sizes[] = {0, npng, huge_n};
+        memcpy(huge, "\x89PNG\r\n\x1a\n", 8);
+        n = zip_bytes(late, sizeof late, names, data, sizes, 3, 0);
+        serve("https://cdn.discordapp.com/66/late.zip", late, n);
+        free(huge);
+    }
+    m = message(9905, 991, "<@99>");
+    m.reply_to = 9903;
+    attach(&m, "late.zip", "https://cdn.discordapp.com/66/late.zip", 100);
+    t = answer_text(respond(&m));
+    HAS(t, "0 logs, 1 screenshot");
+    HAS(t, "late.zip: a report keeps 3 logs");
+    HAS(t, "huge.png in late.zip: it is 26.0 MiB, over the 25 MiB a screenshot may be");
+    free(t);
+    tr_message_free(&m);
+
+    /* a picture whose bytes are broken in the zip (its CRC fails): said, the others kept */
+    {
+        const char* names[] = {"scarletnx.log", "bad.png", "good.png"};
+        const char* data[] = {game_log, photo, png};
+        const size_t sizes[] = {0, nphoto, npng};
+        size_t at;
+        n = zip_bytes(broken, sizeof broken, names, data, sizes, 3, ZIP_STORED);
+        for (at = 0; at + 7 <= n && memcmp(broken + at, "a photo", 7); ++at) continue;
+        CHECK(at + 7 <= n);
+        if (at + 7 <= n) broken[at] = 'A'; /* the bytes stored, not what the zip's CRC says */
+        serve("https://cdn.discordapp.com/66/broken.zip", broken, n);
+    }
+    m = message(9906, 992, "<@99>");
+    attach(&m, "broken.zip", "https://cdn.discordapp.com/66/broken.zip", 100);
+    t = answer_text(respond(&m));
+    HAS(t, "1 log, 1 screenshot");
+    HAS(t, "bad.png in broken.zip: it could not be unpacked");
+    free(t);
+    tr_message_free(&m);
+    (void)big;
 }
 
 /* ---- runs of edenprobe ---- */
@@ -3948,10 +4257,51 @@ static int rules_only(void) {
     return failures != 0;
 }
 
+/* every test, the database's and the site's with them; self_path the test's own program, for its workers */
+static void every_test(const char* self_path) {
+    test_message();
+    test_command();
+    test_kind_and_text();
+    test_images();
+    test_unpack();
+    test_zip_images();
+    test_public_log();
+    test_channels();
+    test_game();
+    test_probe_parts();
+    test_probe_lines();
+    test_probe_zip();
+    test_rules();
+    if (tracer.store) {
+        test_reports();
+        test_mcp();
+        test_upgrade();
+        test_rescan();
+        test_titles();
+        test_names();
+        test_missed();
+        test_limits();
+        test_other_guild();
+        test_replies();
+        test_mcp_grep();
+        test_mcp_keys();
+        test_worker(self_path);
+        test_untraceable(self_path);
+        test_issues();
+        test_age();
+        test_archive_download();
+        test_zip_reports();
+        test_probe_reports();
+        test_probe_site();
+        test_probe_rescan();
+    }
+}
+
 int main(int argc, char** argv) {
     char *db, *command;
-    if (argc == 2 && !strcmp(argv[1], "--rules")) return rules_only(); /* scripts/test-rule-mutants.sh's */
-    if (argc == 2) return as_worker(argv[1]);
+    int files_only = argc == 2 && !strcmp(argv[1], "--files"); /* scripts/test-mutants.py's, as --rules */
+    if (argc == 2 && !strcmp(argv[1], "--rules")) return rules_only();
+    if (argc == 2 && !files_only) return as_worker(argv[1]);
     rei_now = clock_now;
     strcpy(site, "/tmp/tracer-test-XXXXXX");
     if (!mkdtemp(site)) {
@@ -3976,40 +4326,15 @@ int main(int argc, char** argv) {
     tracer.admins = NULL;
     CHECK(tracer.store != NULL);
     SAME(REI_AGENT, "DiscordBot (https://github.com/scarletnx/wimsy-core, 1) tracer");
-    test_message();
-    test_command();
-    test_kind_and_text();
-    test_images();
-    test_unpack();
-    test_public_log();
-    test_channels();
-    test_game();
-    test_probe_parts();
-    test_probe_lines();
-    test_probe_zip();
-    test_rules();
-    if (tracer.store) {
-        test_reports();
-        test_mcp();
-        test_upgrade();
-        test_rescan();
-        test_titles();
-        test_names();
-        test_missed();
-        test_limits();
-        test_other_guild();
-        test_replies();
-        test_mcp_grep();
-        test_mcp_keys();
-        test_worker(argv[0]);
-        test_untraceable(argv[0]);
-        test_issues();
-        test_age();
-        test_archive_download();
-        test_probe_reports();
-        test_probe_site();
-        test_probe_rescan();
-    }
+    if (files_only) { /* which files a report keeps and what of them: the attachments, a zip's, the logs' cuts */
+        test_kind_and_text();
+        test_images();
+        test_unpack();
+        test_zip_images();
+        test_public_log();
+        if (tracer.store) test_zip_reports();
+    } else
+        every_test(argv[0]);
     st_close(tracer.store);
     if (getenv("TRACER_TEST_KEEP")) fprintf(stderr, "kept %s\n", site);
     command = rei_format(getenv("TRACER_TEST_KEEP") ? "true %s" : "rm -rf '%s'", site);

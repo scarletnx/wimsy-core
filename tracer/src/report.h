@@ -1,8 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
    Copyright 2026 the ScarletNX contributors */
-/* What Tracer does with a message that mentions it: a report made of its logs and screenshots (downloaded, the logs'
-   home folders shown as ~, their summaries made, the screenshots' metadata taken out), kept in the database and the
-   site's folder; "delete N" and "help" answered. Each answer is an embed for a reply */
+/* What Tracer does with a message that mentions it: a report made of its logs and screenshots (downloaded, a .zip's
+   screenshots beside its log, the logs' home folders shown as ~, their summaries made, the screenshots' metadata taken
+   out), kept in the database and the site's folder; "delete N" and "help" answered. Each answer is an embed for a
+   reply */
 #ifndef TR_REPORT_H
 #define TR_REPORT_H
 #include "age.h"
@@ -57,15 +58,15 @@ struct Tracer {
     void* discord_ctx;
 };
 
-/* m's attachments downloaded through t's get and read: the logs unpacked, their home folders as ~, their dumps and
-   addresses left out and summarized, the screenshots' metadata taken out; each kept one written into k->dir, each
-   other named in k->skipped */
+/* m's attachments downloaded through t's get and read: the logs unpacked (a .zip's screenshots taken beside its log),
+   their home folders as ~, their dumps and addresses left out and summarized, the screenshots' metadata taken out;
+   each kept one written into k->dir, each other named in k->skipped */
 void tr_take(Tracer* t, Taken* k, const TrMessage* m);
 /* tr_take's two halves, which a worker splits by shutting itself in its folder between them (wk_shut_in): m's
    attachments downloaded through t's get into the folder dirfd (k->dir), attachment i as "in.<i>", or why[i] (owned)
-   says why it is not (not a log or a screenshot, the report full of its kind, not on Discord, over its size, the
-   download failed); then each one read back from there and taken as tr_take takes it, its input removed, the others
-   named in k->skipped (why[] freed) */
+   says why it is not (not a log or a screenshot, the report full of its kind (a .zip only when full of logs and of
+   screenshots), not on Discord, over its size (its size said), the download failed); then each one read back from
+   there and taken as tr_take takes it, its input removed, the others named in k->skipped (why[] freed) */
 void tr_download(Tracer* t, Taken* k, const TrMessage* m, int dirfd, char* why[TR_FILES]);
 void tr_read(Taken* k, const TrMessage* m, int dirfd, char* why[TR_FILES]);
 /* k's files that were not moved into the site removed, with k->dir, and the rest freed */

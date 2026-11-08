@@ -18,8 +18,12 @@ static int ends(const char* name, const char* ext) {
     size_t n = strlen(name), e = strlen(ext);
     return n > e && !strcasecmp(name + n - e, ext);
 }
+/* a zip's entry under __MACOSX/: the resource fork a Mac's zip keeps beside each file ("__MACOSX/._shot.png"), none
+   of the player's files */
+static int mac_fork(const char* path) { return !strncmp(path, "__MACOSX/", 9); }
 
-TrKind tr_kind(const char* name, const char* type) {
+/* a file's kind by its name alone, TR_OTHER for a name tr_kind knows no extension of */
+static TrKind named(const char* name) {
     static const char* const logs[] = {".log", ".txt", ".jsonl", ".gz", ".zip"};
     static const char* const images[] = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".ppm"};
     static const char* const videos[] = {".mp4", ".m4v", ".webm"};
@@ -30,6 +34,12 @@ TrKind tr_kind(const char* name, const char* type) {
         if (ends(name, images[i])) return TR_IMAGE;
     for (i = 0; i < sizeof videos / sizeof *videos; ++i)
         if (ends(name, videos[i])) return TR_VIDEO;
+    return TR_OTHER;
+}
+
+TrKind tr_kind(const char* name, const char* type) {
+    TrKind kind = named(name);
+    if (kind != TR_OTHER) return kind;
     if (!strncmp(type, "image/", 6)) return TR_IMAGE;
     if (!strncmp(type, "video/", 6)) return TR_VIDEO;
     if (!strncmp(type, "text/plain", 10)) return TR_LOG;
@@ -411,14 +421,17 @@ static int unpacked(const char* name, const char* data, size_t n, size_t max, Bu
         return 0;
     }
     if (zip) { /* an entry holding a whole run of edenprobe, else one a run begins in, else the first .log, .txt or
-                  .jsonl, else the first file: a Share Log zip holds many logs, one of which may be the run */
-        int text = -1, started = -1;
+                  .jsonl, else the first file that is no picture or video: a Share Log zip holds many logs, one of
+                  which may be the run, and the screenshots a player puts beside them */
+        int text = -1, started = -1, files = 0;
         size_t read = 0;
         if (!(a = opened(1, data, n))) goto broken;
         for (at = 0; entry(archive_read_next_header(a, &e)); ++at) {
             const char* inner = archive_entry_pathname(e);
             int marks, whole = 1;
-            if (archive_entry_filetype(e) != AE_IFREG) continue;
+            if (archive_entry_filetype(e) != AE_IFREG || (inner && mac_fork(inner))) continue;
+            files = 1;
+            if (inner && (named(inner) == TR_IMAGE || named(inner) == TR_VIDEO)) continue;
             if (wanted < 0) wanted = at;
             if (!inner || (!ends(inner, ".log") && !ends(inner, ".txt") && !ends(inner, ".jsonl"))) continue;
             if (text < 0) text = at;
@@ -440,7 +453,7 @@ static int unpacked(const char* name, const char* data, size_t n, size_t max, Bu
         archive_read_free(a);
         buf_free(out);
         if (wanted < 0) {
-            *why = rei_format("%s holds no file", name);
+            *why = rei_format(files ? "%s holds no log, only pictures or videos" : "%s holds no file", name);
             return -1;
         }
         wanted = started >= 0 ? started : text >= 0 ? text : wanted;
@@ -466,6 +479,61 @@ broken:
     buf_free(out);
     *why = rei_format("%s could not be unpacked", name);
     return -1;
+}
+
+int tr_zip_images(TrZipImages* z, const char* data, size_t n) {
+    memset(z, 0, sizeof *z);
+    z->size = -1;
+    return (z->a = opened(1, data, n)) ? 0 : -1;
+}
+
+int tr_zip_next(TrZipImages* z) {
+    struct archive_entry* e;
+    locale_t was = names_utf8();
+    int got;
+    free(z->name);
+    z->name = NULL;
+    while (entry(got = archive_read_next_header(z->a, &e))) {
+        const char *path = archive_entry_pathname(e), *leaf;
+        if (archive_entry_filetype(e) != AE_IFREG) continue;
+        if (!path) { /* a file whose name the zip does not give: none can say it is a picture */
+            ++z->unnamed;
+            continue;
+        }
+        if (mac_fork(path) || named(path) != TR_IMAGE) continue;
+        for (leaf = path + strlen(path); leaf > path && leaf[-1] != '/' && leaf[-1] != '\\'; --leaf) continue;
+        z->name = tr_utf8(leaf, strlen(leaf));
+        z->size = archive_entry_size_is_set(e) ? (double)archive_entry_size(e) : -1;
+        names_back(was);
+        return 1;
+    }
+    z->broken = got != ARCHIVE_EOF;
+    names_back(was);
+    return 0;
+}
+
+int tr_zip_read(TrZipImages* z, size_t max, Buf* out) {
+    char piece[65536];
+    la_ssize_t got;
+    buf_free(out);
+    while ((got = archive_read_data(z->a, piece, sizeof piece)) > 0) {
+        if ((size_t)got > max - out->len) {
+            buf_free(out);
+            return 1;
+        }
+        buf_addn(out, piece, (size_t)got);
+    }
+    if (got < 0) {
+        buf_free(out);
+        return -1;
+    }
+    return 0;
+}
+
+void tr_zip_done(TrZipImages* z) {
+    if (z->a) archive_read_free(z->a);
+    free(z->name);
+    memset(z, 0, sizeof *z);
 }
 
 char* tr_unpacked_name(const char* name) {
