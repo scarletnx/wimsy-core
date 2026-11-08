@@ -10,6 +10,7 @@
 #endif
 #include <archive.h>
 #include <archive_entry.h>
+#include <ctype.h>
 #include <sqlite3.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,6 +35,7 @@
 #include "issues.h"
 #include "mcp.h"
 #include "message.h"
+#include "probe.h"
 #include "report.h"
 #include "site.h"
 #include "store.h"
@@ -2850,6 +2852,550 @@ static void test_archive_download(void) {
     tr_message_free(&m);
 }
 
+/* ---- runs of edenprobe ---- */
+
+/* ScarletNX's log of a run: its machine, then the report's lines as [game] lines. The account case's detail names a
+   player, the nifm case's an address, the net note a session; a suite edenprobe's table lacks says nothing of what it
+   holds */
+static const char PROBE_LOG[] =
+    "[   0.00] ScarletNX - edenprobe\n"
+    "[   0.00] build: ScarletNX main 1234abc, committed 2026-11-01 (clang 23.1.3, Linux x86_64)\n"
+    "[   0.00] system: 'Some Linux' (Linux 6.1.0), Some CPU 9000, 12 threads, 32 GB RAM\n"
+    "[   0.18] vulkan: the driver that runs: radv, Mesa 26.1.8 (driver ID 3)\n"
+    "[   0.18] vulkan: Some GPU 3000 (RADV X), Vulkan 1.4.354, driver 06801008, graphics queue family 0, compute 1\n"
+    "[   0.19] game: 0100000000001000, version 0.9.0\n"
+    "[   0.20] [game] {\"type\":\"note\",\"text\":\"edenprobe 0.9.0 (v0.9.0) starting\"}\n"
+    "[   0.20] [game] {\"type\":\"note\",\"text\":\"folder: sdmc:/edenprobe/runs/2a3ec1e_x\"}\n"
+    "[   0.20] [game] {\"type\":\"note\",\"text\":\"mode: quick, from the mode file; pictures of failures only; "
+    "families cpu graphics net; no timing passes; label x\"}\n"
+    "[   0.21] [game] {\"type\":\"case\",\"suite\":\"clear\",\"name\":\"clear to opaque red\",\"tier\":\"exact\","
+    "\"result\":\"pass\",\"detail\":\"\",\"us\":12}\n"
+    "[   0.21] [game] {\"type\":\"case\",\"suite\":\"astc\",\"name\":\"a 4x4 block decodes\",\"tier\":\"exact\","
+    "\"result\":\"fail\",\"detail\":\"texel 0 reads 00ff00ff, it holds ff0000ff\"}\n"
+    "[   0.21] [game] {\"type\":\"case\",\"suite\":\"account\",\"name\":\"the user's nickname reads back\",\"tier\":"
+    "\"exact\",\"result\":\"pass\",\"detail\":\"uid 0123456789abcdeffedcba9876543210, nickname Someone\"}\n"
+    "[   0.21] [game] {\"type\":\"case\",\"suite\":\"nifm\",\"name\":\"a machine has an address\",\"tier\":\"exact\","
+    "\"result\":\"pass\",\"detail\":\"got 192.168.1.20\"}\n"
+    "[   0.21] [game] {\"type\":\"note\",\"text\":\"net: sdmc:/edenprobe/net; session tok-abcdef; account named\"}\n"
+    "[   0.22] [game] {\"type\":\"case\",\"suite\":\"index\",\"name\":\"an indexed draw\",\"tier\":\"none\",\"result\":"
+    "\"skip\",\"reason\":\"crashed\",\"detail\":\"the program ended inside it\"}\n"
+    "[   0.22] [game] {\"type\":\"case\",\"suite\":\"newsuite\",\"name\":\"something new\",\"tier\":\"exact\","
+    "\"result\":\"fail\",\"detail\":\"what it holds nobody said\"}\n"
+    "[   0.23] [game] {\"type\":\"summary\",\"passed\":3,\"failed\":2,\"skipped\":0,\"crashed\":1}\n"
+    "[   0.23] [game] EDENPROBE DONE passed=3 failed=2 skipped=0 crashed=1\n";
+/* Eden's log of a run, as its yuzu_cmd writes it */
+static const char EDEN_LOG[] =
+    "[   0.905119] Frontend <Info> yuzu_cmd/emu_window/emu_window_sdl3_vk.cpp:91:EmuWindow_SDL3_VK: Eden Version: Eden "
+    "| HEAD-4534fde3aa-HEAD (Vulkan)\n"
+    "[   1.320106] Render.Vulkan <Info> video_core/renderer_vulkan/renderer_vulkan.cpp:264:Report: Driver: NVIDIA "
+    "580.95.5.0\n"
+    "[   1.320108] Render.Vulkan <Info> video_core/renderer_vulkan/renderer_vulkan.cpp:265:Report: Device: Some "
+    "GeForce 9000\n"
+    "[   1.320109] Render.Vulkan <Info> video_core/renderer_vulkan/renderer_vulkan.cpp:266:Report: Vulkan: 1.4.329\n"
+    "[   1.400000] Frontend <Info> qt_common/qt_common.cpp:265:Init: Host OS: Windows 11 Version 24H2\n"
+    "[   3.092326] Debug.Emulated <Info> core/hle/kernel/svc/svc_debug_string.cpp:25:OutputDebugString: "
+    "{\"type\":\"note\",\"text\":\"edenprobe 0.9.0 (v0.9.0) starting\"}\n"
+    "[   3.092400] Debug.Emulated <Info> core/hle/kernel/svc/svc_debug_string.cpp:25:OutputDebugString: "
+    "{\"type\":\"note\",\"text\":\"mode: quick, from the mode file; pictures of failures only; families graphics\"}\n"
+    "[   3.130376] Debug.Emulated <Info> core/hle/kernel/svc/svc_debug_string.cpp:25:OutputDebugString: "
+    "{\"type\":\"case\",\"suite\":\"astc\",\"name\":\"a 4x4 block decodes\",\"tier\":\"exact\",\"result\":\"fail\","
+    "\"detail\":\"texel 0 reads 0000ff00\"}\n"
+    "[   3.130400] Debug.Emulated <Info> core/hle/kernel/svc/svc_debug_string.cpp:25:OutputDebugString: "
+    "{\"type\":\"summary\",\"passed\":0,\"failed\":1,\"skipped\":0,\"crashed\":0}\n";
+/* the report itself, as the card keeps it */
+static const char PROBE_JSONL[] =
+    "{\"type\":\"note\",\"text\":\"edenprobe 0.9.0 (v0.9.0) starting\"}\n"
+    "{\"type\":\"note\",\"text\":\"mode: quick, from the mode file; pictures of failures only; families graphics\"}\n"
+    "{\"type\":\"case\",\"suite\":\"astc\",\"name\":\"a 4x4 block decodes\",\"tier\":\"exact\",\"result\":\"pass\","
+    "\"detail\":\"\"}\n"
+    "{\"type\":\"summary\",\"passed\":1,\"failed\":0,\"skipped\":0,\"crashed\":0}\n";
+
+static void test_probe_parts(void) {
+    char text[64];
+    unsigned long v = 0;
+    /* the families: service, net, pad and a suite the table has not lose their detail */
+    CHECK(probe_family("tex8k") == PROBE_GRAPHICS && probe_family("acc-app") == PROBE_SERVICE);
+    CHECK(probe_family("friend") == PROBE_NET && probe_family("touch") == PROBE_PAD);
+    CHECK(probe_family("nonesuch") == PROBE_OTHER && probe_family(NULL) == PROBE_OTHER);
+    SAME(probe_family_name(PROBE_KERNEL), "kernel");
+    CHECK(probe_keeps_detail("astc") && probe_keeps_detail("fs") && probe_keeps_detail("game"));
+    CHECK(!probe_keeps_detail("account") && !probe_keeps_detail("ldn") && !probe_keeps_detail("nifm"));
+    CHECK(!probe_keeps_detail("pad") && !probe_keeps_detail("nonesuch"));
+    /* the drivers, by the ban table's names, and by their own names as Eden logs them */
+    SAME(probe_driver_name(3), "radv");
+    SAME(probe_driver_name(30), "apesoft");
+    CHECK(!probe_driver_name(0) && !probe_driver_name(31));
+    SAME(probe_driver_label(4), "NVIDIA's driver");
+    CHECK(probe_driver_id("turnip") == 18 && probe_driver_id("nonesuch") == 0);
+    CHECK(probe_driver_of_name("radv") == 3 && probe_driver_of_name("NVIDIA") == 4 &&
+          probe_driver_of_name("NVK") == 24);
+    CHECK(probe_driver_of_name("Qualcomm Technologies Inc. Adreno Vulkan Driver") == 8);
+    CHECK(probe_driver_of_name("turnip Mesa driver") == 18);
+    CHECK(probe_driver_of_name("Intel open-source Mesa driver") == 6 && probe_driver_of_name("Intel Corporation") == 5);
+    CHECK(probe_driver_of_name("Some Driver") == 0 && probe_driver_of_name(NULL) == 0);
+    /* each driver's numbering, both ways */
+    probe_version_text(4, 0x9b404000UL, text, sizeof text);
+    SAME(text, "621.1.00");
+    probe_version_text(3, 0x06801008UL, text, sizeof text);
+    SAME(text, "26.1.8");
+    CHECK(probe_version_parse(5, "101.4502", &v) && v == 1659286UL);
+    probe_version_text(5, v, text, sizeof text);
+    SAME(text, "101.4502");
+    CHECK(probe_version_parse(14, "1.2.11", &v) && v == 10211UL);
+    CHECK(probe_version_parse(3, "26.1.8", &v) && v == 0x06801008UL);
+    CHECK(probe_version_parse(4, "580.95.5.0", &v));
+    probe_version_text(4, v, text, sizeof text);
+    SAME(text, "580.95.05");
+    CHECK(!probe_version_parse(3, "abc", &v) && !probe_version_parse(3, "26.", &v) &&
+          !probe_version_parse(3, "1..2", &v));
+    CHECK(!probe_version_parse(3, "26", &v) && !probe_version_parse(3, "2000.1.1", &v));
+    /* the system's family */
+    SAME(probe_os("'Gentoo Linux' (Linux 6.18.57)"), "linux");
+    SAME(probe_os("Android 15 (Linux 6.1.75)"), "android");
+    SAME(probe_os("Windows 11 26H2"), "windows");
+    SAME(probe_os("macOS 15.1"), "macos");
+    SAME(probe_os("FreeBSD 15.0-RELEASE"), "freebsd");
+    SAME(probe_os("CachyOS"), "unknown");
+    SAME(probe_os(NULL), "unknown");
+}
+
+static void test_probe_lines(void) {
+    size_t n;
+    int cases, notes, i;
+    char *cut, *why, digest[17], other[17], *t;
+    Probe p, q;
+    cJSON* o;
+    /* the cut: the details of service, net, pad and unknown suites, and the net notes; nothing else */
+    cut = probe_cut(PROBE_LOG, strlen(PROBE_LOG), &n, &cases, &notes);
+    CHECK(cases == 3 && notes == 1);
+    LACKS(cut, "nickname Someone");
+    LACKS(cut, "192.168.1.20");
+    LACKS(cut, "tok-abcdef");
+    LACKS(cut, "what it holds nobody said");
+    HAS(cut, "\"suite\":\"account\",\"name\":\"the user's nickname reads back\",\"tier\":\"exact\",\"result\":\"pass\","
+             "\"detail\":\"\"}");
+    HAS(cut, "net: left out by Tracer");
+    HAS(cut, "texel 0 reads 00ff00ff, it holds ff0000ff"); /* graphics keeps its detail */
+    HAS(cut, "\"reason\":\"crashed\",\"detail\":\"the program ended inside it\"");
+    HAS(cut, "[   0.18] vulkan: the driver that runs: radv, Mesa 26.1.8 (driver ID 3)\n");
+    free(cut);
+    cut = probe_cut(LOG, strlen(LOG), &n, &cases, &notes); /* a game's log: as it was */
+    CHECK(cases == 0 && notes == 0 && n == strlen(LOG) && !memcmp(cut, LOG, n));
+    free(cut);
+    /* what a text holds of a run */
+    CHECK(probe_marks(LOG, strlen(LOG)) == 0);
+    CHECK(probe_marks(PROBE_LOG, strlen(PROBE_LOG)) == 2);
+    CHECK(probe_marks(PROBE_LOG, (size_t)(strstr(PROBE_LOG, "[   0.23]") - PROBE_LOG)) == 1);
+    CHECK(probe_marks(EDEN_LOG, strlen(EDEN_LOG)) == 2 && probe_marks(PROBE_JSONL, strlen(PROBE_JSONL)) == 2);
+    /* ScarletNX's log */
+    cut = probe_cut(PROBE_LOG, strlen(PROBE_LOG), &n, &cases, &notes);
+    CHECK(probe_parse(cut, n, &p, &why) == 1 && !why);
+    SAME(p.emulator, "ScarletNX");
+    SAME(p.emulator_version, "main 1234abc");
+    SAME(p.commit, "1234abc");
+    CHECK(p.built == 1793491200.0);
+    SAME(p.version, "0.9.0");
+    SAME(p.describe, "v0.9.0");
+    SAME(p.words, "cpu graphics net notime");
+    SAME(p.os, "linux");
+    SAME(p.gpu, "Some GPU 3000 (RADV X)");
+    SAME(p.vulkan, "1.4.354");
+    SAME(p.driver_name, "radv");
+    SAME(p.driver_info, "Mesa 26.1.8");
+    CHECK(p.driver_id == 3 && !p.inferred && p.driver_version == 0x06801008UL);
+    SAME(p.driver_text, "26.1.8");
+    CHECK(p.whole && p.passed == 3 && p.failed == 2 && p.skipped == 0 && p.crashed == 1 && p.ncases == 6);
+    CHECK(!p.unread && !p.over);
+    SAME(p.cases[1].suite, "astc");
+    SAME(p.cases[1].result, "fail");
+    SAME(p.cases[4].reason, "crashed");
+    CHECK(p.cases[0].us == 12 && p.cases[1].us == -1);
+    SAME(p.cases[2].detail, "");
+    t = probe_counts(&p);
+    SAME(t, "3 passed, 2 failed (astc 1, newsuite 1), 0 skipped, 1 crashed");
+    free(t);
+    t = probe_machine(&p);
+    SAME(t, "radv, Mesa 26.1.8 (Linux)");
+    free(t);
+    /* through JSON, as a worker answers it: the same run, the same mark */
+    o = probe_json(&p);
+    CHECK(!probe_of_json(o, &q, &why) && !why);
+    probe_digest(&p, digest);
+    probe_digest(&q, other);
+    SAME(digest, other);
+    CHECK(q.ncases == 6 && q.driver_id == 3);
+    SAME(q.driver_text, "26.1.8");
+    probe_free(&q);
+    /* an answer that is no run's, or keeps a detail the cut takes out */
+    cJSON_ReplaceItemInObjectCaseSensitive(o, "emulator", cJSON_CreateString("Ryu"));
+    CHECK(probe_of_json(o, &q, &why) == -1);
+    HAS(why, "no emulator it may (Ryu)");
+    free(why);
+    cJSON_ReplaceItemInObjectCaseSensitive(o, "emulator", cJSON_CreateString("ScarletNX"));
+    cJSON_AddStringToObject(cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(o, "cases"), 2), "detail",
+                            "nickname Someone"); /* probe_json writes no empty detail */
+    CHECK(probe_of_json(o, &q, &why) == -1);
+    HAS(why, "keeps a detail of a family that loses it (account)");
+    free(why);
+    cJSON_AddItemToArray(cJSON_GetObjectItemCaseSensitive(o, "cases"),
+                         cJSON_Parse("{\"suite\":\"a b;c\",\"name\":\"x\","
+                                     "\"result\":\"pass\"}"));
+    cJSON_ReplaceItemInObjectCaseSensitive(cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(o, "cases"), 2),
+                                           "detail", cJSON_CreateString(""));
+    CHECK(probe_of_json(o, &q, &why) == -1);
+    HAS(why, "case 7 is not one edenprobe writes");
+    free(why);
+    cJSON_Delete(o);
+    /* another result is another mark */
+    free(p.cases[0].result);
+    p.cases[0].result = rei_strdup("fail");
+    probe_digest(&p, other);
+    CHECK(strcmp(digest, other) != 0);
+    probe_free(&p);
+    free(cut);
+    /* Eden's log: its driver ID read from the driver's name, its version as NVIDIA numbers it */
+    CHECK(probe_parse(EDEN_LOG, strlen(EDEN_LOG), &p, &why) == 1);
+    SAME(p.emulator, "Eden");
+    SAME(p.emulator_version, "Eden | HEAD-4534fde3aa-HEAD (Vulkan)");
+    SAME(p.driver_name, "NVIDIA");
+    SAME(p.driver_info, "580.95.5.0");
+    CHECK(p.driver_id == 4 && p.inferred);
+    SAME(p.driver_text, "580.95.05");
+    SAME(p.gpu, "Some GeForce 9000");
+    SAME(p.os, "windows");
+    SAME(p.words, "graphics");
+    CHECK(p.whole && p.ncases == 1 && !p.commit && p.built == 0);
+    t = probe_machine(&p);
+    SAME(t, "NVIDIA 580.95.5.0, driver ID inferred (Windows)");
+    free(t);
+    probe_free(&p);
+    { /* rEden logs as Eden does, and says so in its version */
+        char* reden = rei_strdup(EDEN_LOG);
+        memcpy(strstr(reden, "Eden | HEAD"), "rEden| HEAD", 11);
+        CHECK(probe_parse(reden, strlen(reden), &p, &why) == 1);
+        SAME(p.emulator, "rEden");
+        probe_free(&p);
+        free(reden);
+    }
+    /* the report alone: the console's, no machine */
+    CHECK(probe_parse(PROBE_JSONL, strlen(PROBE_JSONL), &p, &why) == 1);
+    SAME(p.emulator, "console");
+    CHECK(!p.driver_name && !p.gpu && !p.driver_id);
+    SAME(p.os, "unknown");
+    t = probe_machine(&p);
+    SAME(t, "the console (a report.jsonl alone names no machine)");
+    free(t);
+    probe_free(&p);
+    /* two copies of a run (the Share Log's summary.txt has the run's output and its log): the later, each case once;
+       a run cut short before them is passed over for a whole one */
+    {
+        char* two = rei_format("%s%s%s", PROBE_JSONL, PROBE_LOG,
+                               "[   9.00] [game] {\"type\":\"note\",\"text\":"
+                               "\"edenprobe 0.8.0 (v0.8.0) starting\"}\n");
+        CHECK(probe_parse(two, strlen(two), &p, &why) == 1);
+        SAME(p.version, "0.9.0");
+        SAME(p.emulator, "ScarletNX");
+        CHECK(p.ncases == 6 && p.whole);
+        probe_free(&p);
+        free(two);
+    }
+    /* a run without its summary: what it has, counted from its lines */
+    {
+        char* part = rei_format("%.*s", (int)(strstr(PROBE_LOG, "[   0.23]") - PROBE_LOG), PROBE_LOG);
+        CHECK(probe_parse(part, strlen(part), &p, &why) == 1);
+        CHECK(!p.whole && p.passed == -1 && p.ncases == 6);
+        t = probe_counts(&p);
+        SAME(t, "3 passed, 2 failed (astc 1, newsuite 1), 0 skipped, 1 crashed");
+        free(t);
+        probe_free(&p);
+        free(part);
+    }
+    /* a launch that went on with a run: lines with no start */
+    {
+        static const char resumed[] =
+            "[   0.20] [game] {\"type\":\"note\",\"text\":\"journal: launch 2 resumes the run; the program ended "
+            "inside index case \\\"an indexed draw\\\"\"}\n"
+            "[   0.21] [game] {\"type\":\"case\",\"suite\":\"clear\",\"name\":\"clear to opaque red\",\"tier\":"
+            "\"exact\",\"result\":\"pass\",\"detail\":\"\"}\n";
+        CHECK(probe_parse(resumed, strlen(resumed), &p, &why) == -1);
+        HAS(why, "a launch that went on with a run after a crash");
+        free(why);
+        CHECK(probe_parse(LOG, strlen(LOG), &p, &why) == 0 && !why);
+    }
+    /* lines that are not edenprobe's are counted, not read */
+    {
+        char* odd = rei_format("%s{\"type\":\"case\",\"suite\":\"clear\",\"name\":\"\",\"result\":\"pass\"}\n"
+                               "{\"type\":\"wobble\"}\n",
+                               PROBE_JSONL);
+        CHECK(probe_parse(odd, strlen(odd), &p, &why) == 1);
+        CHECK(p.unread == 2 && p.ncases == 1);
+        probe_free(&p);
+        free(odd);
+    }
+    /* a case's page name: the same for the same case */
+    probe_case_key("astc", "a 4x4 block decodes", digest);
+    probe_case_key("astc", "a 4x4 block decodes", other);
+    SAME(digest, other);
+    CHECK(strlen(digest) == 16);
+    probe_case_key("astc", "a 4x4 block decode", other);
+    CHECK(strcmp(digest, other) != 0);
+    for (i = 0; i < 16; ++i) CHECK(isxdigit((unsigned char)digest[i]));
+    /* .jsonl is a log's name now */
+    CHECK(tr_kind("report.jsonl", "") == TR_LOG);
+    t = tr_unpacked_name("report.jsonl.gz");
+    SAME(t, "report.jsonl");
+    free(t);
+}
+
+/* a zip of several files, each name and text, written by libarchive into out (64 KiB) */
+static size_t zipped(char* out, size_t cap, const char* const* names, const char* const* texts, int n) {
+    struct archive* a = archive_write_new();
+    size_t used = 0;
+    int i;
+    archive_write_set_format_zip(a);
+    archive_write_open_memory(a, out, cap, &used);
+    for (i = 0; i < n; ++i) {
+        struct archive_entry* e = archive_entry_new();
+        archive_entry_set_pathname(e, names[i]);
+        archive_entry_set_size(e, (la_int64_t)strlen(texts[i]));
+        archive_entry_set_filetype(e, AE_IFREG);
+        archive_entry_set_perm(e, 0644);
+        archive_write_header(a, e);
+        archive_write_data(a, texts[i], strlen(texts[i]));
+        archive_entry_free(e);
+    }
+    archive_write_close(a);
+    archive_write_free(a);
+    return used;
+}
+
+/* the run in a Share Log zip: the entry that holds it, though other logs come first */
+static void test_probe_zip(void) {
+    static char zip[1 << 16];
+    char* part = rei_format("%.*s", (int)(strstr(PROBE_LOG, "[   0.23]") - PROBE_LOG), PROBE_LOG);
+    const char* names[] = {"summary.txt", "launcher/scarletnx-console-2026-11-07.log", "games/edenprobe/edenprobe.log",
+                           "games/edenprobe/edenprobe-old.log"};
+    const char* texts[] = {"== summary ==\nnothing here\n", LOG, PROBE_LOG, part};
+    Buf out = {0};
+    char* why;
+    size_t n = zipped(zip, sizeof zip, names, texts, 4);
+    CHECK(!tr_unpack("scarletnx-logs-2026-11-07.zip", zip, n, TR_LOG_MAX, &out, &why));
+    CHECK(out.len == strlen(PROBE_LOG) && !memcmp(out.text, PROBE_LOG, out.len));
+    /* a run begun and no whole one: that one, before the first .log */
+    texts[2] = "no run here\n";
+    n = zipped(zip, sizeof zip, names, texts, 4);
+    CHECK(!tr_unpack("logs.zip", zip, n, TR_LOG_MAX, &out, &why));
+    CHECK(out.len == strlen(part) && !memcmp(out.text, part, out.len));
+    /* no run at all: the first .log, .txt or .jsonl as before */
+    texts[3] = "nor here\n";
+    n = zipped(zip, sizeof zip, names, texts, 4);
+    CHECK(!tr_unpack("logs.zip", zip, n, TR_LOG_MAX, &out, &why));
+    SAME(out.text, "== summary ==\nnothing here\n");
+    buf_free(&out);
+    free(part);
+}
+
+/* whole runs sent as reports: kept with their cases, the details that name the player left out of the database and
+   the log, answered with the counts, never twice from one person, gone with their message */
+static void test_probe_reports(void) {
+    TrMessage m;
+    char *t, *p, *rel, *why;
+    long id, eden, console;
+    StReport r;
+    Probe run;
+    StGame* games;
+    int ngames, i;
+    serve("https://cdn.discordapp.com/20/edenprobe.log", PROBE_LOG, strlen(PROBE_LOG));
+    serve("https://cdn.discordapp.com/20/eden_log.txt", EDEN_LOG, strlen(EDEN_LOG));
+    serve("https://cdn.discordapp.com/20/report.jsonl", PROBE_JSONL, strlen(PROBE_JSONL));
+    m = message(9600, 960, "<@99> my run");
+    attach(&m, "edenprobe.log", "https://cdn.discordapp.com/20/edenprobe.log", (double)strlen(PROBE_LOG));
+    t = answer_text(respond(&m));
+    HAS(t, "edenprobe 0.9.0 on radv, Mesa 26.1.8 (Linux): 3 passed, 2 failed (astc 1, newsuite 1), 0 skipped, 1 "
+           "crashed");
+    HAS(t, "Report #");
+    HAS(t, ": edenprobe 0.9.0 on ScarletNX");
+    HAS(t, "the detail of 3 service, net and pad cases and 1 net notes, which can name the player");
+    HAS(t, "main 1234abc");
+    free(t);
+    tr_message_free(&m);
+    id = st_by_message(tracer.store, 9600);
+    CHECK(id > 0);
+    CHECK(st_get(tracer.store, id, &r, NULL, NULL) == 1);
+    SAME(r.key, PROBE_KEY);
+    SAME(r.title, "edenprobe 0.9.0 on ScarletNX");
+    SAME(r.version, "0.9.0");
+    SAME(r.driver, "26.1.8");
+    SAME(r.commit, "1234abc");
+    st_report_free(&r);
+    CHECK(st_probe_get(tracer.store, id, &run, 1) == 1);
+    CHECK(run.ncases == 6 && run.driver_id == 3 && run.cut_cases == 3 && run.cut_notes == 1);
+    SAME(run.words, "cpu graphics net notime");
+    for (i = 0; i < run.ncases; ++i)
+        if (!strcmp(run.cases[i].suite, "account") || !strcmp(run.cases[i].suite, "nifm") ||
+            !strcmp(run.cases[i].suite, "newsuite"))
+            SAME(run.cases[i].detail, "");
+        else if (!strcmp(run.cases[i].suite, "index"))
+            SAME(run.cases[i].reason, "crashed");
+    probe_free(&run);
+    /* the kept log says nothing of the player either */
+    rel = rei_format("r/%ld/1.log", id);
+    p = page(rel);
+    LACKS(p, "nickname Someone");
+    LACKS(p, "tok-abcdef");
+    LACKS(p, "192.168");
+    HAS(p, "texel 0 reads 00ff00ff");
+    free(p);
+    free(rel);
+    /* no game's: the games and the lists leave it out */
+    CHECK(!st_games(tracer.store, &games, &ngames));
+    for (i = 0; i < ngames; ++i) CHECK(strcmp(games[i].key, PROBE_KEY) != 0);
+    st_games_free(games, ngames);
+    p = page("all.html");
+    rel = rei_format("href=\"r/%ld/\"", id);
+    LACKS(p, rel);
+    free(p);
+    p = page("api/reports.json");
+    LACKS(p, "edenprobe 0.9.0 on ScarletNX");
+    free(p);
+    free(rel);
+    /* the same run again from the same person: its link, nothing kept; from another person, a report of its own */
+    m = message(9601, 960, "<@99> again");
+    attach(&m, "edenprobe.log", "https://cdn.discordapp.com/20/edenprobe.log", (double)strlen(PROBE_LOG));
+    t = answer_text(respond(&m));
+    rel = rei_format("This run of edenprobe is report #%ld already", id);
+    HAS(t, rel);
+    free(rel);
+    free(t);
+    CHECK(!st_by_message(tracer.store, 9601));
+    tr_message_free(&m);
+    m = message(9602, 961, "<@99> mine too");
+    attach(&m, "edenprobe.log", "https://cdn.discordapp.com/20/edenprobe.log", (double)strlen(PROBE_LOG));
+    t = answer_text(respond(&m));
+    HAS(t, "3 passed, 2 failed");
+    free(t);
+    tr_message_free(&m);
+    CHECK(st_by_message(tracer.store, 9602) > id);
+    /* Eden's log, and the report alone */
+    m = message(9603, 962, "<@99>");
+    attach(&m, "eden_log.txt", "https://cdn.discordapp.com/20/eden_log.txt", (double)strlen(EDEN_LOG));
+    t = answer_text(respond(&m));
+    HAS(t, "edenprobe 0.9.0 on NVIDIA 580.95.5.0, driver ID inferred (Windows): 0 passed, 1 failed (astc 1)");
+    HAS(t, "Eden logs no driver ID: it is read from the driver's name.");
+    free(t);
+    tr_message_free(&m);
+    eden = st_by_message(tracer.store, 9603);
+    CHECK(st_get(tracer.store, eden, &r, NULL, NULL) == 1);
+    SAME(r.build, "Eden | HEAD-4534fde3aa-HEAD (Vulkan)");
+    SAME(r.gpu, "Some GeForce 9000");
+    SAME(r.driver, "580.95.05");
+    CHECK(!r.outcome && !r.commit);
+    st_report_free(&r);
+    m = message(9604, 963, "<@99> from my console");
+    attach(&m, "report.jsonl", "https://cdn.discordapp.com/20/report.jsonl", (double)strlen(PROBE_JSONL));
+    t = answer_text(respond(&m));
+    HAS(t, "edenprobe 0.9.0 on the console (a report.jsonl alone names no machine): 1 passed, 0 failed, 0 skipped");
+    HAS(t, "kept as the console's reference");
+    free(t);
+    tr_message_free(&m);
+    console = st_by_message(tracer.store, 9604);
+    CHECK(console > 0);
+    /* gone with its message: its run and cases with it */
+    CHECK(tr_forget(&tracer, 9604));
+    CHECK(st_probe_get(tracer.store, console, &run, 1) == 0);
+    {
+        StProbeResult* results;
+        int nresults, left = 0;
+        CHECK(!st_probe_results(tracer.store, &results, &nresults));
+        for (i = 0; i < nresults; ++i) left += results[i].report == console;
+        CHECK(left == 0 && nresults == 6 + 6 + 1);
+        free(results);
+    }
+    /* a launch that went on after a crash: kept as the game's log, said not to be a run */
+    {
+        static char resumed[sizeof LOG + 512];
+        snprintf(resumed, sizeof resumed, "%s%s", LOG,
+                 "[   2.30] [game] {\"type\":\"note\",\"text\":\"journal: launch 2 resumes the run\"}\n"
+                 "[   2.31] [game] {\"type\":\"case\",\"suite\":\"clear\",\"name\":\"clear to opaque red\",\"tier\":"
+                 "\"exact\",\"result\":\"pass\",\"detail\":\"\"}\n");
+        serve("https://cdn.discordapp.com/20/resumed.log", resumed, strlen(resumed));
+        m = message(9605, 964, "<@99>");
+        attach(&m, "resumed.log", "https://cdn.discordapp.com/20/resumed.log", 10);
+        t = answer_text(respond(&m));
+        HAS(t, "Report #");
+        HAS(t, "Not a run of edenprobe");
+        HAS(t, "resumed.log: its edenprobe lines are a launch that went on with a run after a crash");
+        free(t);
+        tr_message_free(&m);
+        CHECK(st_get(tracer.store, st_by_message(tracer.store, 9605), &r, NULL, NULL) == 1);
+        SAME(r.key, "0100AAAABBBB0000");
+        st_report_free(&r);
+    }
+    /* through a worker: the run in its answer, checked, the same as one read here */
+    serve_file("https://cdn.discordapp.com/21/edenprobe.log", PROBE_LOG, strlen(PROBE_LOG));
+    tracer.take = test_worker_take;
+    worker_argv[1] = "--report";
+    m = message(9606, 965, "<@99> through the worker");
+    attach(&m, "edenprobe.log", "https://cdn.discordapp.com/21/edenprobe.log", 10);
+    t = answer_text(respond(&m));
+    HAS(t, "edenprobe 0.9.0 on radv, Mesa 26.1.8 (Linux): 3 passed, 2 failed");
+    HAS(t, "the detail of 3 service, net and pad cases");
+    free(t);
+    tr_message_free(&m);
+    tracer.take = NULL;
+    CHECK(st_probe_get(tracer.store, st_by_message(tracer.store, 9606), &run, 1) == 1);
+    CHECK(run.ncases == 6 && run.cut_cases == 3);
+    probe_free(&run);
+    CHECK(waiting_files() == 0);
+    (void)why;
+}
+
+/* a report kept before Tracer knew runs of edenprobe: the next start makes it the run's, its log cut */
+static void test_probe_rescan(void) {
+    StReport r;
+    StFile f;
+    Probe run;
+    char *rel, *p;
+    StReport* all;
+    int n;
+    memset(&r, 0, sizeof r);
+    memset(&f, 0, sizeof f);
+    r.when = now_is;
+    r.message = 9700;
+    r.poster = 970;
+    r.key = "0100000000001000";
+    r.title = "edenprobe";
+    r.named = 1;
+    f.n = 1;
+    strcpy(f.kind, "log");
+    f.name = "edenprobe.log";
+    f.path = "1.log";
+    f.bytes = (double)strlen(PROBE_LOG);
+    CHECK(!st_add(tracer.store, &r, &f, 1));
+    rel = rei_format("r/%ld/1.log", r.id);
+    CHECK(!site_write(site, rel, PROBE_LOG, strlen(PROBE_LOG)));
+    CHECK(!st_reports(tracer.store, NULL, &all, &n));
+    st_reports_free(all, n);
+    CHECK(tr_rescan(&tracer, "probe rescan") == n);
+    CHECK(st_probe_get(tracer.store, r.id, &run, 1) == 1);
+    CHECK(run.ncases == 6);
+    SAME(run.emulator, "ScarletNX");
+    probe_free(&run);
+    {
+        StReport now;
+        CHECK(st_get(tracer.store, r.id, &now, NULL, NULL) == 1);
+        SAME(now.key, PROBE_KEY);
+        SAME(now.title, "edenprobe 0.9.0 on ScarletNX");
+        SAME(now.driver, "26.1.8");
+        st_report_free(&now);
+    }
+    p = page(rel);
+    LACKS(p, "nickname Someone");
+    HAS(p, "texel 0 reads 00ff00ff");
+    free(p);
+    free(rel);
+}
+
 int main(int argc, char** argv) {
     char *db, *command;
     if (argc == 2) return as_worker(argv[1]);
@@ -2885,6 +3431,9 @@ int main(int argc, char** argv) {
     test_public_log();
     test_channels();
     test_game();
+    test_probe_parts();
+    test_probe_lines();
+    test_probe_zip();
     if (tracer.store) {
         test_reports();
         test_mcp();
@@ -2903,6 +3452,8 @@ int main(int argc, char** argv) {
         test_issues();
         test_age();
         test_archive_download();
+        test_probe_reports();
+        test_probe_rescan();
     }
     st_close(tracer.store);
     if (getenv("TRACER_TEST_KEEP")) fprintf(stderr, "kept %s\n", site);

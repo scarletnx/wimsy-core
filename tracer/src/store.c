@@ -51,7 +51,23 @@ static const char* const UPGRADES[] = {
     /* 7, how far a report's build was behind main, and what GitHub said of each commit (age.h) */
     "ALTER TABLE reports ADD COLUMN age TEXT;"
     "CREATE TABLE ages(commit_id TEXT PRIMARY KEY, asked REAL NOT NULL, found INTEGER NOT NULL, behind INTEGER NOT"
-    " NULL, days INTEGER NOT NULL, nightly TEXT);"};
+    " NULL, days INTEGER NOT NULL, nightly TEXT);",
+    /* 8, the runs of edenprobe: each report's machine and mode, each case named once, each run's result of each */
+    "CREATE TABLE probe_names(id INTEGER PRIMARY KEY, suite TEXT NOT NULL, name TEXT NOT NULL, key TEXT NOT NULL"
+    " UNIQUE, UNIQUE(suite, name));"
+    "CREATE TABLE probe_runs(report INTEGER PRIMARY KEY REFERENCES reports(id) ON DELETE CASCADE, emulator TEXT NOT"
+    " NULL, emulator_version TEXT, commit_id TEXT, built REAL NOT NULL, version TEXT NOT NULL, describe TEXT, words"
+    " TEXT NOT NULL, system TEXT, os TEXT NOT NULL, gpu TEXT, device TEXT, driver_name TEXT, driver_info TEXT,"
+    " driver_id INTEGER NOT NULL, inferred INTEGER NOT NULL, driver_version INTEGER NOT NULL, vulkan TEXT, extensions"
+    " TEXT, passed INTEGER NOT NULL, failed INTEGER NOT NULL, skipped INTEGER NOT NULL, crashed INTEGER NOT NULL, whole"
+    " INTEGER NOT NULL, cut_cases INTEGER NOT NULL, cut_notes INTEGER NOT NULL, unread INTEGER NOT NULL, over INTEGER"
+    " NOT NULL, digest TEXT NOT NULL);"
+    "CREATE INDEX probe_runs_digest ON probe_runs(digest);"
+    "CREATE TABLE probe_cases(report INTEGER NOT NULL REFERENCES probe_runs(report) ON DELETE CASCADE, name INTEGER"
+    " NOT NULL REFERENCES probe_names(id), result INTEGER NOT NULL, tier TEXT, reason TEXT, detail TEXT, us REAL,"
+    " PRIMARY KEY(report, name)) WITHOUT ROWID;"
+    /* by case, with the result, so the rules and a case's page read the results from the index alone */
+    "CREATE INDEX probe_cases_name ON probe_cases(name, report, result);"};
 
 /* a report's columns, in the order row_report reads them */
 #define REPORT_COLUMNS                                                                                                 \
@@ -652,7 +668,8 @@ int st_games(Store* s, StGame** games, int* n) {
         s, "SELECT r.game, (SELECT t.title FROM reports t WHERE t.game = r.game ORDER BY t.named DESC, t.id"
            " DESC LIMIT 1), (SELECT t.title_id FROM reports t WHERE t.game = r.game AND t.title_id IS NOT NULL ORDER BY"
            " t.id DESC LIMIT 1), c.n, r.created, r.outcome, r.missed, r.console FROM reports r JOIN (SELECT game,"
-           " count(*) AS n, max(id) AS last FROM reports GROUP BY game) c ON r.id = c.last ORDER BY r.id DESC");
+           " count(*) AS n, max(id) AS last FROM reports WHERE game != '" PROBE_KEY "' GROUP BY game) c ON r.id ="
+           " c.last ORDER BY r.id DESC");
     return rows(q, (void**)games, n, sizeof **games, row_game);
 }
 
@@ -754,4 +771,306 @@ void st_reports_free(StReport* r, int n) {
     int i;
     for (i = 0; i < n; ++i) st_report_free(&r[i]);
     free(r);
+}
+
+/* ---- the runs of edenprobe ---- */
+
+/* name's id in probe_names, found, else added: the id, or 0 said in the log */
+static long name_id(Store* s, sqlite3_stmt* add, sqlite3_stmt* find, const char* suite, const char* name) {
+    char key[17];
+    long id = 0;
+    int added;
+    for (added = 0; !id && added < 2; ++added) {
+        if (added) { /* not there yet */
+            probe_case_key(suite, name, key);
+            sqlite3_reset(add);
+            text_at(add, 1, suite);
+            text_at(add, 2, name);
+            text_at(add, 3, key);
+            if (sqlite3_step(add) != SQLITE_DONE) {
+                said(s, "a case's name added");
+                return 0;
+            }
+        }
+        sqlite3_reset(find);
+        text_at(find, 1, suite);
+        text_at(find, 2, name);
+        if (sqlite3_step(find) == SQLITE_ROW) id = (long)sqlite3_column_int64(find, 0);
+    }
+    if (!id) said(s, "a case's name found");
+    return id;
+}
+static int result_code(const ProbeCase* c) {
+    if (!strcmp(c->result, "pass")) return ST_PASS;
+    if (!strcmp(c->result, "fail")) return ST_FAIL;
+    return !strcmp(c->reason, "crashed") ? ST_CRASHED : ST_SKIP;
+}
+static const char* result_word(int code) { return code == ST_PASS ? "pass" : code == ST_FAIL ? "fail" : "skip"; }
+
+int st_probe_set(Store* s, long report, const Probe* p, const char* digest) {
+    sqlite3_stmt *q = NULL, *add = NULL, *find = NULL, *c = NULL;
+    int i, ok;
+    if (sqlite3_exec(s->db, "BEGIN", NULL, NULL, NULL) != SQLITE_OK) {
+        said(s, "BEGIN");
+        return -1;
+    }
+    q = prepared(s, "DELETE FROM probe_runs WHERE report = ?");
+    ok = q != NULL;
+    if (ok) {
+        sqlite3_bind_int64(q, 1, report);
+        ok = sqlite3_step(q) == SQLITE_DONE;
+        if (!ok) said(s, "a run taken out");
+        sqlite3_finalize(q);
+    }
+    q = ok ? prepared(s,
+                      "INSERT INTO probe_runs(report, emulator, emulator_version, commit_id, built, version,"
+                      " describe, words, system, os, gpu, device, driver_name, driver_info, driver_id, inferred,"
+                      " driver_version, vulkan, extensions, passed, failed, skipped, crashed, whole, cut_cases,"
+                      " cut_notes, unread, over, digest) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,"
+                      "?,?)")
+           : NULL;
+    ok = q != NULL;
+    if (ok) {
+        sqlite3_bind_int64(q, 1, report);
+        text_at(q, 2, p->emulator);
+        text_at(q, 3, p->emulator_version);
+        text_at(q, 4, p->commit);
+        sqlite3_bind_double(q, 5, p->built);
+        text_at(q, 6, p->version);
+        text_at(q, 7, p->describe);
+        text_at(q, 8, p->words);
+        text_at(q, 9, p->system);
+        text_at(q, 10, p->os ? p->os : "unknown");
+        text_at(q, 11, p->gpu);
+        text_at(q, 12, p->device);
+        text_at(q, 13, p->driver_name);
+        text_at(q, 14, p->driver_info);
+        sqlite3_bind_int(q, 15, p->driver_id);
+        sqlite3_bind_int(q, 16, p->inferred);
+        sqlite3_bind_int64(q, 17, (sqlite3_int64)p->driver_version);
+        text_at(q, 18, p->vulkan);
+        text_at(q, 19, p->extensions);
+        sqlite3_bind_int64(q, 20, p->passed);
+        sqlite3_bind_int64(q, 21, p->failed);
+        sqlite3_bind_int64(q, 22, p->skipped);
+        sqlite3_bind_int64(q, 23, p->crashed);
+        sqlite3_bind_int(q, 24, p->whole);
+        sqlite3_bind_int(q, 25, p->cut_cases);
+        sqlite3_bind_int(q, 26, p->cut_notes);
+        sqlite3_bind_int(q, 27, p->unread);
+        sqlite3_bind_int(q, 28, p->over);
+        text_at(q, 29, digest);
+        ok = sqlite3_step(q) == SQLITE_DONE;
+        if (!ok) said(s, "a run added");
+    }
+    sqlite3_finalize(q);
+    add = ok ? prepared(s, "INSERT OR IGNORE INTO probe_names(suite, name, key) VALUES(?,?,?)") : NULL;
+    find = add ? prepared(s, "SELECT id FROM probe_names WHERE suite = ? AND name = ?") : NULL;
+    c = find ? prepared(s, "INSERT INTO probe_cases(report, name, result, tier, reason, detail, us)"
+                           " VALUES(?,?,?,?,?,?,?)")
+             : NULL;
+    ok = c != NULL;
+    for (i = 0; ok && i < p->ncases; ++i) {
+        const ProbeCase* k = &p->cases[i];
+        long id = name_id(s, add, find, k->suite, k->name);
+        ok = id != 0;
+        if (!ok) break;
+        sqlite3_reset(c);
+        sqlite3_bind_int64(c, 1, report);
+        sqlite3_bind_int64(c, 2, id);
+        sqlite3_bind_int(c, 3, result_code(k));
+        text_at(c, 4, k->tier);
+        text_at(c, 5, *k->reason ? k->reason : NULL);
+        text_at(c, 6, *k->detail ? k->detail : NULL);
+        if (k->us >= 0)
+            sqlite3_bind_double(c, 7, k->us);
+        else
+            sqlite3_bind_null(c, 7);
+        ok = sqlite3_step(c) == SQLITE_DONE;
+        if (!ok) said(s, "a case's result added");
+    }
+    sqlite3_finalize(add);
+    sqlite3_finalize(find);
+    sqlite3_finalize(c);
+    if (sqlite3_exec(s->db, ok ? "COMMIT" : "ROLLBACK", NULL, NULL, NULL) != SQLITE_OK) {
+        said(s, ok ? "COMMIT" : "ROLLBACK");
+        ok = 0;
+    }
+    return ok ? 0 : -1;
+}
+
+#define RUN_COLUMNS                                                                                                    \
+    "r.report, r.emulator, r.emulator_version, r.commit_id, r.built, r.version, r.describe, r.words, r.system, r.os, " \
+    "r.gpu, r.device, r.driver_name, r.driver_info, r.driver_id, r.inferred, r.driver_version, r.vulkan, "             \
+    "r.extensions, r.passed, r.failed, r.skipped, r.crashed, r.whole, r.cut_cases, r.cut_notes, r.unread, r.over, "    \
+    "p.poster, p.created"
+static void row_run(sqlite3_stmt* q, void* to) {
+    StProbeRun* r = to;
+    Probe* p = &r->p;
+    char text[32];
+    r->report = (long)sqlite3_column_int64(q, 0);
+    p->emulator = text_of(q, 1);
+    p->emulator_version = text_of(q, 2);
+    p->commit = text_of(q, 3);
+    p->built = sqlite3_column_double(q, 4);
+    p->version = text_of(q, 5);
+    p->describe = text_of(q, 6);
+    p->words = text_of(q, 7);
+    p->system = text_of(q, 8);
+    p->os = text_of(q, 9);
+    p->gpu = text_of(q, 10);
+    p->device = text_of(q, 11);
+    p->driver_name = text_of(q, 12);
+    p->driver_info = text_of(q, 13);
+    p->driver_id = sqlite3_column_int(q, 14);
+    p->inferred = sqlite3_column_int(q, 15);
+    p->driver_version = (unsigned long)sqlite3_column_int64(q, 16);
+    p->vulkan = text_of(q, 17);
+    p->extensions = text_of(q, 18);
+    p->passed = (long)sqlite3_column_int64(q, 19);
+    p->failed = (long)sqlite3_column_int64(q, 20);
+    p->skipped = (long)sqlite3_column_int64(q, 21);
+    p->crashed = (long)sqlite3_column_int64(q, 22);
+    p->whole = sqlite3_column_int(q, 23);
+    p->cut_cases = sqlite3_column_int(q, 24);
+    p->cut_notes = sqlite3_column_int(q, 25);
+    p->unread = sqlite3_column_int(q, 26);
+    p->over = sqlite3_column_int(q, 27);
+    r->poster = (u64)sqlite3_column_int64(q, 28);
+    r->when = sqlite3_column_double(q, 29);
+    if (p->driver_id && p->driver_version) {
+        probe_version_text(p->driver_id, p->driver_version, text, sizeof text);
+        p->driver_text = rei_strdup(text);
+    }
+}
+
+int st_probe_get(Store* s, long report, Probe* p, int cases) {
+    sqlite3_stmt* q = prepared(s, "SELECT " RUN_COLUMNS " FROM probe_runs r JOIN reports p ON p.id = r.report"
+                                  " WHERE r.report = ?");
+    StProbeRun run;
+    int found, cap = 0;
+    memset(p, 0, sizeof *p);
+    if (!q) return -1;
+    memset(&run, 0, sizeof run);
+    sqlite3_bind_int64(q, 1, report);
+    found = sqlite3_step(q) == SQLITE_ROW;
+    if (found) row_run(q, &run);
+    sqlite3_finalize(q);
+    if (!found) return 0;
+    *p = run.p;
+    if (!cases) return 1;
+    q = prepared(s, "SELECT n.suite, n.name, c.result, c.tier, c.reason, c.detail, c.us FROM probe_cases c JOIN"
+                    " probe_names n ON n.id = c.name WHERE c.report = ? ORDER BY n.id");
+    if (!q) {
+        probe_free(p);
+        return -1;
+    }
+    sqlite3_bind_int64(q, 1, report);
+    while (sqlite3_step(q) == SQLITE_ROW) {
+        ProbeCase* c;
+        int code = sqlite3_column_int(q, 2);
+        char* reason = text_of(q, 4);
+        char* detail = text_of(q, 5);
+        if (p->ncases == cap) {
+            cap = cap ? cap * 2 : 256;
+            p->cases = realloc(p->cases, (size_t)cap * sizeof *p->cases);
+            if (!p->cases) {
+                fputs(REI_NAME ": out of memory\n", stderr);
+                abort();
+            }
+        }
+        c = &p->cases[p->ncases++];
+        c->suite = text_of(q, 0);
+        c->name = text_of(q, 1);
+        c->result = rei_strdup(result_word(code));
+        c->tier = text_of(q, 3);
+        if (!c->tier) c->tier = rei_strdup("none");
+        c->reason = reason ? reason : rei_strdup(code == ST_CRASHED ? "crashed" : "");
+        c->detail = detail ? detail : rei_strdup("");
+        c->us = sqlite3_column_type(q, 6) == SQLITE_NULL ? -1 : sqlite3_column_double(q, 6);
+    }
+    sqlite3_finalize(q);
+    return 1;
+}
+
+long st_probe_seen(Store* s, u64 poster, const char* digest) {
+    sqlite3_stmt* q = prepared(s, "SELECT r.report FROM probe_runs r JOIN reports p ON p.id = r.report WHERE"
+                                  " r.digest = ? AND p.poster = ? ORDER BY r.report LIMIT 1");
+    long id = 0;
+    if (!q) return 0;
+    text_at(q, 1, digest);
+    sqlite3_bind_int64(q, 2, (sqlite3_int64)poster);
+    if (sqlite3_step(q) == SQLITE_ROW) id = (long)sqlite3_column_int64(q, 0);
+    sqlite3_finalize(q);
+    return id;
+}
+
+int st_probe_runs(Store* s, StProbeRun** runs, int* n) {
+    sqlite3_stmt* q = prepared(s, "SELECT " RUN_COLUMNS " FROM probe_runs r JOIN reports p ON p.id = r.report"
+                                  " ORDER BY r.report DESC");
+    return rows(q, (void**)runs, n, sizeof **runs, row_run);
+}
+void st_probe_runs_free(StProbeRun* runs, int n) {
+    int i;
+    for (i = 0; i < n; ++i) probe_free(&runs[i].p);
+    free(runs);
+}
+
+static void row_name(sqlite3_stmt* q, void* to) {
+    StProbeName* name = to;
+    const unsigned char* key = sqlite3_column_text(q, 3);
+    name->id = sqlite3_column_int(q, 0);
+    name->suite = text_of(q, 1);
+    name->name = text_of(q, 2);
+    snprintf(name->key, sizeof name->key, "%s", key ? (const char*)key : "");
+}
+int st_probe_names(Store* s, StProbeName** names, int* n) {
+    sqlite3_stmt* q = prepared(s, "SELECT id, suite, name, key FROM probe_names WHERE id IN (SELECT DISTINCT name FROM"
+                                  " probe_cases) ORDER BY id");
+    return rows(q, (void**)names, n, sizeof **names, row_name);
+}
+void st_probe_names_free(StProbeName* names, int n) {
+    int i;
+    for (i = 0; i < n; ++i) {
+        free(names[i].suite);
+        free(names[i].name);
+    }
+    free(names);
+}
+
+static void row_result(sqlite3_stmt* q, void* to) {
+    StProbeResult* r = to;
+    r->report = (long)sqlite3_column_int64(q, 0);
+    r->name = sqlite3_column_int(q, 1);
+    r->result = sqlite3_column_int(q, 2);
+}
+int st_probe_results(Store* s, StProbeResult** results, int* n) {
+    sqlite3_stmt* q = prepared(s, "SELECT report, name, result FROM probe_cases ORDER BY name, report");
+    return rows(q, (void**)results, n, sizeof **results, row_result);
+}
+
+static void row_detail(sqlite3_stmt* q, void* to) {
+    StProbeDetail* d = to;
+    char* text;
+    d->report = (long)sqlite3_column_int64(q, 0);
+    d->result = sqlite3_column_int(q, 1);
+    d->tier = (text = text_of(q, 2)) ? text : rei_strdup("");
+    d->reason = (text = text_of(q, 3)) ? text : rei_strdup(d->result == ST_CRASHED ? "crashed" : "");
+    d->detail = (text = text_of(q, 4)) ? text : rei_strdup("");
+    d->us = sqlite3_column_type(q, 5) == SQLITE_NULL ? -1 : sqlite3_column_double(q, 5);
+}
+int st_probe_details(Store* s, int name, StProbeDetail** details, int* n) {
+    sqlite3_stmt* q = prepared(s, "SELECT report, result, tier, reason, detail, us FROM probe_cases WHERE name = ?"
+                                  " ORDER BY report DESC");
+    if (q) sqlite3_bind_int(q, 1, name);
+    return rows(q, (void**)details, n, sizeof **details, row_detail);
+}
+void st_probe_details_free(StProbeDetail* details, int n) {
+    int i;
+    for (i = 0; i < n; ++i) {
+        free(details[i].tier);
+        free(details[i].reason);
+        free(details[i].detail);
+    }
+    free(details);
 }

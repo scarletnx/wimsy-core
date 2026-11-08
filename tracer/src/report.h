@@ -21,6 +21,9 @@ typedef struct {
                                                    these */
     cJSON* first;                               /* the first log's summary */
     Buf skipped;                                /* a line for each attachment not taken */
+    Probe probe;     /* the run of edenprobe in a new report's first log (probe.h), when probed */
+    int probed;      /* the first log of a new report holds a run: the report is the run's */
+    char* probe_why; /* owned: why a first log with lines of edenprobe holds no run of it, NULL for none */
 } Taken;
 
 typedef struct Tracer Tracer;
@@ -77,7 +80,7 @@ int tr_game(const cJSON* summary, const char* note, char** key, char** title, ch
    commands" (shaders by the shaders, the rest by the different ones); owned, NULL for nothing */
 char* tr_missed(const cJSON* summary);
 /* what a report keeps of its logs, as a version: a new one summarizes the kept reports again (tr_rescan) */
-#define TR_FACTS "facts 5"
+#define TR_FACTS "facts 6"
 
 /* the reply to m, a message that mentions the bot: an embed (owned), or NULL for a message already handled (the
    gateway sends a message again after a resume). *report is the report it made or updated, 0 for none: the reply,
@@ -89,7 +92,9 @@ char* tr_missed(const cJSON* summary);
 cJSON* tr_answer(Tracer* t, const TrMessage* m, long* report);
 /* each kept log summarized again, each report's facts drawn again from its first log, and its game named or filed
    again, when the log summary or the list of names differs from the one that made them (version: TR_LOGSCAN and the
-   list's). The reports summarized again, -1 for an error; the site's pages are not drawn again (site_rebuild) */
+   list's). A report whose first log holds a run of edenprobe becomes the run's (or keeps its run, read again); each
+   kept log loses what probe_cut leaves out. The reports summarized again, -1 for an error; the site's pages are not
+   drawn again (site_rebuild) */
 int tr_rescan(Tracer* t, const char* version);
 /* reaction r, to a report's message: when it is the approval's emoji and its user may approve the report (the
    report's server's owner and administrators, and TRACER_ADMINS), the report filed as an issue once, the site drawn

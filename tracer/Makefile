@@ -31,8 +31,9 @@ DEFS = -D_POSIX_C_SOURCE=200809L -DREI_NAME=\"tracer\" -DTR_LOGSCAN=\"`cat $(LOG
 OURS = $(WARN) $(DEFS) -Isrc -I$(REI)/src -I$(REI)/third_party/cjson -Ithird_party/logscan
 LIBS = $(SQLITE_LIBS) $(ARCHIVE_LIBS) $(ZLIB_LIBS) $(CXXRT) -lpthread -lm
 
-LOGIC = src/message.o src/files.o src/store.o src/site.o src/report.o src/titles.o src/channels.o src/worker.o \
-	src/issues.o src/age.o src/mcp.o src/rei_util.o third_party/cjson.o third_party/logscan.o third_party/demangle.o
+LOGIC = src/message.o src/files.o src/probe.o src/store.o src/site.o src/report.o src/titles.o src/channels.o \
+	src/worker.o src/issues.o src/age.o src/mcp.o src/rei_util.o third_party/cjson.o third_party/logscan.o \
+	third_party/demangle.o
 
 all: tracer tracer-mcp
 
@@ -57,24 +58,26 @@ tests/test_tracer: $(LOGIC) tests/test_tracer.c
 
 src/message.o: src/message.c src/message.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/message.c
-src/files.o: src/files.c src/files.h src/tracer.h
+src/files.o: src/files.c src/files.h src/probe.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/files.c
-src/store.o: src/store.c src/store.h src/tracer.h
+src/probe.o: src/probe.c src/probe.h src/files.h src/tracer.h
+	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/probe.c
+src/store.o: src/store.c src/store.h src/probe.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) $(SQLITE_CFLAGS) -c -o $@ src/store.c
-src/site.o: src/site.c src/site.h src/files.h src/store.h src/tracer.h
+src/site.o: src/site.c src/site.h src/files.h src/store.h src/probe.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/site.c
-src/worker.o: src/worker.c src/worker.h src/report.h src/age.h src/tracer.h
+src/worker.o: src/worker.c src/worker.h src/report.h src/age.h src/store.h src/probe.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/worker.c
-src/issues.o: src/issues.c src/issues.h src/store.h src/tracer.h
+src/issues.o: src/issues.c src/issues.h src/store.h src/probe.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/issues.c
-src/age.o: src/age.c src/age.h src/store.h src/tracer.h
+src/age.o: src/age.c src/age.h src/store.h src/probe.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/age.c
 src/channels.o: src/channels.c src/channels.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/channels.c
 src/titles.o: src/titles.c src/titles.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/titles.c
 src/report.o: src/report.c src/report.h src/age.h src/issues.h src/titles.h src/files.h src/site.h src/store.h \
-		src/message.h src/tracer.h
+		src/probe.h src/message.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/report.c
 src/mcp.o: src/mcp.c src/mcp.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/mcp.c
@@ -84,7 +87,7 @@ src/fetch.o: src/fetch.c src/fetch.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) $(CURL_CFLAGS) -c -o $@ src/fetch.c
 # Concord's headers are not ours: their warnings are theirs
 src/main.o: src/main.c $(LOGSCAN_FILES) src/age.h src/channels.h src/issues.h src/worker.h src/fetch.h src/report.h \
-		src/site.h src/store.h src/message.h src/tracer.h $(REI)/src/watch.h
+		src/site.h src/store.h src/probe.h src/message.h src/tracer.h $(REI)/src/watch.h
 	$(CC) $(CFLAGS) $(OURS) $(CURL_CFLAGS) -isystem $(CONCORD)/include/concord -c -o $@ src/main.c
 src/rei_util.o: $(REI)/src/util.c $(REI)/src/rei.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ $(REI)/src/util.c

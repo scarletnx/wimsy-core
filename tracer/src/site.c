@@ -736,11 +736,17 @@ static int game_page(Store* s, const char* root, const char* key, const StGame* 
 
 static int lists(Store* s, const char* root, StGame* games, int ngames) {
     StReport* all;
-    int n, done = write_page(root, "index.html", site_index_html(games, ngames));
+    int n, i, games_n = 0, done = write_page(root, "index.html", site_index_html(games, ngames));
     done |= write_page(root, "api/games.json", site_games_json(games, ngames));
     if (st_reports(s, NULL, &all, &n)) return -1;
-    done |= write_page(root, "all.html", site_all_html(all, n));
-    done |= write_page(root, "api/reports.json", site_reports_json(all, n));
+    for (i = 0; i < n; ++i) /* the game reports: the runs of edenprobe have the Probe pages */
+        if (strcmp(all[i].key, PROBE_KEY)) {
+            StReport keep = all[i];
+            all[i] = all[games_n];
+            all[games_n++] = keep;
+        }
+    done |= write_page(root, "all.html", site_all_html(all, games_n));
+    done |= write_page(root, "api/reports.json", site_reports_json(all, games_n));
     st_reports_free(all, n);
     return done;
 }

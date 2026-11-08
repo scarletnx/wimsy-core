@@ -6,6 +6,7 @@
    connection, used by one thread at a time */
 #ifndef TR_STORE_H
 #define TR_STORE_H
+#include "probe.h"
 #include "tracer.h"
 
 typedef struct Store Store;
@@ -111,10 +112,58 @@ int st_age(Store* s, const char* commit, StAge* a);
 int st_set_age(Store* s, const char* commit, const StAge* a);
 void st_age_free(StAge* a);
 
-/* every game, the newest report first */
+/* every game, the newest report first; the runs of edenprobe (key PROBE_KEY) are no game's */
 int st_games(Store* s, StGame** games, int* n);
-/* the game's reports, or every report when key is NULL, the newest first */
+/* the game's reports, or every report when key is NULL (the runs of edenprobe too), the newest first; key PROBE_KEY
+   gives the runs' reports */
 int st_reports(Store* s, const char* key, StReport** reports, int* n);
+
+/* ---- the runs of edenprobe (probe.h): each a report of key PROBE_KEY, its machine and each case's result ---- */
+
+/* report's run, its cases with it, kept, in place of one it had: 0, or -1 said in the log, nothing kept */
+int st_probe_set(Store* s, long report, const Probe* p, const char* digest);
+/* report's run, its cases with it when cases: 1 (*p owned), 0 when it has none, -1 said in the log */
+int st_probe_get(Store* s, long report, Probe* p, int cases);
+/* the report poster sent of a run with this digest (probe_digest), 0 for none */
+long st_probe_seen(Store* s, u64 poster, const char* digest);
+
+typedef struct {
+    long report;
+    u64 poster; /* never shown: the rules count people by it */
+    double when;
+    Probe p; /* without its cases */
+} StProbeRun;
+/* every run, the newest first */
+int st_probe_runs(Store* s, StProbeRun** runs, int* n);
+void st_probe_runs_free(StProbeRun* runs, int n);
+
+typedef struct {
+    int id;
+    char *suite, *name; /* owned */
+    char key[17];       /* probe_case_key's: the case's page */
+} StProbeName;
+/* every case a run named, by id */
+int st_probe_names(Store* s, StProbeName** names, int* n);
+void st_probe_names_free(StProbeName* names, int n);
+
+enum { ST_PASS, ST_FAIL, ST_SKIP, ST_CRASHED }; /* a case's result as kept: a skip whose reason is crashed is crashed */
+typedef struct {
+    long report;
+    int name;   /* StProbeName's id */
+    int result; /* ST_* */
+} StProbeResult;
+/* every result of every run, by case then report */
+int st_probe_results(Store* s, StProbeResult** results, int* n);
+
+typedef struct {
+    long report;
+    int result;
+    char *tier, *reason, *detail; /* owned; "" for none */
+    double us;                    /* -1 for none */
+} StProbeDetail;
+/* each run's result of case name, the newest report first */
+int st_probe_details(Store* s, int name, StProbeDetail** details, int* n);
+void st_probe_details_free(StProbeDetail* details, int n);
 
 void st_report_free(StReport* r);
 void st_files_free(StFile* f, int n);

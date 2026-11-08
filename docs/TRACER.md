@@ -9,6 +9,7 @@
   * [What a report keeps](#what-a-report-keeps)
   * [Adding to a report](#adding-to-a-report)
   * [A log sent without the mention](#a-log-sent-without-the-mention)
+  * [A run of edenprobe](#a-run-of-edenprobe)
   * [Deleting, and the hourly limit](#deleting-and-the-hourly-limit)
   * [Summarized and named again](#summarized-and-named-again)
 * [Commands](#commands)
@@ -49,13 +50,13 @@ for it). The worker's answer is checked before any of its files moves from the w
 
 ### What a report keeps
 
-- Its logs (`.log`, `.txt`, or one packed in a `.gz` or a `.zip`; 3 at most, 64 MiB each) are downloaded from Discord,
-  each home folder in them written as `~` (`/home/<user>`, `C:\Users\<user>`, Android's app folders), the crash
+- Its logs (`.log`, `.txt`, `.jsonl`, or one packed in a `.gz` or a `.zip`; 3 at most, 64 MiB each) are downloaded from
+  Discord, each home folder in them written as `~` (`/home/<user>`, `C:\Users\<user>`, Android's app folders), the crash
   report's code and memory dumps and registers left out (the game's own bytes, which the summary leaves out too), each
-  IPv4 address but the loopback's written as `[ip]` and each e-mail address as `[email]` (a network game's log names
-  the player's address and the other players'), and summarized: the game, its title ID and version, the build, the
-  system and GPU, how the run ended and where, the service commands and what else the runtime missed, the last lines.
-  A file that is no ScarletNX log is named in the reply and not kept.
+  IPv4 address but the loopback's written as `[ip]` and each e-mail address as `[email]` (a network game's log names the
+  player's address and the other players'), and summarized: the game, its title ID and version, the build, the system
+  and GPU, how the run ended and where, the service commands and what else the runtime missed, the last lines. A file
+  that is no ScarletNX log, nor a run of edenprobe, is named in the reply and not kept.
 - Its screenshots (PNG, JPEG, WebP, GIF or PPM, read from their bytes; 8 at most, 25 MiB each) lose their metadata:
   EXIF and its place and camera, XMP, PNG's text and time, JPEG's and GIF's comments, a GIF's applications' data but
   its loop, and what follows a JPEG's or a GIF's end (a phone's motion photo video, a maker's trailer). A PPM, the
@@ -105,6 +106,39 @@ log line says which. A reply that brings files makes a report of those, as any m
 is part of a report already gets that report's link; a message of another channel or server, a bot's or a webhook's,
 one that is gone and one with no log are refused, each with why.
 
+### A run of edenprobe
+
+[edenprobe](https://github.com/scarletnx/edenprobe) checks an emulator against the console, case by case. A report
+whose first log holds a run of it is the run's, kept apart from the games: in no game's list, nor `all.html` and
+`api/reports.json`. A run comes in three forms:
+
+- ScarletNX's log of the run, alone or in the launcher's Share Log zip, whose entry that holds a whole run is the one
+  kept (else one a run begins in, else its first log, as for any zip): the machine from its header (`system:`, the
+  driver's `vulkan: the driver that runs: radv, Mesa 26.1.8 (driver ID 3)`, and the GPU's line with the driver's
+  version), the report's lines as `[game] {...}`;
+- Eden's log of it, or rEden's: the machine from its `Driver:`, `Device:`, `Vulkan:` and `Host OS:` lines, the report's
+  lines as `Debug.Emulated` ones. Eden logs no driver ID: it is read from the driver's name, and the reply says so;
+- the report itself, `report.jsonl`, which names no machine: it is kept as the console's reference.
+
+A run begins at its note `edenprobe 0.9.0 (v0.9.0) starting`; of several in one file (the Share Log's `summary.txt`
+holds a run's output and its log), the last whole one is read, one with its summary, else the last one. Kept of it:
+the machine (the system and its family, the GPU, the driver's VkDriverId, name and version as its vendor numbers it,
+which are ScarletNX's ban table's), the emulator and its build, edenprobe's version, the words its mode note says ran
+(`cpu graphics net notime`), and each case's suite, name, tier, result, reason, detail (its first 300 bytes) and time,
+10000 cases at most.
+
+The detail of the cases of edenprobe's service, net and pad families, and of a suite its table does not have, is left
+out, and so is the text of the net family's notes: the account cases name a user's id and nickname, the network ones
+the addresses and sessions the net file names. They are taken out of every log a report keeps, wherever such a line
+is, before anything reads it, so neither the database nor the site has them.
+
+The reply gives the counts and the suites that failed most, `edenprobe 0.9.0 on radv, Mesa 26.1.8 (Linux): 1034
+passed, 26 failed (astc 15, astcimage 9, tex8k 2), 6 skipped, 3 crashed`, and what the run lacks: no summary line, a
+summary that counts more cases than the file has (a launch that went on after a crash logs its own cases alone), lines
+edenprobe does not write, a report.jsonl's machine. The same run sent again by the same person, line for line, is
+answered with the first report's link and kept no more. A log whose lines of edenprobe have no run's start, a launch
+that went on after a crash, is kept as the game's log, and the reply says why it is no run.
+
 ### Deleting, and the hourly limit
 
 `@Tracer delete 12`, or a reply with `@Tracer delete`, deletes a report, for the person who sent it, the owner and
@@ -117,9 +151,11 @@ counts, and so does one deleted since (its files were downloaded); a message wit
 
 ### Summarized and named again
 
-When the log summary or the list of names changes (`scripts/sync-logscan.sh`, `scripts/make-titles.py`), the next
-start summarizes each kept log again, draws each report's facts again from its first log, files a report whose first
-log now names another game under that game, and names one its logs don't name from the list.
+When the log summary or the list of names changes (`scripts/sync-logscan.sh`, `scripts/make-titles.py`), or what a
+report keeps of its logs (`TR_FACTS`), the next start summarizes each kept log again, draws each report's facts again
+from its first log, files a report whose first log now names another game under that game, names one its logs don't
+name from the list, makes a report whose first log holds a run of edenprobe the run's, and takes out of each kept log
+what a run's lines would say of the player.
 
 ## Commands
 

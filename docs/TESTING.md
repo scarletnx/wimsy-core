@@ -73,7 +73,16 @@ temporary folder:
   environment before the bot keeps it from its user's debuggers and not after, the bot's descriptors closed in it, no
   worker for a message without files;
 - the MCP server over that site: its handshake and protocol versions, notifications, broken and unknown requests, each
-  tool's filters, limits and errors, and a query's 16 words at most.
+  tool's filters, limits and errors, and a query's 16 words at most;
+- runs of edenprobe: edenprobe's families and which lose their detail, the drivers by the ban table's names and by
+  their own, each driver's version numbering both ways, the system's family; the cut of a log (the service, net, pad
+  and unknown suites' details and the net notes, every other byte as it was); ScarletNX's log, Eden's, rEden's and a
+  report.jsonl read, two copies of a run, a run cut short, a launch that went on after a crash, lines edenprobe does
+  not write; a run through JSON and the answers refused (another emulator, a detail the cut takes out, a case that is
+  none); the run in a Share Log zip, a run begun, none; whole runs as reports (the reply's counts and what was left
+  out, the database and the kept log without the player, no game's list, the same run again from one person and from
+  another, Eden's and the console's, deleted with their message, a resumed launch kept as a log, one through the
+  worker), and a report kept before made the run's at the next start.
 
 ## The docs
 
