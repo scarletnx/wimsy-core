@@ -37,6 +37,7 @@
 #include "message.h"
 #include "probe.h"
 #include "report.h"
+#include "rules.h"
 #include "site.h"
 #include "store.h"
 #include "titles.h"
@@ -3396,8 +3397,296 @@ static void test_probe_rescan(void) {
     free(rel);
 }
 
+/* ---- the rules over the runs ---- */
+
+#define DAY        86400.0
+#define D0         1793491200.0 /* 2026-11-01 */
+#define V(a, b, c) (((unsigned long)(a) << 22) | ((unsigned long)(b) << 12) | (unsigned long)(c))
+/* a run as the rules read it: its report, who sent it, the emulator, the driver, its version, the system's family, the
+   build's commit and day (0 for none), edenprobe's words */
+static StProbeRun rule_run(long report, u64 poster, const char* emulator, int driver, unsigned long version,
+                           const char* os, const char* commit, double built, const char* words) {
+    StProbeRun r;
+    memset(&r, 0, sizeof r);
+    r.report = report;
+    r.poster = poster;
+    r.when = built ? built + 3600 : D0;
+    r.p.emulator = (char*)emulator;
+    r.p.version = (char*)"0.9.0";
+    r.p.words = (char*)words;
+    r.p.os = (char*)os;
+    r.p.driver_id = driver;
+    r.p.inferred = strcmp(emulator, "ScarletNX") != 0;
+    r.p.driver_version = version;
+    r.p.commit = (char*)commit;
+    r.p.built = built;
+    return r;
+}
+/* the rules over runs, each one's result of case 1 given in results (ST_*), in the runs' order */
+static Rules rules_of(const StProbeRun* runs, int n, const int* results) {
+    StProbeResult r[64];
+    Rules out;
+    int i;
+    for (i = 0; i < n; ++i) {
+        r[i].report = runs[i].report;
+        r[i].name = 1;
+        r[i].result = results[i];
+    }
+    for (i = 1; i < n; ++i) /* st_probe_results' order: by case, then report */
+        CHECK(r[i - 1].report < r[i].report);
+    CHECK(!rules_make(runs, n, r, n, &out));
+    return out;
+}
+
+static void test_rules(void) {
+    /* radv fails the case from 26.1.0 to 26.1.8 for two people, and passes on 26.2.0; two other drivers pass it */
+    StProbeRun base[] = {
+        rule_run(1, 101, "ScarletNX", 3, V(26, 1, 0), "linux", "1111111", D0, "graphics"),
+        rule_run(2, 102, "ScarletNX", 3, V(26, 1, 8), "linux", "1111111", D0 + DAY, "graphics"),
+        rule_run(3, 101, "ScarletNX", 3, V(26, 1, 8), "linux", "2222222", D0 + 2 * DAY, "graphics"),
+        rule_run(4, 103, "ScarletNX", 3, V(26, 2, 0), "linux", "2222222", D0 + 3 * DAY, "graphics"),
+        rule_run(5, 104, "ScarletNX", 4, 0x9b404000UL, "windows", "1111111", D0, "graphics"),
+        rule_run(6, 105, "ScarletNX", 4, 0x9b404000UL, "windows", "1111111", D0 + DAY, "graphics"),
+        rule_run(7, 106, "ScarletNX", 6, V(25, 3, 5), "linux", "2222222", D0 + 2 * DAY, "graphics"),
+        rule_run(8, 107, "Eden", 3, V(26, 1, 8), "unknown", NULL, 0, "graphics"),
+        rule_run(9, 108, "console", 0, 0, "unknown", NULL, 0, "graphics"),
+    };
+    int results[] = {ST_FAIL, ST_FAIL, ST_FAIL, ST_PASS, ST_PASS, ST_PASS, ST_PASS, ST_FAIL, ST_PASS};
+    StProbeRun runs[16];
+    int res[16];
+    Rules r = rules_of(base, 9, results);
+    char* line;
+    CHECK(r.ncandidates == 1 && r.ngeneral == 0);
+    if (r.ncandidates == 1) {
+        RuleCandidate* c = &r.candidates[0];
+        CHECK(c->name == 1 && c->driver_id == 3 && !c->mixed && c->low == V(26, 1, 0) && c->high == V(26, 2, 0));
+        SAME(c->os, "linux");
+        SAME(c->versions, ">= 26.1.0 < 26.2.0");
+        SAME(c->broken, "26.1.8");
+        CHECK(c->nfailing == 3 && c->failing[0] == 1 && c->failing[2] == 3 && c->people == 2);
+        CHECK(c->npassing == 3 && c->pass_drivers == 2 && c->passing[0] == 5);
+        CHECK(c->eden_fail == 1 && c->eden_pass == 0);
+        CHECK(!c->extensions);
+        line = rules_draft(c, "astc", "a 4x4 block | decodes");
+        SAME(line, "<key> | off | radv | >= 26.1.0 < 26.2.0 | linux | * | fails edenprobe's astc case \"a 4x4 block / "
+                   "decodes\" | Tracer #1, #2, #3; edenprobe 0.9.0 \"a 4x4 block / decodes\" | edenprobe:astc: a 4x4 "
+                   "block / decodes | 2026-11-03 broken on 26.1.8 | -");
+        free(line);
+    }
+    rules_free(&r);
+    /* one person's failures are not enough */
+    memcpy(runs, base, sizeof base);
+    memcpy(res, results, sizeof results);
+    runs[1].poster = 101;
+    r = rules_of(runs, 9, res);
+    CHECK(r.ncandidates == 0);
+    rules_free(&r);
+    /* nor two reports */
+    memcpy(runs, base, sizeof base);
+    res[2] = ST_SKIP;
+    r = rules_of(runs, 9, res);
+    CHECK(r.ncandidates == 0);
+    rules_free(&r);
+    memcpy(res, results, sizeof results);
+    /* the passes of one other driver only: the failure may be ScarletNX's */
+    runs[6].p.driver_id = 4;
+    r = rules_of(runs, 9, res);
+    CHECK(r.ncandidates == 0);
+    rules_free(&r);
+    /* two passing reports only */
+    memcpy(runs, base, sizeof base);
+    res[5] = ST_SKIP;
+    r = rules_of(runs, 9, res);
+    CHECK(r.ncandidates == 0);
+    rules_free(&r);
+    memcpy(res, results, sizeof results);
+    /* a passing build seven days from a failing one counts, eight days does not; before it as after it */
+    runs[5].p.built = D0 + 9 * DAY;
+    r = rules_of(runs, 9, res);
+    CHECK(r.ncandidates == 1);
+    rules_free(&r);
+    runs[5].p.built = D0 + 10 * DAY;
+    r = rules_of(runs, 9, res);
+    CHECK(r.ncandidates == 0);
+    rules_free(&r);
+    runs[5].p.built = D0 - 7 * DAY;
+    r = rules_of(runs, 9, res);
+    CHECK(r.ncandidates == 1);
+    rules_free(&r);
+    runs[5].p.built = D0 - 8 * DAY;
+    r = rules_of(runs, 9, res);
+    CHECK(r.ncandidates == 0);
+    rules_free(&r);
+    runs[5].p.built = 0; /* no build day: the day it came */
+    runs[5].when = D0 - 8 * DAY;
+    r = rules_of(runs, 9, res);
+    CHECK(r.ncandidates == 0);
+    rules_free(&r);
+    /* the version above that fails too is a mixed end; with none above, no end */
+    memcpy(runs, base, sizeof base);
+    runs[9] = rule_run(10, 109, "ScarletNX", 3, V(26, 2, 0), "linux", "2222222", D0 + 3 * DAY, "graphics");
+    res[9] = ST_FAIL;
+    r = rules_of(runs, 10, res);
+    CHECK(r.ncandidates == 1 && r.candidates[0].mixed && r.candidates[0].high == V(26, 2, 0));
+    rules_free(&r);
+    res[3] = ST_SKIP; /* 26.2.0 passes nowhere now */
+    r = rules_of(runs, 9, res);
+    CHECK(r.ncandidates == 1 && r.candidates[0].high == 0);
+    if (r.ncandidates == 1) SAME(r.candidates[0].versions, ">= 26.1.0");
+    rules_free(&r);
+    memcpy(res, results, sizeof results);
+    /* a version that passes splits the range: the part below has too few failures, the part above enough */
+    {
+        StProbeRun split[] = {
+            rule_run(1, 101, "ScarletNX", 3, V(26, 1, 0), "linux", "1111111", D0, "graphics"),
+            rule_run(2, 102, "ScarletNX", 3, V(26, 1, 0), "linux", "1111111", D0, "graphics"),
+            rule_run(3, 103, "ScarletNX", 3, V(26, 1, 4), "linux", "1111111", D0, "graphics"),
+            rule_run(4, 101, "ScarletNX", 3, V(26, 1, 8), "linux", "1111111", D0, "graphics"),
+            rule_run(5, 102, "ScarletNX", 3, V(26, 1, 8), "linux", "1111111", D0, "graphics"),
+            rule_run(6, 104, "ScarletNX", 3, V(26, 1, 8), "linux", "1111111", D0, "graphics"),
+            rule_run(7, 105, "ScarletNX", 4, 0x9b404000UL, "windows", "1111111", D0, "graphics"),
+            rule_run(8, 106, "ScarletNX", 4, 0x9b404000UL, "windows", "1111111", D0, "graphics"),
+            rule_run(9, 107, "ScarletNX", 6, V(25, 3, 5), "linux", "1111111", D0, "graphics"),
+        };
+        int split_res[] = {ST_FAIL, ST_FAIL, ST_PASS, ST_FAIL, ST_FAIL, ST_FAIL, ST_PASS, ST_PASS, ST_PASS};
+        r = rules_of(split, 9, split_res);
+        CHECK(r.ncandidates == 1);
+        if (r.ncandidates == 1) {
+            SAME(r.candidates[0].versions, ">= 26.1.8");
+            CHECK(r.candidates[0].nfailing == 3 && r.candidates[0].people == 3);
+        }
+        rules_free(&r);
+        /* the same driver on another system is another range: its runs do not join */
+        split[3].p.os = (char*)"android";
+        r = rules_of(split, 9, split_res);
+        CHECK(r.ncandidates == 0);
+        rules_free(&r);
+    }
+    /* Eden's failures show beside a candidate and count for none; another mode is another comparison */
+    memcpy(runs, base, sizeof base);
+    runs[2].p.emulator = (char*)"Eden";
+    r = rules_of(runs, 9, res);
+    CHECK(r.ncandidates == 0);
+    rules_free(&r);
+    memcpy(runs, base, sizeof base);
+    runs[2].p.words = (char*)"graphics notime";
+    r = rules_of(runs, 9, res);
+    CHECK(r.ncandidates == 0);
+    rules_free(&r);
+    /* the extensions on in every failing run */
+    memcpy(runs, base, sizeof base);
+    runs[0].p.extensions = (char*)"VK_EXT_a, VK_EXT_b, VK_EXT_c";
+    runs[1].p.extensions = (char*)"VK_EXT_c,VK_EXT_a";
+    runs[2].p.extensions = (char*)" VK_EXT_a , VK_EXT_c, VK_EXT_d";
+    r = rules_of(runs, 9, res);
+    CHECK(r.ncandidates == 1);
+    if (r.ncandidates == 1) SAME(r.candidates[0].extensions, "VK_EXT_a, VK_EXT_c");
+    rules_free(&r);
+    /* ScarletNX's own: failing on three drivers, which no candidate is then; on every driver seen, two of them */
+    memcpy(runs, base, sizeof base);
+    res[3] = res[4] = res[5] = res[6] = ST_FAIL;
+    r = rules_of(runs, 9, res);
+    CHECK(r.ngeneral == 1 && r.ncandidates == 0);
+    if (r.ngeneral == 1) {
+        CHECK(r.general[0].ndrivers == 3 && r.general[0].seen == 3 && r.general[0].nreports == 7);
+        CHECK(r.general[0].eden_runs == 1 && r.general[0].eden_pass == 0);
+    }
+    rules_free(&r);
+    res[3] = ST_PASS; /* radv passes on 26.2.0: a driver with a pass is not one that fails */
+    r = rules_of(runs, 9, res);
+    CHECK(r.ngeneral == 0);
+    rules_free(&r);
+    res[3] = ST_FAIL;
+    res[6] = ST_PASS; /* anv passes: two of three drivers fail, radv and nvidia */
+    r = rules_of(runs, 9, res);
+    CHECK(r.ngeneral == 0);
+    rules_free(&r);
+    res[6] = ST_SKIP; /* anv says nothing: both drivers seen fail */
+    r = rules_of(runs, 9, res);
+    CHECK(r.ngeneral == 1);
+    rules_free(&r);
+    {
+        int one[] = {ST_FAIL, ST_FAIL, ST_FAIL, ST_FAIL, ST_SKIP, ST_SKIP, ST_SKIP, ST_FAIL, ST_PASS};
+        r = rules_of(runs, 9, one); /* one driver seen: no rule says whose */
+        CHECK(r.ngeneral == 0 && r.ncandidates == 0);
+        rules_free(&r);
+        runs[7].p.driver_id = 24; /* Eden failing on another driver is no driver ScarletNX was seen on */
+        r = rules_of(runs, 9, one);
+        CHECK(r.ngeneral == 0);
+        rules_free(&r);
+        runs[7].p.driver_id = 3;
+    }
+    memcpy(res, results, sizeof results);
+    /* three drivers of five fail it: ScarletNX's, though two others pass it often enough to clear radv */
+    {
+        StProbeRun five[] = {
+            rule_run(1, 101, "ScarletNX", 3, V(26, 1, 8), "linux", "1111111", D0, "graphics"),
+            rule_run(2, 102, "ScarletNX", 3, V(26, 1, 8), "linux", "1111111", D0, "graphics"),
+            rule_run(3, 103, "ScarletNX", 3, V(26, 1, 8), "linux", "1111111", D0, "graphics"),
+            rule_run(4, 104, "ScarletNX", 4, 0x9b404000UL, "windows", "1111111", D0, "graphics"),
+            rule_run(5, 105, "ScarletNX", 6, V(25, 3, 5), "linux", "1111111", D0, "graphics"),
+            rule_run(6, 106, "ScarletNX", 18, V(26, 1, 8), "android", "1111111", D0, "graphics"),
+            rule_run(7, 107, "ScarletNX", 18, V(26, 1, 8), "android", "1111111", D0, "graphics"),
+            rule_run(8, 108, "ScarletNX", 24, V(26, 1, 8), "linux", "1111111", D0, "graphics"),
+        };
+        int five_res[] = {ST_FAIL, ST_FAIL, ST_FAIL, ST_FAIL, ST_FAIL, ST_PASS, ST_PASS, ST_PASS};
+        r = rules_of(five, 8, five_res);
+        CHECK(r.ngeneral == 1 && r.ncandidates == 0);
+        if (r.ngeneral == 1) CHECK(r.general[0].ndrivers == 3 && r.general[0].seen == 5);
+        rules_free(&r);
+        five_res[4] = ST_PASS; /* two drivers fail of five: radv is the candidate, and the failure no one's own */
+        r = rules_of(five, 8, five_res);
+        CHECK(r.ngeneral == 0 && r.ncandidates == 1);
+        rules_free(&r);
+    }
+    /* a regression: passed on a build, failed on each after it, on one driver and version */
+    {
+        StProbeRun builds[] = {
+            rule_run(1, 101, "ScarletNX", 3, V(26, 1, 8), "linux", "aaaaaaa", D0, "graphics"),
+            rule_run(2, 102, "ScarletNX", 3, V(26, 1, 8), "linux", "aaaaaaa", D0, "graphics"),
+            rule_run(3, 101, "ScarletNX", 3, V(26, 1, 8), "linux", "bbbbbbb", D0 + DAY, "graphics"),
+            rule_run(4, 103, "ScarletNX", 3, V(26, 1, 8), "linux", "ccccccc", D0 + 2 * DAY, "graphics"),
+            rule_run(5, 104, "ScarletNX", 3, V(26, 1, 8), "linux", "ccccccc", D0 + 2 * DAY, "graphics"),
+            rule_run(6, 105, "ScarletNX", 3, V(26, 2, 0), "linux", "ccccccc", D0 + 2 * DAY, "graphics"),
+            rule_run(7, 106, "ScarletNX", 3, V(26, 1, 8), "linux", "ddddddd-dirty", D0 + 3 * DAY, "graphics"),
+        };
+        int regress[] = {ST_PASS, ST_PASS, ST_FAIL, ST_FAIL, ST_FAIL, ST_PASS, ST_PASS};
+        r = rules_of(builds, 7, regress);
+        CHECK(r.nregressions == 1);
+        if (r.nregressions == 1) {
+            RuleRegression* g = &r.regressions[0];
+            SAME(g->passed_commit, "aaaaaaa");
+            SAME(g->failed_commit, "bbbbbbb");
+            CHECK(g->passed_report == 1 && g->failed_report == 3 && g->builds == 2 && g->driver_id == 3);
+            CHECK(g->driver_version == V(26, 1, 8) && g->failed_built == D0 + DAY);
+        }
+        rules_free(&r);
+        regress[4] = ST_PASS; /* the newest build passes in one run: not a build that fails */
+        r = rules_of(builds, 7, regress);
+        CHECK(r.nregressions == 0);
+        rules_free(&r);
+        regress[4] = ST_FAIL;
+        regress[1] = ST_FAIL; /* the build before passes in one run only: no build that passed */
+        r = rules_of(builds, 7, regress);
+        CHECK(r.nregressions == 0);
+        rules_free(&r);
+        regress[1] = ST_PASS;
+        builds[6].p.commit = (char*)"ddddddd"; /* a published build after them that passes: fixed */
+        r = rules_of(builds, 7, regress);
+        CHECK(r.nregressions == 0);
+        rules_free(&r);
+    }
+}
+
+static int rules_only(void) {
+    test_rules();
+    fprintf(stderr, "tracer rules: %d of %d checks passed\n", checks - failures, checks);
+    return failures != 0;
+}
+
 int main(int argc, char** argv) {
     char *db, *command;
+    if (argc == 2 && !strcmp(argv[1], "--rules")) return rules_only(); /* scripts/test-rule-mutants.sh's */
     if (argc == 2) return as_worker(argv[1]);
     rei_now = clock_now;
     strcpy(site, "/tmp/tracer-test-XXXXXX");
@@ -3434,6 +3723,7 @@ int main(int argc, char** argv) {
     test_probe_parts();
     test_probe_lines();
     test_probe_zip();
+    test_rules();
     if (tracer.store) {
         test_reports();
         test_mcp();

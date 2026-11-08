@@ -15,6 +15,7 @@
 * [Commands](#commands)
 * [Issues](#issues)
 * [How old a build is](#how-old-a-build-is)
+* [What the runs say together](#what-the-runs-say-together)
 * [What it keeps of people](#what-it-keeps-of-people)
 * [The site](#the-site)
 * [Settings](#settings)
@@ -199,6 +200,38 @@ query a commit (its day, main's, how far behind main it is, the newest nightly),
 hour, as main and the nightlies move. There is no line for a build that has every commit of main, a build of the newest
 nightly, one without git, or when GitHub does not answer (said in the log, and asked again at the next report).
 Without the token nothing is asked, and only a `-dirty` build is said.
+
+## What the runs say together
+
+Fixed rules over the runs of edenprobe (`tracer/src/rules.c`), each comparing one case of one edenprobe version run
+with the same words, and counting ScarletNX's runs; Eden's are shown beside them, as a second emulator failing a case
+on the same driver points at the driver. A case fails where its result is `fail`; a skip, a crash among them, says
+nothing. Nothing here is applied: a person reads it and decides.
+
+- **A ban candidate**, for a case on a driver (its VkDriverId) and a system's family, when all three hold:
+  1. it fails in 3 reports or more, from 2 people or more, in a range of that driver's versions: the versions seen in a
+     row, sorted, where it fails and never passes;
+  2. it passes in 3 reports or more of 2 other drivers or more, whose builds are at most 7 days from a failing
+     report's (the day the build's commit was made, else the day the report came): without that, the failure is
+     ScarletNX's;
+  3. the range runs from its lowest version to the next version seen above it, where the case passes (or passes and
+     fails: a mixed end, said so), or has no end when none is seen: failing on 26.1.0 to 26.1.8 and passing on 26.2.0
+     is `>= 26.1.0 < 26.2.0`.
+
+  With it come the reports, the people, Eden's runs of the case on that driver, the optional extensions every failing
+  run's log lists as on (`vulkan: optional extensions on: ...`, where the runtime logs that line), and a draft line in
+  the ban table's format (ScarletNX's `src/nx/gpu/vk/extension_bans.txt`), its key `<key>` for a person to choose, as
+  the runs cannot say which extension or feature breaks:
+
+      <key> | off | radv | >= 26.1.0 < 26.2.0 | linux | * | fails edenprobe's astc case "..." | Tracer #12, #15, #18; edenprobe 0.9.0 "..." | edenprobe:astc: ... | 2026-11-07 broken on 26.1.8 | -
+
+- **ScarletNX's own failure**: a case that fails on 3 drivers or more, or on every driver seen when two or more are; a
+  driver counts as failing when its runs fail the case and none passes it. Such a case is no ban candidate. Eden's
+  runs on those drivers are counted beside it: where Eden passes it, the failure is ScarletNX's to fix.
+- **A regression**: on one driver, one version of it and one system's family, a case that passed in every run of a
+  build and fails in every run of each build after it, to the newest; builds of published commits only (no `-dirty`),
+  in the order of their commits' days. The last build that passed and the first that failed bound the commits to look
+  at.
 
 ## What it keeps of people
 

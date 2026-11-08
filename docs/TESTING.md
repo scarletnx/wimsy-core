@@ -17,7 +17,7 @@
 What CI runs on each pull request and each push to main (`.github/workflows/test.yml`), with no network and no
 Discord:
 
-    make -C rei test && make -C accordwimsy test && make -C tracer test &&
+    make -C rei test && make -C accordwimsy test && make -C tracer test && python3 scripts/test-rule-mutants.py &&
         sh scripts/test-install.sh && python3 scripts/test-check-docs.py && python3 scripts/check-docs.py &&
         sh scripts/test-check-theme.sh && sh scripts/check-theme.sh
 
@@ -82,7 +82,18 @@ temporary folder:
   none); the run in a Share Log zip, a run begun, none; whole runs as reports (the reply's counts and what was left
   out, the database and the kept log without the player, no game's list, the same run again from one person and from
   another, Eden's and the console's, deleted with their message, a resumed launch kept as a log, one through the
-  worker), and a report kept before made the run's at the next start.
+  worker), and a report kept before made the run's at the next start;
+- the rules over the runs ([What the runs say together](./TRACER.md#what-the-runs-say-together)), on fixtures that sit
+  on each threshold: a candidate and its draft line, and none with one person, two failing reports, one other driver,
+  two passing reports, a passing build eight days before or after (seven count), a failure Eden's or of another mode;
+  a mixed end, no end, a range a passing version splits, another system's runs apart, the extensions every failing
+  run has; ScarletNX's own failure on three drivers of five (no candidate then) and on both of two, and none on one or
+  with a driver that passes; a regression, and none when the newest build passes once, the build before fails once,
+  or a published build after passes, a `-dirty` one left out.
+
+`python3 scripts/test-rule-mutants.py` then changes `tracer/src/rules.c` one way at a time in a copy of the tree (a
+threshold one off, a comparison that lets one more in, a condition left out: 19 mutants) and expects `test_tracer
+--rules` to fail on each; a mutant it passes, or one whose text `rules.c` no longer has, fails it. About 10 s.
 
 ## The docs
 
