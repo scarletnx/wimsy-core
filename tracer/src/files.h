@@ -8,8 +8,8 @@
 #include "tracer.h"
 
 typedef enum { TR_OTHER, TR_LOG, TR_IMAGE, TR_VIDEO } TrKind;
-/* by the file's name (.log, .txt, .gz, .zip; .png, .jpg, .jpeg, .webp, .gif, .ppm; .mp4, .m4v, .webm) or Discord's
-   content type */
+/* by the file's name (.log, .txt, .jsonl, .gz, .zip; .png, .jpg, .jpeg, .webp, .gif, .ppm; .mp4, .m4v, .webm) or
+   Discord's content type */
 TrKind tr_kind(const char* name, const char* type);
 
 /* the image's kind from its first bytes: "png", "jpg", "gif", "webp" or "ppm" (a binary PPM, P6, which ScarletNX's
@@ -33,9 +33,19 @@ size_t tr_strip_video(char* data, size_t n);
    a PPM that isn't whole or is bigger than 16384 pixels a side */
 int tr_ppm_png(const char* data, size_t n, Buf* out);
 
-/* a log as text: a .gz's or a .zip's (its first .log or .txt, else its first file) unpacked, any other name's bytes
-   as they are, max bytes at most. 0, or -1 with why (owned) */
+/* a log as text: a .gz's or a .zip's unpacked, any other name's bytes as they are, max bytes at most. Of a .zip, the
+   entry that holds a whole run of edenprobe (probe.h), else one a run begins in, else its first .log, .txt or .jsonl,
+   else its first file; its entries are read in looking for the run up to 256 MiB in all. 0, or -1 with why (owned) */
 int tr_unpack(const char* name, const char* data, size_t n, size_t max, Buf* out, char** why);
+/* the name the text tr_unpack made of name is saved as: a .gz's without its .gz ("game.log.gz" as "game.log"), with
+   .log after it when what is left is no .log, .txt or .jsonl; a .zip's with .log for its .zip ("logs.zip" as
+   "logs.log"); any other name as it is. The site keeps the text, never the archive. Owned */
+char* tr_unpacked_name(const char* name);
+
+/* "[   2.25] " before a line, the time the runtime prints (its point a comma under some locales), or Eden's
+   "[  12.345678] ": its length, 0 without one. As logscan.c's stamp(), it takes one space after the bracket, so a
+   dump's indent is what follows */
+size_t tr_stamp(const char* s, size_t n);
 
 /* the n bytes of text with each byte that is not part of valid UTF-8 as U+FFFD, and each NUL left out; owned */
 char* tr_utf8(const char* text, size_t n);

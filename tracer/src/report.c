@@ -236,6 +236,9 @@ static cJSON* help(void) {
         "Mention me with a ScarletNX log attached (.log, .txt, .gz or .zip), and screenshots if you have "
         "them. I keep them as a report on the site, grouped by game. The log says which game it is: when it "
         "does not, write the game's name in the message.\n\n"
+        "A run of edenprobe is a report of its own, apart from the games: ScarletNX's log of the run (alone, or in "
+        "the Share Log zip), Eden's log of it, or its report.jsonl (the console's, as it names no machine). The "
+        "detail of its service, net and pad cases is left out, as it can name you.\n\n"
         "Home folders in a log are shown as ~, and screenshots lose their metadata. The site does not show "
         "who sent a report.\n\n"
         "To add logs, screenshots or a note to a report, reply to it (or to my answer) and mention me, or write "
@@ -302,6 +305,8 @@ void tr_taken_free(Taken* k) {
     free(k->dir);
     cJSON_Delete(k->first);
     buf_free(&k->skipped);
+    probe_free(&k->probe);
+    free(k->probe_why);
     memset(k, 0, sizeof *k);
 }
 /* n bytes of data written into the folder dirfd (k->dir) as the next file's, by its name alone, as a worker shut in
@@ -331,10 +336,12 @@ static int stash(Taken* k, int dirfd, const char* data, size_t n) {
 
 static void take_log(Taken* k, int dirfd, const TrAttachment* a, Buf* got) {
     Buf text = {0};
-    char *why = NULL, *tilded, *shown, *summary;
+    char *why = NULL, *tilded, *shown, *summary, *cut;
     size_t n;
     cJSON* parsed;
     StFile* f;
+    Probe probe;
+    int run, cases, notes, first = !k->logs && !k->logs_had && !k->base;
     if (tr_unpack(a->name, got->text, got->len, TR_LOG_MAX, &text, &why)) {
         skip(k, a->name, why);
         free(why);
@@ -352,10 +359,15 @@ static void take_log(Taken* k, int dirfd, const TrAttachment* a, Buf* got) {
     }
     shown = tr_public_log(tilded, n, &n);
     free(tilded);
+    cut = probe_cut(shown, n, &n, &cases, &notes); /* what edenprobe's lines would say of the player, out */
+    free(shown);
+    shown = cut;
     summary = summary_of(shown, n);
     parsed = summary ? cJSON_Parse(summary) : NULL;
-    if (!is_log(parsed)) {
-        skip(k, a->name, "not a ScarletNX log");
+    run = probe_parse(shown, n, &probe, &why);
+    if (!is_log(parsed) && run != 1) {
+        skip(k, a->name, run < 0 ? why : "not a ScarletNX log, nor a run of edenprobe");
+        free(why);
         cJSON_Delete(parsed);
         free(summary);
         free(shown);
@@ -363,12 +375,24 @@ static void take_log(Taken* k, int dirfd, const TrAttachment* a, Buf* got) {
     }
     if (stash(k, dirfd, shown, n)) {
         skip(k, a->name, "it could not be written down");
+        if (run == 1) probe_free(&probe);
+        free(why);
         cJSON_Delete(parsed);
         free(summary);
         free(shown);
         return;
     }
     free(shown);
+    if (first && run == 1) { /* a new report's first log: the report is the run's */
+        probe.cut_cases = cases;
+        probe.cut_notes = notes;
+        k->probe = probe;
+        k->probed = 1;
+    } else {
+        if (first && run < 0) k->probe_why = rei_format("%s: %s", a->name, why);
+        if (run == 1) probe_free(&probe);
+    }
+    free(why);
     if (!k->first)
         k->first = parsed;
     else
@@ -619,6 +643,11 @@ static cJSON* made(Tracer* t, const StReport* r, const Taken* k) {
         add_field(e, "Not kept", skipped);
         free(skipped);
     }
+    if (k->probe_why) { /* lines of edenprobe that are no whole run: kept as a log, not on the Probe pages */
+        char* why = plain(k->probe_why, 1000);
+        add_field(e, "Not a run of edenprobe", why);
+        free(why);
+    }
     {
         cJSON* footer = cJSON_AddObjectToObject(e, "footer");
         char* how = rei_format("@Tracer delete %ld deletes it", r->id);
@@ -693,6 +722,149 @@ static int written(Tracer* t, long id, Taken* k) {
     return failed ? -1 : 0;
 }
 
+/* the answer for report r, the run of edenprobe k's first log holds: "edenprobe 0.9.0 on radv, Mesa 26.1.8 (Linux):
+   1034 passed, 26 failed (astc 15, ...), 6 skipped, 3 crashed", and what the run lacks or lost said under it */
+static cJSON* probe_made(Tracer* t, const StReport* r, const Taken* k) {
+    const Probe* p = &k->probe;
+    char *title = rei_format("Report #%ld: edenprobe %s on %s", r->id, p->version, p->emulator),
+         *cut = plain(title, 250), *url = rei_format("%s/r/%ld/", t->url, r->id), *machine = probe_machine(p),
+         *counts = probe_counts(p), *files;
+    long lines = 0, failed = 0, crashed = 0;
+    int i;
+    Buf text = {0};
+    cJSON* e;
+    for (i = 0; i < p->ncases; ++i) {
+        failed += !strcmp(p->cases[i].result, "fail");
+        crashed += !strcmp(p->cases[i].reason, "crashed");
+    }
+    lines = p->ncases + p->over;
+    buf_printf(&text, "edenprobe %s on %s: %s", p->version, machine, counts);
+    if (!p->whole)
+        buf_printf(&text, "\nNo summary line: the run stopped before its end, after %ld case lines.", lines);
+    else if (p->passed + p->failed + p->skipped + p->crashed != lines)
+        buf_printf(&text,
+                   "\nThe summary counts %ld cases and the log has %ld case lines: a launch that went on after a "
+                   "crash leaves only its own; the run's report.jsonl has them all.",
+                   p->passed + p->failed + p->skipped + p->crashed, lines);
+    if (p->over) buf_printf(&text, "\n%d case lines past the first %d were not kept.", p->over, PROBE_CASES);
+    if (p->unread)
+        buf_printf(&text, "\n%d of its lines were none that edenprobe writes, and were not read.", p->unread);
+    if (!strcmp(p->emulator, "console") && !p->driver_name)
+        buf_add(&text, "\nA report.jsonl names no machine: it is kept as the console's reference. If an emulator ran "
+                       "it, send that emulator's log instead.");
+    if (p->inferred)
+        buf_printf(&text, "\n%s logs no driver ID: %s.", p->emulator,
+                   p->driver_id ? "it is read from the driver's name" : "its driver's name says none");
+    {
+        char* said_text = plain(text.text, 3900);
+        e = embed(cut, said_text, failed || p->failed > 0 ? TONE_BAD : crashed || p->crashed > 0 ? TONE_WARN : TONE_OK);
+        free(said_text);
+    }
+    jset(e, "url", url);
+    if (p->emulator_version) {
+        char* build = plain(p->emulator_version, 200);
+        add_field(e, "Build", build);
+        free(build);
+    }
+    files = kept(k, "");
+    add_field(e, "Kept", files);
+    if (p->cut_cases || p->cut_notes) {
+        char* left = rei_format("the detail of %d %s of the service, net and pad families (or of no family edenprobe "
+                                "names) and %d net %s, which can name the player",
+                                p->cut_cases, p->cut_cases == 1 ? "case" : "cases", p->cut_notes,
+                                p->cut_notes == 1 ? "note" : "notes");
+        add_field(e, "Left out", left);
+        free(left);
+    }
+    if (k->skipped.len) {
+        char* skipped = plain(k->skipped.text, 1000);
+        add_field(e, "Not kept", skipped);
+        free(skipped);
+    }
+    {
+        cJSON* footer = cJSON_AddObjectToObject(e, "footer");
+        char* how = rei_format("@Tracer delete %ld deletes it", r->id);
+        jset(footer, "text", how);
+        free(how);
+    }
+    buf_free(&text);
+    free(files);
+    free(counts);
+    free(machine);
+    free(url);
+    free(cut);
+    free(title);
+    return e;
+}
+
+/* the report of k's files, whose first log holds a run of edenprobe, sent as m: kept under PROBE_KEY with the run, or
+   the link of the report m's author sent of the same run before */
+static cJSON* probed(Tracer* t, const TrMessage* m, Taken* k, const char* note, long* report) {
+    const Probe* p = &k->probe;
+    char digest[17], *text;
+    long seen;
+    StReport r;
+    cJSON* e;
+    int scarletnx = !strcmp(p->emulator, "ScarletNX");
+    probe_digest(p, digest);
+    if ((seen = st_probe_seen(t->store, m->author, digest))) {
+        char* url = rei_format("%s/r/%ld/", t->url, seen);
+        text = rei_format("This run of edenprobe is report #%ld already: its lines are the same, so nothing was kept "
+                          "again.",
+                          seen);
+        e = said(text);
+        jset(e, "url", url);
+        free(url);
+        free(text);
+        tr_taken_free(k);
+        return e;
+    }
+    memset(&r, 0, sizeof r);
+    r.key = rei_strdup(PROBE_KEY);
+    r.title = rei_format("edenprobe %s on %s", p->version, p->emulator);
+    r.named = 1;
+    r.when = rei_now();
+    r.guild = m->guild;
+    r.channel = m->channel;
+    r.message = m->id;
+    r.poster = m->author;
+    r.note = *note ? rei_strdup(note) : NULL;
+    r.version = rei_strdup(p->version);
+    if (scarletnx) { /* the log summary's facts of ScarletNX's own log, as any report's */
+        r.build = dup_of(k->first, "build");
+        r.commit = dup_of(k->first, "commit");
+        r.branch = dup_of(k->first, "branch");
+        r.outcome = dup_of(k->first, "outcome");
+        r.signature = dup_of(k->first, "signature");
+        r.missed = tr_missed(k->first);
+        r.age = tr_age_line(t->age, t->store, r.commit, r.branch);
+    } else if (p->emulator_version)
+        r.build = rei_strdup(p->emulator_version);
+    r.system = p->system ? rei_strdup(p->system) : NULL;
+    r.gpu = p->gpu ? rei_strdup(p->gpu) : NULL;
+    r.driver = p->driver_text ? rei_strdup(p->driver_text) : p->driver_info ? rei_strdup(p->driver_info) : NULL;
+    if (st_add(t->store, &r, k->files, k->n) || st_probe_set(t->store, r.id, p, digest)) {
+        if (r.id) st_remove(t->store, r.id);
+        st_report_free(&r);
+        tr_taken_free(k);
+        return said("The report could not be kept: try again later, please.");
+    }
+    if (written(t, r.id, k)) {
+        site_forget(t->root, r.id, k->files, k->n);
+        st_remove(t->store, r.id);
+        st_report_free(&r);
+        tr_taken_free(k);
+        return said("The report could not be kept: try again later, please.");
+    }
+    site_update(t->store, t->root, r.id, r.key);
+    rei_log("report #%ld: a run of edenprobe %s on %s, %d cases", r.id, p->version, p->emulator, p->ncases);
+    e = probe_made(t, &r, k);
+    *report = r.id;
+    st_report_free(&r);
+    tr_taken_free(k);
+    return e;
+}
+
 /* the report of m's files, which asker asked for: m itself, or the message asker replied to (its author the one who
    sent the report). The hourly limit counts asker */
 static cJSON* reported(Tracer* t, const TrMessage* asker, const TrMessage* m, const char* note, long* report) {
@@ -716,6 +888,7 @@ static cJSON* reported(Tracer* t, const TrMessage* asker, const TrMessage* m, co
         tr_taken_free(&k);
         return e;
     }
+    if (k.probed) return probed(t, m, &k, note, report);
     memset(&r, 0, sizeof r);
     if (tr_game(k.first, note, &r.key, &r.title, &r.title_id, &r.named)) {
         tr_taken_free(&k);
@@ -1087,7 +1260,8 @@ int tr_rescan(Tracer* t, const char* version) {
     for (i = 0; i < n; ++i) {
         StReport now, *r = &now;
         StFile* files;
-        int nfiles, k, first = 1;
+        Probe run;
+        int nfiles, k, first = 1, has_run = 0;
         if (st_get(t->store, all[i].id, r, &files, &nfiles) != 1) continue;
         for (k = 0; k < nfiles; ++k) {
             char *path, *text, *shown, *summary;
@@ -1105,7 +1279,13 @@ int tr_rescan(Tracer* t, const char* version) {
             len = b.len;
             text = buf_take(&b);
             shown = tr_public_log(text, len, &shown_len);
-            if (shown_len != len) { /* a log kept before the site left its dumps out */
+            { /* and without what edenprobe's lines would say of the player */
+                int cases, notes;
+                char* cut = probe_cut(shown, shown_len, &shown_len, &cases, &notes);
+                free(shown);
+                shown = cut;
+            }
+            if (shown_len != len || memcmp(shown, text, len)) { /* a log kept before the site left these out */
                 char* rel = rei_format("r/%ld/%s", r->id, files[k].path);
                 if (!site_write(t->root, rel, shown, shown_len))
                     st_set_bytes(t->store, r->id, files[k].n, (double)shown_len);
@@ -1113,13 +1293,30 @@ int tr_rescan(Tracer* t, const char* version) {
             }
             free(text);
             summary = summary_of(shown, shown_len);
+            if (first) { /* the first log's run of edenprobe makes the report the run's, read again */
+                char *why = NULL, digest[17];
+                if ((has_run = probe_parse(shown, shown_len, &run, &why) == 1)) {
+                    probe_digest(&run, digest);
+                    if (!st_probe_set(t->store, r->id, &run, digest) && strcmp(r->key, PROBE_KEY)) {
+                        char* title = rei_format("edenprobe %s on %s", run.version, run.emulator);
+                        if (!st_set_game(t->store, r->id, PROBE_KEY, title, NULL, 1)) {
+                            rei_log("report #%ld is a run of edenprobe, not a report of %s", r->id, r->key);
+                            site_update(t->store, t->root, 0, r->key);
+                            free(r->key);
+                            r->key = rei_strdup(PROBE_KEY);
+                        }
+                        free(title);
+                    }
+                }
+                free(why);
+            }
             free(shown);
             if (!summary) continue;
             st_set_summary(t->store, r->id, files[k].n, summary);
             if (first) { /* the report's facts are its first log's, and so is its game when the log names another */
                 cJSON* s = cJSON_Parse(summary);
                 StReport facts = *r;
-                refile(t, r, s);
+                if (strcmp(r->key, PROBE_KEY)) refile(t, r, s);
                 facts.version = (char*)jstr(s, "game_version");
                 facts.build = (char*)jstr(s, "build");
                 facts.commit = (char*)jstr(s, "commit");
@@ -1131,6 +1328,20 @@ int tr_rescan(Tracer* t, const char* version) {
                 facts.signature = (char*)jstr(s, "signature");
                 facts.missed = tr_missed(s);
                 facts.console = (char*)jstr(s, "console");
+                if (has_run) { /* a run's facts, as probed keeps them: Eden's and a report.jsonl's from the run */
+                    int scarletnx = !strcmp(run.emulator, "ScarletNX");
+                    facts.version = run.version;
+                    facts.system = run.system;
+                    facts.gpu = run.gpu;
+                    facts.driver = run.driver_text ? run.driver_text : run.driver_info;
+                    facts.console = NULL;
+                    if (!scarletnx) {
+                        facts.build = run.emulator_version;
+                        facts.commit = facts.branch = facts.outcome = facts.signature = NULL;
+                        free(facts.missed);
+                        facts.missed = NULL;
+                    }
+                }
                 st_set_facts(t->store, &facts);
                 free(facts.missed);
                 cJSON_Delete(s);
@@ -1138,6 +1349,7 @@ int tr_rescan(Tracer* t, const char* version) {
             }
             free(summary);
         }
+        if (has_run) probe_free(&run);
         st_files_free(files, nfiles);
         st_report_free(r);
         ++done;

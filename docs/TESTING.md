@@ -17,7 +17,7 @@
 What CI runs on each pull request and each push to main (`.github/workflows/test.yml`), with no network and no
 Discord:
 
-    make -C rei test && make -C accordwimsy test && make -C tracer test &&
+    make -C rei test && make -C accordwimsy test && make -C tracer test && python3 scripts/test-rule-mutants.py &&
         sh scripts/test-install.sh && python3 scripts/test-check-docs.py && python3 scripts/check-docs.py &&
         sh scripts/test-check-theme.sh && sh scripts/check-theme.sh
 
@@ -47,8 +47,8 @@ usage.
 temporary folder:
 
 - the events and what a message asks; which files are logs, screenshots and videos; the logs unpacked from a `.gz` and
-  a `.zip`; the screenshots' metadata taken out (PNG, JPEG, WebP, GIF) and broken ones refused; an MP4's place and
-  camera blanked; text made valid UTF-8;
+  a `.zip`, and the name each downloads as from the site (a log's, never the archive's); the screenshots' metadata
+  taken out (PNG, JPEG, WebP, GIF) and broken ones refused; an MP4's place and camera blanked; text made valid UTF-8;
 - the game a log names (and the older builds' titles, a garbled one, a name in another script); the crash report's
   dumps left out of a log as the log summary leaves them out; the games' names from the list (an update's and an
   add-on's ID, a report named at once, one named at the next start, a log's name first, a GBA game by its code, a
@@ -73,7 +73,38 @@ temporary folder:
   environment before the bot keeps it from its user's debuggers and not after, the bot's descriptors closed in it, no
   worker for a message without files;
 - the MCP server over that site: its handshake and protocol versions, notifications, broken and unknown requests, each
-  tool's filters, limits and errors, and a query's 16 words at most.
+  tool's filters, limits and errors, and a query's 16 words at most;
+- runs of edenprobe: edenprobe's families and which lose their detail, the drivers by the ban table's names and by
+  their own, each driver's version numbering both ways, the system's family; the cut of a log (the service, net, pad
+  and unknown suites' details and the net notes, every other byte as it was); ScarletNX's log, Eden's, rEden's and a
+  report.jsonl read, two copies of a run, a run cut short, a launch that went on after a crash, lines edenprobe does
+  not write; a run through JSON and the answers refused (another emulator, a detail the cut takes out, a case that is
+  none); the run in a Share Log zip, a run begun, none; whole runs as reports (the reply's counts and what was left
+  out, the database and the kept log without the player, no game's list, the same run again from one person and from
+  another, Eden's and the console's, deleted with their message, a resumed launch kept as a log, one through the
+  worker), and a report kept before made the run's at the next start;
+- the rules over the runs ([What the runs say together](./TRACER.md#what-the-runs-say-together)), on fixtures that sit
+  on each threshold: a candidate and its draft line, and none with one person, two failing reports, one other driver,
+  two passing reports, a passing build eight days before or after (seven count), a failure Eden's or of another mode;
+  a mixed end, no end, a range a passing version splits, another system's runs apart, the extensions every failing
+  run has; ScarletNX's own failure on three drivers of five (no candidate then) and on both of two, and none on one or
+  with a driver that passes; a regression, and none when the newest build passes once, the build before fails once,
+  or a published build after passes, a `-dirty` one left out;
+- the Probe pages over those runs: the matrix by machine, a case's page with its failures, a driver's, a run's report
+  page and JSON without the player; a ban candidate made of seven whole reports on three drivers, drawn with its draft
+  line on the candidates page and the driver's, given by the MCP server's `ban_candidates`, `probe_matrix` (by driver,
+  words, suite, failing or not) and `probe_case` (by key, by words, several, none, a key that is none), and gone with
+  its reports; a case no run names any more losing its page.
+
+`python3 scripts/test-rule-mutants.py` then changes `tracer/src/rules.c` one way at a time in a copy of the tree (a
+threshold one off, a comparison that lets one more in, a condition left out: 19 mutants) and expects `test_tracer
+--rules` to fail on each; a mutant it passes, or one whose text `rules.c` no longer has, fails it. About 10 s.
+
+`make -C tracer bench [RUNS=1000] [FOLDER=/tmp/tracer-bench]` (`tracer/tests/bench_probe.c`, built by `make test`,
+run by hand) keeps RUNS runs like edenprobe 0.9.0's graphics run (1069 cases) on fifteen machines in a new database in
+FOLDER and, at 1, 10, 100, 250, 500, 1000 runs and on, says the database's size, the Probe pages' and their JSON's, and
+the time the rules and every Probe page take, in the processor's seconds and, in brackets, the clock's (which a busy
+disk lengthens): what the runs cost where Tracer runs.
 
 ## The docs
 

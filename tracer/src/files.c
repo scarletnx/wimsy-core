@@ -8,13 +8,18 @@
 #include <strings.h>
 #include <zlib.h>
 
+#include "probe.h"
+
+/* the bytes a zip's entries are unpacked to at most in looking for the one that holds a run of edenprobe */
+#define ZIP_SCAN (TR_LOG_MAX * 4)
+
 static int ends(const char* name, const char* ext) {
     size_t n = strlen(name), e = strlen(ext);
     return n > e && !strcasecmp(name + n - e, ext);
 }
 
 TrKind tr_kind(const char* name, const char* type) {
-    static const char* const logs[] = {".log", ".txt", ".gz", ".zip"};
+    static const char* const logs[] = {".log", ".txt", ".jsonl", ".gz", ".zip"};
     static const char* const images[] = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".ppm"};
     static const char* const videos[] = {".mp4", ".m4v", ".webm"};
     size_t i;
@@ -371,22 +376,40 @@ int tr_unpack(const char* name, const char* data, size_t n, size_t max, Buf* out
         buf_addn(out, data, n);
         return 0;
     }
-    if (zip) { /* the first .log or .txt, else the first file */
+    if (zip) { /* an entry holding a whole run of edenprobe, else one a run begins in, else the first .log, .txt or
+                  .jsonl, else the first file: a Share Log zip holds many logs, one of which may be the run */
+        int text = -1, started = -1;
+        size_t read = 0;
         if (!(a = opened(1, data, n))) goto broken;
         for (at = 0; archive_read_next_header(a, &e) == ARCHIVE_OK; ++at) {
             const char* inner = archive_entry_pathname(e);
+            int marks, whole = 1;
             if (archive_entry_filetype(e) != AE_IFREG) continue;
             if (wanted < 0) wanted = at;
-            if (inner && (ends(inner, ".log") || ends(inner, ".txt"))) {
-                wanted = at;
-                break;
+            if (!inner || (!ends(inner, ".log") && !ends(inner, ".txt") && !ends(inner, ".jsonl"))) continue;
+            if (text < 0) text = at;
+            if (read >= ZIP_SCAN) continue; /* past what is read in looking for a run: the order above holds */
+            buf_free(out);
+            while ((got = archive_read_data(a, piece, sizeof piece)) > 0 && whole) {
+                read += (size_t)got;
+                whole = (size_t)got <= max - out->len;
+                if (whole) buf_addn(out, piece, (size_t)got);
             }
+            if (got < 0 || !whole) continue;
+            marks = probe_marks(out->text ? out->text : "", out->len);
+            if (marks == 2) { /* this one: read whole already */
+                archive_read_free(a);
+                return 0;
+            }
+            if (marks == 1 && started < 0) started = at;
         }
         archive_read_free(a);
+        buf_free(out);
         if (wanted < 0) {
             *why = rei_format("%s holds no file", name);
             return -1;
         }
+        wanted = started >= 0 ? started : text >= 0 ? text : wanted;
     }
     if (!(a = opened(zip, data, n))) goto broken;
     for (at = 0; archive_read_next_header(a, &e) == ARCHIVE_OK; ++at) {
@@ -409,6 +432,20 @@ broken:
     buf_free(out);
     *why = rei_format("%s could not be unpacked", name);
     return -1;
+}
+
+char* tr_unpacked_name(const char* name) {
+    size_t n = strlen(name);
+    if (ends(name, ".zip")) return rei_format("%.*s.log", (int)(n - 4), name);
+    if (ends(name, ".gz")) {
+        char* rest = rei_format("%.*s", (int)(n - 3), name);
+        char* named;
+        if (ends(rest, ".log") || ends(rest, ".txt") || ends(rest, ".jsonl")) return rest;
+        named = rei_format("%s.log", rest);
+        free(rest);
+        return named;
+    }
+    return rei_strdup(name);
 }
 
 char* tr_utf8(const char* text, size_t n) {
@@ -451,9 +488,7 @@ char* tr_utf8(const char* text, size_t n) {
     return buf_take(&b);
 }
 
-/* "[   2.25] " before a line, the time the runtime prints (its point a comma under some locales): its length, 0 without
-   one. As logscan.c's stamp(), it takes one space after the bracket, so a dump's indent is what follows */
-static size_t stamp(const char* s, size_t n) {
+size_t tr_stamp(const char* s, size_t n) {
     size_t i = 1, d;
     if (!n || s[0] != '[') return 0;
     while (i < n && s[i] == ' ') ++i;
@@ -470,7 +505,7 @@ static size_t stamp(const char* s, size_t n) {
 static int dump_line(const char* s, size_t n) {
     static const char* const prefixes[] = {
         "code ", "mem ", "vtable:", "-> ", "pc=", "cpsr=", "info+", "data:", "(the rest"};
-    size_t i = stamp(s, n), indent, k, d;
+    size_t i = tr_stamp(s, n), indent, k, d;
     for (indent = i; i < n && (s[i] == ' ' || s[i] == '\t'); ++i) continue;
     if (i == indent) return 0;
     s += i;

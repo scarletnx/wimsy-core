@@ -253,6 +253,8 @@ int wk_serve(FILE* in, FILE* out, TrGet get, void* ctx) {
     cJSON_AddNumberToObject(a, "videos", k.videos);
     jset(a, "skipped", k.skipped.text ? k.skipped.text : "");
     if (k.first) cJSON_AddItemToObject(a, "first", cJSON_Duplicate(k.first, 1));
+    if (k.probed) cJSON_AddItemToObject(a, "probe", probe_json(&k.probe));
+    jset(a, "probe_why", k.probe_why);
     list = cJSON_AddArrayToObject(a, "files");
     for (i = 0; i < k.n; ++i) {
         f = cJSON_CreateObject();
@@ -324,8 +326,9 @@ static int extension_of(const char* kind, const char* ext) {
 /* the answer read into k, each of its claims checked, as the worker reads what strangers send: 0, or -1 with why */
 static int answered(const char* text, size_t n, Taken* k, char** why) {
     cJSON* a = cJSON_ParseWithLength(text, n);
-    const cJSON *each, *first = cJSON_GetObjectItemCaseSensitive(a, "first");
-    const char* skipped = jstr(a, "skipped");
+    const cJSON *each, *first = cJSON_GetObjectItemCaseSensitive(a, "first"),
+                       *probe = cJSON_GetObjectItemCaseSensitive(a, "probe");
+    const char *skipped = jstr(a, "skipped"), *probe_why = jstr(a, "probe_why");
     int logs = 0, images = 0, videos = 0;
     if (!cJSON_IsObject(a)) {
         *why = rei_strdup("its answer is no JSON object");
@@ -386,7 +389,14 @@ static int answered(const char* text, size_t n, Taken* k, char** why) {
         k->videos = videos;
         if (cJSON_IsObject(first)) k->first = cJSON_Duplicate(first, 1);
         if (skipped && *skipped) buf_printf(&k->skipped, "%.*s", SKIPPED_MAX, skipped);
+        if (probe_why && *probe_why) k->probe_why = rei_format("%.*s", SKIPPED_MAX, probe_why);
         if (logs && !k->first) *why = rei_strdup("it answered logs and no first log's summary");
+    }
+    if (!*why && probe) { /* a run of edenprobe: checked as the rest, and only for a new report's first log */
+        if (!logs || k->logs_had || k->base)
+            *why = rei_strdup("it answered a run of edenprobe for no new report's first log");
+        else if (!probe_of_json(probe, &k->probe, why))
+            k->probed = 1;
     }
     cJSON_Delete(a);
     return *why ? -1 : 0;

@@ -9,11 +9,13 @@
   * [What a report keeps](#what-a-report-keeps)
   * [Adding to a report](#adding-to-a-report)
   * [A log sent without the mention](#a-log-sent-without-the-mention)
+  * [A run of edenprobe](#a-run-of-edenprobe)
   * [Deleting, and the hourly limit](#deleting-and-the-hourly-limit)
   * [Summarized and named again](#summarized-and-named-again)
 * [Commands](#commands)
 * [Issues](#issues)
 * [How old a build is](#how-old-a-build-is)
+* [What the runs say together](#what-the-runs-say-together)
 * [What it keeps of people](#what-it-keeps-of-people)
 * [The site](#the-site)
 * [Settings](#settings)
@@ -49,13 +51,13 @@ for it). The worker's answer is checked before any of its files moves from the w
 
 ### What a report keeps
 
-- Its logs (`.log`, `.txt`, or one packed in a `.gz` or a `.zip`; 3 at most, 64 MiB each) are downloaded from Discord,
-  each home folder in them written as `~` (`/home/<user>`, `C:\Users\<user>`, Android's app folders), the crash
+- Its logs (`.log`, `.txt`, `.jsonl`, or one packed in a `.gz` or a `.zip`; 3 at most, 64 MiB each) are downloaded from
+  Discord, each home folder in them written as `~` (`/home/<user>`, `C:\Users\<user>`, Android's app folders), the crash
   report's code and memory dumps and registers left out (the game's own bytes, which the summary leaves out too), each
-  IPv4 address but the loopback's written as `[ip]` and each e-mail address as `[email]` (a network game's log names
-  the player's address and the other players'), and summarized: the game, its title ID and version, the build, the
-  system and GPU, how the run ended and where, the service commands and what else the runtime missed, the last lines.
-  A file that is no ScarletNX log is named in the reply and not kept.
+  IPv4 address but the loopback's written as `[ip]` and each e-mail address as `[email]` (a network game's log names the
+  player's address and the other players'), and summarized: the game, its title ID and version, the build, the system
+  and GPU, how the run ended and where, the service commands and what else the runtime missed, the last lines. A file
+  that is no ScarletNX log, nor a run of edenprobe, is named in the reply and not kept.
 - Its screenshots (PNG, JPEG, WebP, GIF or PPM, read from their bytes; 8 at most, 25 MiB each) lose their metadata:
   EXIF and its place and camera, XMP, PNG's text and time, JPEG's and GIF's comments, a GIF's applications' data but
   its loop, and what follows a JPEG's or a GIF's end (a phone's motion photo video, a maker's trailer). A PPM, the
@@ -105,6 +107,40 @@ log line says which. A reply that brings files makes a report of those, as any m
 is part of a report already gets that report's link; a message of another channel or server, a bot's or a webhook's,
 one that is gone and one with no log are refused, each with why.
 
+### A run of edenprobe
+
+[edenprobe](https://github.com/scarletnx/edenprobe) checks an emulator against the console, case by case. A report
+whose first log holds a run of it is the run's, kept apart from the games: in no game's list, nor `all.html` and
+`api/reports.json`, but on the site's Probe pages ([The site](#the-site)), by machine: the emulator, the driver and its
+version, the system. A run comes in three forms:
+
+- ScarletNX's log of the run, alone or in the launcher's Share Log zip, whose entry that holds a whole run is the one
+  kept (else one a run begins in, else its first log, as for any zip): the machine from its header (`system:`, the
+  driver's `vulkan: the driver that runs: radv, Mesa 26.1.8 (driver ID 3)`, and the GPU's line with the driver's
+  version), the report's lines as `[game] {...}`;
+- Eden's log of it, or rEden's: the machine from its `Driver:`, `Device:`, `Vulkan:` and `Host OS:` lines, the report's
+  lines as `Debug.Emulated` ones. Eden logs no driver ID: it is read from the driver's name, and the reply says so;
+- the report itself, `report.jsonl`, which names no machine: it is kept as the console's reference.
+
+A run begins at its note `edenprobe 0.9.0 (v0.9.0) starting`; of several in one file (the Share Log's `summary.txt`
+holds a run's output and its log), the last whole one is read, one with its summary, else the last one. Kept of it:
+the machine (the system and its family, the GPU, the driver's VkDriverId, name and version as its vendor numbers it,
+which are ScarletNX's ban table's), the emulator and its build, edenprobe's version, the words its mode note says ran
+(`cpu graphics net notime`), and each case's suite, name, tier, result, reason, detail (its first 300 bytes) and time,
+10000 cases at most.
+
+The detail of the cases of edenprobe's service, net and pad families, and of a suite its table does not have, is left
+out, and so is the text of the net family's notes: the account cases name a user's id and nickname, the network ones
+the addresses and sessions the net file names. They are taken out of every log a report keeps, wherever such a line
+is, before anything reads it, so neither the database nor the site has them.
+
+The reply gives the counts and the suites that failed most, `edenprobe 0.9.0 on radv, Mesa 26.1.8 (Linux): 1034
+passed, 26 failed (astc 15, astcimage 9, tex8k 2), 6 skipped, 3 crashed`, and what the run lacks: no summary line, a
+summary that counts more cases than the file has (a launch that went on after a crash logs its own cases alone), lines
+edenprobe does not write, a report.jsonl's machine. The same run sent again by the same person, line for line, is
+answered with the first report's link and kept no more. A log whose lines of edenprobe have no run's start, a launch
+that went on after a crash, is kept as the game's log, and the reply says why it is no run.
+
 ### Deleting, and the hourly limit
 
 `@Tracer delete 12`, or a reply with `@Tracer delete`, deletes a report, for the person who sent it, the owner and
@@ -117,9 +153,11 @@ counts, and so does one deleted since (its files were downloaded); a message wit
 
 ### Summarized and named again
 
-When the log summary or the list of names changes (`scripts/sync-logscan.sh`, `scripts/make-titles.py`), the next
-start summarizes each kept log again, draws each report's facts again from its first log, files a report whose first
-log now names another game under that game, and names one its logs don't name from the list.
+When the log summary or the list of names changes (`scripts/sync-logscan.sh`, `scripts/make-titles.py`), or what a
+report keeps of its logs (`TR_FACTS`), the next start summarizes each kept log again, draws each report's facts again
+from its first log, files a report whose first log now names another game under that game, names one its logs don't
+name from the list, makes a report whose first log holds a run of edenprobe the run's, and takes out of each kept log
+what a run's lines would say of the player.
 
 ## Commands
 
@@ -164,6 +202,38 @@ hour, as main and the nightlies move. There is no line for a build that has ever
 nightly, one without git, or when GitHub does not answer (said in the log, and asked again at the next report).
 Without the token nothing is asked, and only a `-dirty` build is said.
 
+## What the runs say together
+
+Fixed rules over the runs of edenprobe (`tracer/src/rules.c`), each comparing one case of one edenprobe version run
+with the same words, and counting ScarletNX's runs; Eden's are shown beside them, as a second emulator failing a case
+on the same driver points at the driver. A case fails where its result is `fail`; a skip, a crash among them, says
+nothing. Nothing here is applied: a person reads it and decides.
+
+- **A ban candidate**, for a case on a driver (its VkDriverId) and a system's family, when all three hold:
+  1. it fails in 3 reports or more, from 2 people or more, in a range of that driver's versions: the versions seen in a
+     row, sorted, where it fails and never passes;
+  2. it passes in 3 reports or more of 2 other drivers or more, whose builds are at most 7 days from a failing
+     report's (the day the build's commit was made, else the day the report came): without that, the failure is
+     ScarletNX's;
+  3. the range runs from its lowest version to the next version seen above it, where the case passes (or passes and
+     fails: a mixed end, said so), or has no end when none is seen: failing on 26.1.0 to 26.1.8 and passing on 26.2.0
+     is `>= 26.1.0 < 26.2.0`.
+
+  With it come the reports, the people, Eden's runs of the case on that driver, the optional extensions every failing
+  run's log lists as on (`vulkan: optional extensions on: ...`, where the runtime logs that line), and a draft line in
+  the ban table's format (ScarletNX's `src/nx/gpu/vk/extension_bans.txt`), its key `<key>` for a person to choose, as
+  the runs cannot say which extension or feature breaks:
+
+      <key> | off | radv | >= 26.1.0 < 26.2.0 | linux | * | fails edenprobe's astc case "..." | Tracer #12, #15, #18; edenprobe 0.9.0 "..." | edenprobe:astc: ... | 2026-11-07 broken on 26.1.8 | -
+
+- **ScarletNX's own failure**: a case that fails on 3 drivers or more, or on every driver seen when two or more are; a
+  driver counts as failing when its runs fail the case and none passes it. Such a case is no ban candidate. Eden's
+  runs on those drivers are counted beside it: where Eden passes it, the failure is ScarletNX's to fix.
+- **A regression**: on one driver, one version of it and one system's family, a case that passed in every run of a
+  build and fails in every run of each build after it, to the newest; builds of published commits only (no `-dirty`),
+  in the order of their commits' days. The last build that passed and the first that failed bound the commits to look
+  at.
+
 ## What it keeps of people
 
 The site does not say who sent a report. The database keeps the sender's user id (for the deletion, the updates and
@@ -185,8 +255,12 @@ Static files, drawn again where a report changes them, and all of them at each s
 | `index.html` | each game, its latest outcome, its reports' count; a search and a filter by outcome |
 | `all.html` | every report, the newest first |
 | `g/<key>.html` | a game's reports: `<key>` its title ID, or `n-` and its name's letters for a game known by name |
-| `r/<id>/` | a report: its facts, screenshots, and each log with its summary, to read or download |
-| `api/` | the same as JSON: `games.json`, `reports.json`, `r/<id>.json` (a report with its logs' summaries and the notes added later); no Discord id |
+| `r/<id>/` | a report: its facts, screenshots, and each log with its summary, to read or download (a log sent in a `.zip` or a `.gz` is kept as its text and downloads as one: `logs.zip` as `logs.log`, `game.log.gz` as `game.log`); a run of edenprobe's has its counts and each case that did not pass |
+| `probe/index.html` | the runs of edenprobe: the machines (an emulator, a driver and its version, a system), each case that fails somewhere with its results on each machine, each suite's, and each run |
+| `probe/c/<key>.html` | a case of edenprobe: `<key>` 16 hex digits of its suite and name; its results on each machine, what the rules say of it, and its newest 200 failures and skips with their detail |
+| `probe/d/<driver>.html` | a driver, by the ban table's name (`radv`, `nvidia`; `unknown` for the console's reports): its machines, the cases that fail on it, its ban candidates, its runs |
+| `probe/candidates.html` | [what the runs say together](#what-the-runs-say-together): ban candidates with their draft lines, ScarletNX's own failures, regressions |
+| `api/` | the same as JSON: `games.json`, `reports.json`, `r/<id>.json` (a report with its logs' summaries and the notes added later, a run of edenprobe's with its run); `probe/matrix.json`, `probe/c/<key>.json`, `probe/d/<driver>.json`, `probe/candidates.json`; no Discord id |
 | `style.css`, `site.js`, `tracer.svg` | copied from `TRACER_ASSETS` at each start |
 
 The lists filter in the browser (`site.js`: by words, outcome, branch, GPU; kept in the address's `#`) and work
