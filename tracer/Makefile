@@ -4,6 +4,9 @@
 #   make [CONCORD=prefix]  tracer, linked with Concord v3.0.1 as make install PREFIX=prefix put it, libcurl, SQLite
 #                          and libarchive; and tracer-mcp, its MCP server, with libmicrohttpd
 #   make test              the tests: no Discord, no network, no Concord, no libcurl
+#   make bench [RUNS=1000] [FOLDER=/tmp/tracer-bench]
+#                          what RUNS runs of edenprobe cost: the database's size, the Probe pages', and the time they
+#                          take (tests/bench_probe.c); FOLDER must not be there
 #   make test-gateway      tracer (CONCORD as above) against a fake Discord whose gateway dies under it: Linux, as
 #                          root or with user namespaces (../rei/tests/test_gateway.sh)
 #
@@ -44,8 +47,14 @@ tracer: $(LOGIC) src/rei_http.o src/rei_rest.o src/rei_watch.o src/fetch.o src/m
 tracer-mcp: src/mcp.o src/mcp_main.o src/rei_util.o third_party/cjson.o
 	$(CC) $(CFLAGS) -o $@ src/mcp.o src/mcp_main.o src/rei_util.o third_party/cjson.o $(MHD_LIBS) -lm
 
-test: tests/test_tracer
+RUNS ?= 1000
+FOLDER ?= /tmp/tracer-bench
+
+test: tests/test_tracer tests/bench_probe
 	./tests/test_tracer
+
+bench: tests/bench_probe
+	./tests/bench_probe $(RUNS) $(FOLDER)
 
 test-gateway: tracer
 	sh $(REI)/tests/test_gateway.sh tracer ./tracer
@@ -55,6 +64,8 @@ test-gateway: tracer
 
 tests/test_tracer: $(LOGIC) tests/test_tracer.c
 	$(CC) $(CFLAGS) $(OURS) $(SQLITE_CFLAGS) -o $@ tests/test_tracer.c $(LOGIC) $(LIBS)
+tests/bench_probe: $(LOGIC) tests/bench_probe.c
+	$(CC) $(CFLAGS) $(OURS) $(SQLITE_CFLAGS) -o $@ tests/bench_probe.c $(LOGIC) $(LIBS)
 
 src/message.o: src/message.c src/message.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/message.c
@@ -109,6 +120,6 @@ third_party/demangle.o: third_party/logscan/common/utilities/demangle.c
 
 clean:
 	rm -f $(LOGIC) src/rei_http.o src/rei_rest.o src/rei_watch.o src/fetch.o src/main.o src/mcp_main.o tracer tracer-mcp \
-		tests/test_tracer
+		tests/test_tracer tests/bench_probe
 
-.PHONY: all test test-gateway clean
+.PHONY: all test bench test-gateway clean

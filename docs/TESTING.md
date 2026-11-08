@@ -100,6 +100,12 @@ temporary folder:
 threshold one off, a comparison that lets one more in, a condition left out: 19 mutants) and expects `test_tracer
 --rules` to fail on each; a mutant it passes, or one whose text `rules.c` no longer has, fails it. About 10 s.
 
+`make -C tracer bench [RUNS=1000] [FOLDER=/tmp/tracer-bench]` (`tracer/tests/bench_probe.c`, built by `make test`,
+run by hand) keeps RUNS runs like edenprobe 0.9.0's graphics run (1069 cases) on fifteen machines in a new database in
+FOLDER and, at 1, 10, 100, 250, 500, 1000 runs and on, says the database's size, the Probe pages' and their JSON's, and
+the time the rules and every Probe page take, in the processor's seconds and, in brackets, the clock's (which a busy
+disk lengthens): what the runs cost where Tracer runs.
+
 ## The docs
 
 `scripts/check-docs.py` holds `README.md` and `docs/` to the checkout, each failure a line naming its file and line:
