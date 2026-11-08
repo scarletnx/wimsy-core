@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
    Copyright 2026 the ScarletNX contributors */
 /* What Tracer does with a message that mentions it: a report made of its logs and screenshots (downloaded, a .zip's
-   screenshots beside its log, the logs' home folders shown as ~, their summaries made, the screenshots' metadata taken
-   out), kept in the database and the site's folder; "delete N" and "help" answered. Each answer is an embed for a
-   reply */
+   screenshots beside its log, the logs' home folders and the folders of paths outside them shown as ~, their summaries
+   made, the screenshots' metadata taken out), kept in the database and the site's folder; "delete N" and "help"
+   answered. Each answer is an embed for a reply */
 #ifndef TR_REPORT_H
 #define TR_REPORT_H
 #include "age.h"
@@ -59,8 +59,8 @@ struct Tracer {
 };
 
 /* m's attachments downloaded through t's get and read: the logs unpacked (a .zip's screenshots taken beside its log),
-   their home folders as ~, their dumps and addresses left out and summarized, the screenshots' metadata taken out;
-   each kept one written into k->dir, each other named in k->skipped */
+   their home folders and the folders of paths outside them as ~, their dumps and addresses left out and summarized,
+   the screenshots' metadata taken out; each kept one written into k->dir, each other named in k->skipped */
 void tr_take(Tracer* t, Taken* k, const TrMessage* m);
 /* tr_take's two halves, which a worker splits by shutting itself in its folder between them (wk_shut_in): m's
    attachments downloaded through t's get into the folder dirfd (k->dir), attachment i as "in.<i>", or why[i] (owned)
@@ -81,7 +81,7 @@ int tr_game(const cJSON* summary, const char* note, char** key, char** title, ch
    commands" (shaders by the shaders, the rest by the different ones); owned, NULL for nothing */
 char* tr_missed(const cJSON* summary);
 /* what a report keeps of its logs, as a version: a new one summarizes the kept reports again (tr_rescan) */
-#define TR_FACTS "facts 6"
+#define TR_FACTS "facts 7"
 
 /* the reply to m, a message that mentions the bot: an embed (owned), or NULL for a message already handled (the
    gateway sends a message again after a resume). *report is the report it made or updated, 0 for none: the reply,

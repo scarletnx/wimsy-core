@@ -5,7 +5,8 @@
 the runs of edenprobe (tracer/src/rules.c, tests run as test_tracer --rules: a threshold one off, a comparison that
 lets one more in, a condition left out), and which files a report keeps and what of them (tracer/src/files.c,
 report.c and issues.c, tests run as test_tracer --files: a zip's screenshots, a picture never read as a log, the
-limits said with their values; the worker's locale for a zip's names, by the whole suite). A mutant the tests pass is a rule nothing holds. Each runs in a copy of the tree in a temporary folder; the
+paths outside a home cut, the limits said with their values; the worker's locale for a zip's names, by the whole
+suite). A mutant the tests pass is a rule nothing holds. Each runs in a copy of the tree in a temporary folder; the
 checkout is never written.
 
     python3 scripts/test-mutants.py [--root DIR] [--cc CC]
@@ -161,6 +162,58 @@ FILES = (
         '        if ((size_t)got > max - out->len + 1) {\n            buf_free(out);\n            return 1;',
     ),
     (
+        'no path outside a home is cut',
+        'files.c',
+        '(len = outside_home(s + i, n - i, &keep))) {',
+        '(len = 0 * outside_home(s + i, n - i, &keep))) {',
+    ),
+    ('/mnt is no root', 'files.c', '{"/mnt/", 1}', '{"/nomnt/", 1}'),
+    (
+        "the first byte's look passes a drive by",
+        'files.c',
+        "if ((s[i] == '/' || (i + 1 < n && s[i + 1] == ':' && letter(s[i]))) && path_start(s, i) &&",
+        "if ((s[i] == '/') && path_start(s, i) &&",
+    ),
+    (
+        "a mount's own name stays",
+        'files.c',
+        'if (folders >= names && file_name(s + start, i - start)) {',
+        'if (file_name(s + start, i - start)) {',
+    ),
+    (
+        "a folder's name stays as a file's",
+        'files.c',
+        'if (folders >= names && file_name(s + start, i - start)) {',
+        'if (folders >= names) {',
+    ),
+    ("a drive's Users folder is cut", 'files.c', '{"users", "windows", ', '{"windows", '),
+    ('Windows is cut', 'files.c', '{"users", "windows", ', '{"users", '),
+    ("WSL's drive is a mount", 'files.c', 'return left_on_drive(s + 7, n - 7) ? 0 : 7;', 'return 0;'),
+    (
+        'a folder named mnt inside a path is a root',
+        'files.c',
+        'return !(letter(c) || digit(c) || strchr("._-~/\\\\", c));',
+        'return 1;',
+    ),
+    (
+        'a blank before another path ends no name',
+        'files.c',
+        "if (s[i] == ' ' && path_next(s + i + 1, n - i - 1)) break;",
+        'continue;',
+    ),
+    (
+        "a JSON string's doubled backslash is halved",
+        'files.c',
+        'while (keep < len && sep > 0 && path_sep(s[i + sep - 1], 1)) --sep;',
+        'if (keep < len) sep = keep - 1;',
+    ),
+    (
+        "the line's blanks go with a name that goes",
+        'files.c',
+        "while (i > start && s[i - 1] == ' ') --i;",
+        '',
+    ),
+    (
         "a zip's screenshots are not taken",
         'report.c',
         'if (zip_named(a->name)) take_zip_images(k, dirfd, a->name, &got, !logged);',
@@ -191,6 +244,19 @@ FILES = (
         'report.c',
         'return rei_format("it is %.1f MiB, over the %zu MiB a %s may be", bytes / (1 << 20), max_of(kind) >> 20,',
         'return rei_format("over %.0f%zu MiB%s", bytes * 0, max_of(kind) >> 20,',
+    ),
+    (
+        "the homes' ~ comes before the paths' cut",
+        'report.c',
+        '    shown = tr_public_log(text.text, text.len, &n); '
+        "/* before the homes' ~, which would keep /media/<user>'s folders */\n"
+        '    buf_free(&text);\n'
+        '    tilded = snx_logscan_tilde(shown, n, &n);\n'
+        '    free(shown);',
+        '    shown = snx_logscan_tilde(text.text, text.len, &n);\n'
+        '    buf_free(&text);\n'
+        '    tilded = tr_public_log(shown, n, &n);\n'
+        '    free(shown);',
     ),
     (
         'the issue has no screenshots',

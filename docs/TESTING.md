@@ -50,7 +50,9 @@ temporary folder:
   a `.zip` (never one of its pictures, nor a Mac's fork; a name flagged UTF-8 read in the C locale, one that is no
   UTF-8 passed by), and the name each downloads as from the site (a log's, never the archive's); a zip's screenshots
   walked by name, without their folders, each read within its size; the screenshots' metadata taken out (PNG, JPEG,
-  WebP, GIF) and broken ones refused; an MP4's place and camera blanked; text made valid UTF-8;
+  WebP, GIF) and broken ones refused; an MP4's place and camera blanked; text made valid UTF-8; the paths outside a home
+  cut to `~` and a file's name (report 58's two lines, a drive, Android's storage, two paths on a line, a JSON string,
+  the mounts' own names, and what stays: the system's folders, a home, a folder named `mnt` inside a path);
 - the game a log names (and the older builds' titles, a garbled one, a name in another script); the crash report's
   dumps left out of a log as the log summary leaves them out; the games' names from the list (an update's and an
   add-on's ID, a report named at once, one named at the next start, a log's name first, a GBA game by its code, a
@@ -106,8 +108,8 @@ temporary folder:
 `python3 scripts/test-mutants.py` then changes Tracer's code one way at a time in a copy of the tree, and expects its
 tests to fail on each: `tracer/src/rules.c` (a threshold one off, a comparison that lets one more in, a condition left
 out: 19 mutants, `test_tracer --rules`); what a report keeps of its files, in `files.c`, `report.c` and `issues.c` (a
-zip's screenshots, a picture never read as a log, the limits said with their values: 17 mutants, `test_tracer
---files`); and the worker's locale for a zip's names, made before it shuts itself in (1 mutant,
+zip's screenshots, a picture never read as a log, the paths outside a home, the limits said with their values: 30
+mutants, `test_tracer --files`); and the worker's locale for a zip's names, made before it shuts itself in (1 mutant,
 the whole suite). A mutant they pass, or one whose text its file no longer has once, fails it. About 30 s.
 
 `make -C tracer bench [RUNS=1000] [FOLDER=/tmp/tracer-bench]` (`tracer/tests/bench_probe.c`, built by `make test`,

@@ -240,8 +240,9 @@ static cJSON* help(void) {
         "A run of edenprobe is a report of its own, apart from the games: ScarletNX's log of the run (alone, or in "
         "the Share Log zip), Eden's log of it, or its report.jsonl (the console's, as it names no machine). The "
         "detail of its service, net and pad cases is left out, as it can name you.\n\n"
-        "Home folders in a log are shown as ~, and screenshots lose their metadata. The site does not show "
-        "who sent a report.\n\n"
+        "Home folders in a log are shown as ~, and so are the folders of a path outside them (a disk's, a "
+        "drive's): its file's name stays. Screenshots lose their metadata. The site does not show who sent a "
+        "report.\n\n"
         "To add logs, screenshots or a note to a report, reply to it (or to my answer) and mention me, or write "
         "`@Tracer add 12` with them. For a log someone sent without mentioning me, reply to their message and "
         "mention me: I make a report of it.\n\n"
@@ -471,16 +472,16 @@ static void take_log(Taken* k, int dirfd, const TrAttachment* a, Buf* got) {
         buf_free(&text);
         return;
     }
-    tilded = snx_logscan_tilde(text.text, text.len, &n);
+    shown = tr_public_log(text.text, text.len, &n); /* before the homes' ~, which would keep /media/<user>'s folders */
     buf_free(&text);
+    tilded = snx_logscan_tilde(shown, n, &n);
+    free(shown);
     if (!tilded) {
         skip(k, a->name, "out of memory");
         return;
     }
-    shown = tr_public_log(tilded, n, &n);
+    cut = probe_cut(tilded, n, &n, &cases, &notes); /* what edenprobe's lines would say of the player, out */
     free(tilded);
-    cut = probe_cut(shown, n, &n, &cases, &notes); /* what edenprobe's lines would say of the player, out */
-    free(shown);
     shown = cut;
     summary = summary_of(shown, n);
     parsed = summary ? cJSON_Parse(summary) : NULL;

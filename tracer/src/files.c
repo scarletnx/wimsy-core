@@ -660,14 +660,118 @@ static size_t email(const char* s, size_t n, size_t at, size_t* from) {
     *from = a;
     return z - a;
 }
-/* a line of the log as the site shows it, into b: each IPv4 address but the loopback's, 0.0.0.0 and a mask (255.) as
-   [ip], each e-mail address as [email]. A player's address and the other players' on a network game are theirs */
+/* ---- paths outside a home: where a player keeps games and folders says how they arrange their disks, and a disk's
+   label or a mount's name may be theirs ---- */
+
+/* a byte no path in a log runs past: a control (a line's end among them), or one no Windows name holds ('"', '<',
+   '>', '|', '*', '?'); a quote ends a path a JSON string holds */
+static int path_end(char c) { return (unsigned char)c < 0x20 || c == 0x7f || (c && strchr("\"<>|*?", c)); }
+static int path_sep(char c, int both) { return c == '/' || (both && c == '\\'); }
+/* a drive's root at s, D:\ or D:/: 3, else 0 */
+static size_t drive_root(const char* s, size_t n) {
+    return n >= 3 && letter(s[0]) && s[1] == ':' && (s[2] == '\\' || s[2] == '/') ? 3 : 0;
+}
+/* a drive's folder at s that the cut leaves, in any case: Users (a home: snx_logscan_tilde writes its own ~), Windows
+   and Program Files, with or without (x86) (the system's and the programs', which name no one) */
+static int left_on_drive(const char* s, size_t n) {
+    static const char* const left[] = {"users", "windows", "program files", "program files (x86)"};
+    size_t k, len;
+    for (k = 0; k < sizeof left / sizeof *left; ++k) {
+        len = strlen(left[k]);
+        if (n >= len && !strncasecmp(s, left[k], len) && (n == len || s[len] == '\\' || s[len] == '/')) return 1;
+    }
+    return 0;
+}
+/* the root of an absolute path outside a home at s: its length, *names how many names after it are the mount's own (a
+   disk's label, an account's under /media), which never stay, and *both whether \ parts its names too (a drive's);
+   0 for none, and for a drive's folder the cut leaves */
+static size_t path_root(const char* s, size_t n, int* names, int* both) {
+    static const struct {
+        const char* root;
+        int names;
+    } mounts[] = {{"/run/media/", 1}, {"/media/", 1},   {"/mnt/", 1},
+                  {"/Volumes/", 1},   {"/storage/", 1}, {"/sdcard/", 0}};
+    size_t k, len;
+    *names = 0;
+    *both = 0;
+    if (n >= 7 && !strncmp(s, "/mnt/", 5) && letter(s[5]) && s[6] == '/') /* WSL's drive */
+        return left_on_drive(s + 7, n - 7) ? 0 : 7;
+    if (drive_root(s, n)) {
+        *both = 1;
+        return left_on_drive(s + 3, n - 3) ? 0 : 3;
+    }
+    for (k = 0; k < sizeof mounts / sizeof *mounts; ++k) {
+        len = strlen(mounts[k].root);
+        if (n >= len && !strncmp(s, mounts[k].root, len)) {
+            *names = mounts[k].names;
+            return len;
+        }
+    }
+    return 0;
+}
+/* a file's name, not a folder's or a disk's: a dot, then a letter or a digit, after its first byte */
+static int file_name(const char* s, size_t n) {
+    size_t i;
+    for (i = 1; i + 1 < n; ++i)
+        if (s[i] == '.' && (letter(s[i + 1]) || digit(s[i + 1]))) return 1;
+    return 0;
+}
+/* whether a path may start at s + i: at the line's start, after file://, or after a byte no name ends with (a blank,
+   a quote, a bracket, '='), so that a folder named mnt in the middle of a path is no root */
+static int path_start(const char* s, size_t i) {
+    char c = i ? s[i - 1] : ' ';
+    if (i >= 7 && !memcmp(s + i - 7, "file://", 7)) return 1;
+    return !(letter(c) || digit(c) || strchr("._-~/\\", c));
+}
+/* whether another path starts after a blank at s, a quote or a bracket before it or not: a separator, a drive or
+   file:// */
+static int path_next(const char* s, size_t n) {
+    if (n && (s[0] == '\'' || s[0] == '(' || s[0] == '[')) ++s, --n;
+    return n && (path_sep(s[0], 1) || drive_root(s, n) || (n >= 7 && !memcmp(s, "file://", 7)));
+}
+/* the length of the absolute path outside a home at s, *keep where its last name starts when that name stays (a
+   file's, past the mount's own names), else that length. A name runs to a separator, to a byte no path holds or the
+   line's end, or to a blank before another path: a name no separator follows cannot be told from the words after it,
+   which go with it when it goes (as snx_logscan_tilde takes an account's name). 0 for no such path, or a root and no
+   name */
+static size_t outside_home(const char* s, size_t n, size_t* keep) {
+    int names, both, folders = 0;
+    size_t i = path_root(s, n, &names, &both), start;
+    if (!i || i >= n || path_end(s[i]) || s[i] == ' ') return 0;
+    for (;;) {
+        for (start = i; i < n && !path_end(s[i]) && !path_sep(s[i], both); ++i)
+            if (s[i] == ' ' && path_next(s + i + 1, n - i - 1)) break;
+        if (i == n || !path_sep(s[i], both)) break;
+        folders += i > start;
+        ++i;
+    }
+    if (folders >= names && file_name(s + start, i - start)) {
+        *keep = start;
+        return i;
+    }
+    while (i > start && s[i - 1] == ' ') --i; /* the line's blanks after a name that goes */
+    *keep = i;
+    return i;
+}
+
+/* a line of the log as the site shows it, into b: each absolute path outside a home as ~ and its file's name, each
+   IPv4 address but the loopback's, 0.0.0.0 and a mask (255.) as [ip], each e-mail address as [email]. A player's
+   address and the other players' on a network game are theirs */
 static void scrubbed(Buf* b, const char* s, size_t n) {
     size_t i = 0, done = 0;
     while (i < n) {
-        size_t len, from;
+        size_t len, from, keep;
         unsigned first = 0;
-        if (digit(s[i]) && (!i || (!digit(s[i - 1]) && s[i - 1] != '.')) && (len = ipv4(s + i, n - i, &first))) {
+        /* a root is a / or a drive's letter and colon: the rest of the bytes cost one look */
+        if ((s[i] == '/' || (i + 1 < n && s[i + 1] == ':' && letter(s[i]))) && path_start(s, i) &&
+            (len = outside_home(s + i, n - i, &keep))) {
+            size_t sep = keep; /* the separators before the file's name, both of a JSON string's doubled one */
+            buf_addn(b, s + done, i - done);
+            buf_add(b, "~");
+            while (keep < len && sep > 0 && path_sep(s[i + sep - 1], 1)) --sep;
+            if (keep < len) buf_addn(b, s + i + sep, len - sep);
+            done = i = i + len;
+        } else if (digit(s[i]) && (!i || (!digit(s[i - 1]) && s[i - 1] != '.')) && (len = ipv4(s + i, n - i, &first))) {
             if (first != 127 && first != 255 && (first || strncmp(s + i, "0.0.0.0", len))) {
                 buf_addn(b, s + done, i - done);
                 buf_add(b, "[ip]");

@@ -62,6 +62,14 @@ for it). The worker's answer is checked before any of its files moves from the w
   file that is no picture or video; never one of its pictures, nor a Mac's `__MACOSX/` fork. A zip's names are read as
   UTF-8 whatever the worker's locale (ScarletNX's Share Log flags each name so), in a locale it makes before it shuts
   itself in; an entry whose name it cannot read is passed by, and the walk goes on.
+- Each absolute path outside a home folder in a log is written as `~` and its file's name, as where a player keeps
+  games says how they arrange their disks, and a disk's label may be theirs: a path under `/mnt`, `/media`,
+  `/run/media`, `/Volumes` (macOS), `/storage` or `/sdcard` (Android), or on a drive (`D:\`, `D:/`, WSL's `/mnt/d/`) but
+  in its `\Users` (a home, written as one), `\Windows` and `\Program Files` (the system's and the programs', which name
+  no one). `/mnt/Disk/Games/Some Game.nsp (9 MB mapped)` becomes `~/Some Game.nsp (9 MB mapped)`; its folders go, and so
+  does the mount's own name (a disk's label, an account's under `/media`), as `/media/someone` becomes `~`. The last
+  name stays when it is a file's (a dot, then a letter or a digit); one that is no file's goes with the words after it
+  on the line, which nothing tells from it, as an account's name does.
 - Its screenshots (PNG, JPEG, WebP, GIF or PPM, read from their bytes; 8 at most, 25 MiB each), attached or in a `.zip`
   beside its log (each entry named `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif` or `.ppm`, kept under its file's name
   without the zip's folders; a Mac's `__MACOSX/` forks are none), lose their metadata: EXIF and its place and camera,
@@ -169,7 +177,7 @@ When the log summary or the list of names changes (`scripts/sync-logscan.sh`, `s
 report keeps of its logs (`TR_FACTS`), the next start summarizes each kept log again, draws each report's facts again
 from its first log, files a report whose first log now names another game under that game, names one its logs don't
 name from the list, makes a report whose first log holds a run of edenprobe the run's, and takes out of each kept log
-what a run's lines would say of the player. A report keeps no zip, only its log and
+what a run's lines would say of the player and the paths outside a home. A report keeps no zip, only its log and
 screenshots: a zip's screenshots sent before Tracer read them are not found again, and are added by a reply with them.
 
 ## Commands
@@ -190,8 +198,9 @@ A report becomes a GitHub issue once a server's administrator approves it: with 
 administrator of the server it was sent in (or one of `TRACER_ADMINS`) reacts to one of its messages (the one that sent
 it, an update, Tracer's answer) with the approval's emoji, `TRACER_ISSUES_EMOJI`, the check mark by default. Tracer
 opens the issue in that repository with what the site shows of the report: its facts and its first log's summary (home
-folders as `~`, addresses as `[ip]` and `[email]`, no dumps), each of a log's or a player's words in a code block, where
-GitHub links no `@name` and no `#number`, the report's page, and its screenshots, each the site's picture 320 pixels wide linked to it and named by its number in the report (a file's
+folders and the folders of paths outside them as `~`, addresses as `[ip]` and `[email]`, no dumps), each of a log's or
+a player's words in a code block, where GitHub links no `@name` and no `#number`, the report's page, and its
+screenshots, each the site's picture 320 pixels wide linked to it and named by its number in the report (a file's
 name is a player's words). GitHub's API takes no file for an issue: its image proxy fetches each picture from the site,
 so the site must answer it. The issue's number goes into the database, onto
 the report's page and its JSON, and into a short reply on Discord. A report is filed once: a second approval opens no

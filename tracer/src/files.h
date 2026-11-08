@@ -2,7 +2,8 @@
    Copyright 2026 the ScarletNX contributors */
 /* The bytes of the files a report keeps: which attachment is a log and which a screenshot, a log unpacked from its .gz
    or .zip and the screenshots beside it in the .zip, a screenshot's kind read from its bytes and its metadata (camera,
-   place, time, text) taken out, and text made valid UTF-8 for the site */
+   place, time, text) taken out, a log as the site shows it (no dumps, addresses or paths of the player's), and text
+   made valid UTF-8 for the site */
 #ifndef TR_FILES_H
 #define TR_FILES_H
 #include "tracer.h"
@@ -78,7 +79,13 @@ size_t tr_stamp(const char* s, size_t n);
 char* tr_utf8(const char* text, size_t n);
 
 /* a log as the site shows it: without the crash report's lines that hold the game's bytes or its registers (its code
-   and memory dumps), which the log summary keeps out of its own (logscan.c's dump()), and with each IPv4 address but
-   the loopback's as [ip] and each e-mail address as [email]. Owned, its length in *size */
+   and memory dumps), which the log summary keeps out of its own (logscan.c's dump()), with each IPv4 address but the
+   loopback's as [ip] and each e-mail address as [email], and each absolute path outside a home folder as ~ and its
+   file's name. Such a path is under /mnt, /media, /run/media, /Volumes (macOS), /storage or /sdcard (Android), or on a
+   drive (D:\, D:/, WSL's /mnt/d/) but in its \Users (a home: snx_logscan_tilde's), \Windows or \Program Files (the
+   system's, which name no one); its folders go, and with them the mount's own name (a disk's label, an account's), and
+   its last name stays when it is a file's (a dot, then a letter or a digit, after its first byte):
+   "/mnt/Disk/Games/Some Game.nsp (9 MB)" as "~/Some Game.nsp (9 MB)", "/media/someone" as "~". It runs before
+   snx_logscan_tilde, which would make /media/<user> a home and keep the folders under it. Owned, its length in *size */
 char* tr_public_log(const char* text, size_t n, size_t* size);
 #endif

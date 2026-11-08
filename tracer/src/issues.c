@@ -194,8 +194,9 @@ char* tr_issue_body(const StReport* r, const StFile* files, int nfiles, const ch
     buf_add(&b, "text\n");
     buf_add(&b, facts.text ? facts.text : "");
     for (i = 0; i < (int)fence; ++i) buf_add(&b, "`");
-    buf_add(&b, "\n\nThe log's home folders are written as ~ and its addresses as [ip] and [email]; the crash report's "
-                "dumps of the game's bytes are not in it.\n");
+    buf_add(&b,
+            "\n\nThe log's home folders, and the folders of a path outside them, are written as ~ and its addresses "
+            "as [ip] and [email]; the crash report's dumps of the game's bytes are not in it.\n");
     shots(&b, r->id, files, nfiles, url);
     buf_free(&facts);
     cJSON_Delete(s);

@@ -780,6 +780,58 @@ static void test_public_log(void) {
         CHECK(tilded && n == strlen(tilded));
         free(tilded);
     }
+    { /* an absolute path outside a home: ~ and its file's name. Report 58's two lines first (a Linux player's games on a
+         disk under /mnt), then the shapes the players' logs show: a Windows drive, Android's shared storage, two paths
+         on a line, a JSON string's doubled backslash, and the mounts' own names, which never stay */
+        static const char paths[] =
+            "[   0,07] log: written to /mnt/Files/Games/NSW/.local/state/scarletnx/recompiled/0100AAAABBBB0000/"
+            "0100AAAABBBB0000.log\n"
+            "[   0,08] fs: ExeFS and RomFS read from the dump /mnt/Files/Games/NSW/ROMS/Some Game/Some Game "
+            "[0100AAAABBBB0000] [v1376256] (1G+1U).nsp (11509,5 MB mapped)\n"
+            "dump C:\\ScarletNX-windows-x86_64\\Switch\\Some Game [0100aaaabbbb0000][v0][Base].nsp (1005.2 MB mapped)\n"
+            "shaders from F:\\Jogos\\ScarletNX\\0100AAAABBBB0000\\shader_cache\\0100AAAABBBB0000.vkshaders in 73 ms\n"
+            "-r /storage/emulated/0/Download/Switch/Some Game.nsp --data /data/data/org.scarletnx/files/.scarletnx/\n"
+            "on /run/media/someone/Disk/x.png, /Volumes/Some Disk/Games/x.nsp and D:/Games/x.xci\n"
+            "WSL: /mnt/c/Games/x.nsp file:///mnt/d/x.png '/sdcard/x.nsp'\n"
+            "mounts: /mnt/Arquivos, /media/john.doe and /Volumes/John's Disk   \n"
+            "{\"path\":\"E:\\\\Games\\\\x.nsp\",\"other\":\"E:\\\\Saves\"}\n"
+            "stay: C:\\Windows\\System32\\vulkan-1.dll, C:\\Program Files (x86)\\Steam\\x.dll, /dev/input/event16\n"
+            "stay: /home/someone/mnt/x, https://example.org/mnt/x.png, /srv/mnt/x, under /mnt/ and D:\\\n"
+            "stay: C:\\Users\\Some One\\x.sav and /mnt/c/users/someone/x.sav, for the homes' ~";
+        char* tilded;
+        shown = tr_public_log(paths, sizeof paths - 1, &n);
+        SAME(shown,
+             "[   0,07] log: written to ~/0100AAAABBBB0000.log\n"
+             "[   0,08] fs: ExeFS and RomFS read from the dump ~/Some Game [0100AAAABBBB0000] [v1376256] "
+             "(1G+1U).nsp (11509,5 MB mapped)\n"
+             "dump ~\\Some Game [0100aaaabbbb0000][v0][Base].nsp (1005.2 MB mapped)\n"
+             "shaders from ~\\0100AAAABBBB0000.vkshaders in 73 ms\n"
+             "-r ~/Some Game.nsp --data /data/data/org.scarletnx/files/.scarletnx/\n"
+             "on ~/x.png, ~/x.nsp and ~/x.xci\n"
+             "WSL: ~/x.nsp file://~/x.png '~/x.nsp'\n"
+             "mounts: ~ ~ ~   \n"
+             "{\"path\":\"~\\\\x.nsp\",\"other\":\"~\"}\n"
+             "stay: C:\\Windows\\System32\\vulkan-1.dll, C:\\Program Files (x86)\\Steam\\x.dll, /dev/input/event16\n"
+             "stay: /home/someone/mnt/x, https://example.org/mnt/x.png, /srv/mnt/x, under /mnt/ and D:\\\n"
+             "stay: C:\\Users\\Some One\\x.sav and /mnt/c/users/someone/x.sav, for the homes' ~");
+        CHECK(n == strlen(shown));
+        LACKS(shown, "Files/Games");
+        LACKS(shown, "john");
+        /* then the homes' ~, as take_log does: a desktop's /media/<user> mount loses its folders too, which the homes'
+           ~ alone would keep */
+        tilded = snx_logscan_tilde(shown, n, &n);
+        HAS(tilded, "stay: ~\\x.sav and ~/x.sav, for the homes' ~");
+        free(tilded);
+        free(shown);
+        shown = tr_public_log("at /media/someone/Disk/Games/x.nsp\n", 36, &n);
+        tilded = snx_logscan_tilde(shown, n, &n);
+        SAME(tilded, "at ~/x.nsp\n");
+        free(tilded);
+        free(shown);
+        tilded = snx_logscan_tilde("at /media/someone/Disk/Games/x.nsp\n", 36, &n);
+        SAME(tilded, "at ~/Disk/Games/x.nsp\n");
+        free(tilded);
+    }
     /* each prefix the log summary's dump() leaves out is left out here: a prefix added there fails this until it is */
     source = read_file("third_party/logscan/common/utilities/logscan.c", NULL);
     where = source ? strstr(source, "static int dump(Span line)") : NULL;
@@ -1531,6 +1583,15 @@ static void test_rescan(void) {
         CHECK(nfiles >= 1 && files[0].bytes == (double)n);
         st_report_free(&r);
         st_files_free(files, nfiles);
+        free(dumped);
+        /* and one kept before paths outside a home were cut (report 58's): its folders go at the next start */
+        dumped = rei_format("%s[   3.00] fs: read from the dump /mnt/Files/Games/Some Game.nsp (9 MB)\n", text);
+        CHECK(!site_write(site, "r/2/1.log", dumped, strlen(dumped)));
+        CHECK(tr_rescan(&tracer, "f") == 12);
+        free(text);
+        text = read_file(path, &n);
+        HAS(text, "fs: read from the dump ~/Some Game.nsp (9 MB)\n");
+        LACKS(text, "Files/Games");
         free(dumped);
         free(text);
         free(path);
@@ -3039,7 +3100,10 @@ static void test_zip_reports(void) {
     int nfiles, i;
     long a, b;
     char *t, *p, *rel;
-    snprintf(game_log, sizeof game_log, "%s", LOG);
+    snprintf(game_log, sizeof game_log, "%s%s", LOG,
+             "[   0,08] fs: ExeFS and RomFS read from the dump /mnt/Files/Games/NSW/ROMS/Some Game/Some Game "
+             "[0100AAAABBBB0000] [v1376256] (1G+1U).nsp (11509,5 MB mapped)\n"
+             "[   0,09] fs: saves in /media/someone/Disk/Saves/x.sav\n");
     { /* the Share Log zip: the game's log first, the launcher's, five pictures at its root (one a PPM in a folder, one
          no picture at all), a Mac's fork, the summary */
         const char* names[] = {"games/Some G\xc3\xa1me [0100AAAABBBB0000]/2026-11-07_21-45-11.log",
@@ -3074,13 +3138,17 @@ static void test_zip_reports(void) {
         SAME(files[2].name, "screenshot_20261107_214311.png");
         SAME(files[3].name, "screenshot_20261107_214321.ppm");
         SAME(files[3].path, "4.png");
+        LACKS(files[0].summary, "Files/Games");
     }
     st_report_free(&r);
     st_files_free(files, nfiles);
     rel = rei_format("r/%ld/1.log", a);
     p = page(rel);
     HAS(p, "ScarletNX - Some Game"); /* the game's log, no picture */
-    LACKS(p, "\x89PNG");
+    HAS(p, "read from the dump ~/Some Game [0100AAAABBBB0000] [v1376256] (1G+1U).nsp (11509,5 MB mapped)");
+    LACKS(p, "Files/Games");
+    HAS(p, "saves in ~/x.sav\n"); /* cut before the homes' ~, which keeps the folders under /media/<user> */
+    LACKS(p, "someone");
     free(p);
     free(rel);
     rel = rei_format("%s/r/%ld/2.png", site, a);
@@ -3127,6 +3195,7 @@ static void test_zip_reports(void) {
         HAS(gh_body, p);
         free(p);
         LACKS(gh_body, "screenshot_20261107"); /* a file's name is a player's words: outside the code block, none */
+        LACKS(gh_body, "Files/Games");
     }
 
     /* twelve pictures: eight kept, the rest named in one line with the room; an update with two more, no room left */
