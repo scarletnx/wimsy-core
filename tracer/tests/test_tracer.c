@@ -11,6 +11,7 @@
 #include <archive.h>
 #include <archive_entry.h>
 #include <ctype.h>
+#include <locale.h>
 #include <sqlite3.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -164,9 +165,12 @@ static unsigned long le32_at(const char* p) { return le16_at(p) | (unsigned long
 /* a zip of n entries, entry i data[i]'s sizes[i] bytes (strlen's when sizes is NULL or it is 0): deflated or, with
    ZIP_STORED, stored as they are (so that a test can find and break one's bytes); with ZIP_UTF8 each entry flagged as
    holding a UTF-8 name (general purpose bit 11, in its central directory's record and its local header), as miniz
-   writes ScarletNX's Share Log, which libarchive writes in a UTF-8 locale alone. Its length */
+   writes ScarletNX's Share Log, which libarchive writes in a UTF-8 locale alone. The names are written with C.UTF-8
+   as this thread's locale: in the C locale a test runs in, FreeBSD's libarchive (3.8.7) writes captura_\xc3\xa9 as
+   captura_? (glibc's writes its bytes as they are), and a test of reading the name would read the ?. Its length */
 static size_t zip_bytes(char* out, size_t cap, const char* const* names, const char* const* data, const size_t* sizes,
                         int n, int how) {
+    locale_t utf8 = newlocale(LC_CTYPE_MASK, "C.UTF-8", (locale_t)0), was = utf8 ? uselocale(utf8) : (locale_t)0;
     struct archive* a = archive_write_new();
     size_t used = 0, at;
     int i;
@@ -186,6 +190,10 @@ static size_t zip_bytes(char* out, size_t cap, const char* const* names, const c
     }
     archive_write_close(a);
     archive_write_free(a);
+    if (utf8) {
+        uselocale(was);
+        freelocale(utf8);
+    }
     if ((how & ZIP_UTF8) && used >= 22 && !memcmp(out + used - 22, "PK\5\6", 4)) { /* no comment: the end's 22 bytes */
         at = le32_at(out + used - 22 + 16);                                        /* the central directory */
         for (i = 0; i < (int)le16_at(out + used - 22 + 10) && at + 46 <= used && !memcmp(out + at, "PK\1\2", 4); ++i) {
