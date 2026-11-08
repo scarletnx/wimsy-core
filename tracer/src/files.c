@@ -3,6 +3,7 @@
 #include "files.h"
 #include <archive.h>
 #include <archive_entry.h>
+#include <locale.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
@@ -17,8 +18,12 @@ static int ends(const char* name, const char* ext) {
     size_t n = strlen(name), e = strlen(ext);
     return n > e && !strcasecmp(name + n - e, ext);
 }
+/* a zip's entry under __MACOSX/: the resource fork a Mac's zip keeps beside each file ("__MACOSX/._shot.png"), none
+   of the player's files */
+static int mac_fork(const char* path) { return !strncmp(path, "__MACOSX/", 9); }
 
-TrKind tr_kind(const char* name, const char* type) {
+/* a file's kind by its name alone, TR_OTHER for a name tr_kind knows no extension of */
+static TrKind named(const char* name) {
     static const char* const logs[] = {".log", ".txt", ".jsonl", ".gz", ".zip"};
     static const char* const images[] = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".ppm"};
     static const char* const videos[] = {".mp4", ".m4v", ".webm"};
@@ -29,6 +34,12 @@ TrKind tr_kind(const char* name, const char* type) {
         if (ends(name, images[i])) return TR_IMAGE;
     for (i = 0; i < sizeof videos / sizeof *videos; ++i)
         if (ends(name, videos[i])) return TR_VIDEO;
+    return TR_OTHER;
+}
+
+TrKind tr_kind(const char* name, const char* type) {
+    TrKind kind = named(name);
+    if (kind != TR_OTHER) return kind;
     if (!strncmp(type, "image/", 6)) return TR_IMAGE;
     if (!strncmp(type, "video/", 6)) return TR_VIDEO;
     if (!strncmp(type, "text/plain", 10)) return TR_LOG;
@@ -343,6 +354,32 @@ int tr_ppm_png(const char* data, size_t n, Buf* out) {
     return 0;
 }
 
+/* the UTF-8 locale a zip's names are read in, made once and kept for the process's life; 0 where there is none */
+static locale_t utf8_locale(void) {
+    static locale_t utf8;
+    static int tried;
+    if (!tried) {
+        tried = 1;
+        utf8 = newlocale(LC_CTYPE_MASK, "C.UTF-8", (locale_t)0);
+        if (!utf8) utf8 = newlocale(LC_CTYPE_MASK, "en_US.UTF-8", (locale_t)0);
+    }
+    return utf8;
+}
+int tr_names_ready(void) { return utf8_locale() ? 0 : -1; }
+/* a zip's names read as UTF-8 by the calling thread, whatever the process's locale: in a worker's, C, libarchive gives
+   no name at all for an entry its zip flags as UTF-8 (miniz flags each one ScarletNX's Share Log writes) when the name
+   is no ASCII (a game's folder named with an accent), and says ARCHIVE_WARN. The locale before, for names_back; 0
+   where the system has no UTF-8 locale, the names then as libarchive gives them */
+static locale_t names_utf8(void) {
+    locale_t utf8 = utf8_locale();
+    return utf8 ? uselocale(utf8) : (locale_t)0;
+}
+static void names_back(locale_t was) {
+    if (was) uselocale(was);
+}
+/* whether archive_read_next_header gave an entry: ARCHIVE_WARN is one too, a name it could not convert among them */
+static int entry(int got) { return got == ARCHIVE_OK || got == ARCHIVE_WARN; }
+
 /* an archive of data read from memory, as a .zip or as a .gz of one file */
 static struct archive* opened(int zip, const char* data, size_t n) {
     struct archive* a = archive_read_new();
@@ -360,7 +397,14 @@ static struct archive* opened(int zip, const char* data, size_t n) {
     return a;
 }
 
+static int unpacked(const char* name, const char* data, size_t n, size_t max, Buf* out, char** why);
 int tr_unpack(const char* name, const char* data, size_t n, size_t max, Buf* out, char** why) {
+    locale_t was = names_utf8();
+    int rc = unpacked(name, data, n, max, out, why);
+    names_back(was);
+    return rc;
+}
+static int unpacked(const char* name, const char* data, size_t n, size_t max, Buf* out, char** why) {
     int zip = ends(name, ".zip"), wanted = -1, at = 0;
     struct archive* a;
     struct archive_entry* e;
@@ -377,14 +421,17 @@ int tr_unpack(const char* name, const char* data, size_t n, size_t max, Buf* out
         return 0;
     }
     if (zip) { /* an entry holding a whole run of edenprobe, else one a run begins in, else the first .log, .txt or
-                  .jsonl, else the first file: a Share Log zip holds many logs, one of which may be the run */
-        int text = -1, started = -1;
+                  .jsonl, else the first file that is no picture or video: a Share Log zip holds many logs, one of
+                  which may be the run, and the screenshots a player puts beside them */
+        int text = -1, started = -1, files = 0;
         size_t read = 0;
         if (!(a = opened(1, data, n))) goto broken;
-        for (at = 0; archive_read_next_header(a, &e) == ARCHIVE_OK; ++at) {
+        for (at = 0; entry(archive_read_next_header(a, &e)); ++at) {
             const char* inner = archive_entry_pathname(e);
             int marks, whole = 1;
-            if (archive_entry_filetype(e) != AE_IFREG) continue;
+            if (archive_entry_filetype(e) != AE_IFREG || (inner && mac_fork(inner))) continue;
+            files = 1;
+            if (inner && (named(inner) == TR_IMAGE || named(inner) == TR_VIDEO)) continue;
             if (wanted < 0) wanted = at;
             if (!inner || (!ends(inner, ".log") && !ends(inner, ".txt") && !ends(inner, ".jsonl"))) continue;
             if (text < 0) text = at;
@@ -406,13 +453,13 @@ int tr_unpack(const char* name, const char* data, size_t n, size_t max, Buf* out
         archive_read_free(a);
         buf_free(out);
         if (wanted < 0) {
-            *why = rei_format("%s holds no file", name);
+            *why = rei_format(files ? "%s holds no log, only pictures or videos" : "%s holds no file", name);
             return -1;
         }
         wanted = started >= 0 ? started : text >= 0 ? text : wanted;
     }
     if (!(a = opened(zip, data, n))) goto broken;
-    for (at = 0; archive_read_next_header(a, &e) == ARCHIVE_OK; ++at) {
+    for (at = 0; entry(archive_read_next_header(a, &e)); ++at) {
         if (zip && at != wanted) continue;
         while ((got = archive_read_data(a, piece, sizeof piece)) > 0) {
             if ((size_t)got > max - out->len) {
@@ -432,6 +479,61 @@ broken:
     buf_free(out);
     *why = rei_format("%s could not be unpacked", name);
     return -1;
+}
+
+int tr_zip_images(TrZipImages* z, const char* data, size_t n) {
+    memset(z, 0, sizeof *z);
+    z->size = -1;
+    return (z->a = opened(1, data, n)) ? 0 : -1;
+}
+
+int tr_zip_next(TrZipImages* z) {
+    struct archive_entry* e;
+    locale_t was = names_utf8();
+    int got;
+    free(z->name);
+    z->name = NULL;
+    while (entry(got = archive_read_next_header(z->a, &e))) {
+        const char *path = archive_entry_pathname(e), *leaf;
+        if (archive_entry_filetype(e) != AE_IFREG) continue;
+        if (!path) { /* a file whose name the zip does not give: none can say it is a picture */
+            ++z->unnamed;
+            continue;
+        }
+        if (mac_fork(path) || named(path) != TR_IMAGE) continue;
+        for (leaf = path + strlen(path); leaf > path && leaf[-1] != '/' && leaf[-1] != '\\'; --leaf) continue;
+        z->name = tr_utf8(leaf, strlen(leaf));
+        z->size = archive_entry_size_is_set(e) ? (double)archive_entry_size(e) : -1;
+        names_back(was);
+        return 1;
+    }
+    z->broken = got != ARCHIVE_EOF;
+    names_back(was);
+    return 0;
+}
+
+int tr_zip_read(TrZipImages* z, size_t max, Buf* out) {
+    char piece[65536];
+    la_ssize_t got;
+    buf_free(out);
+    while ((got = archive_read_data(z->a, piece, sizeof piece)) > 0) {
+        if ((size_t)got > max - out->len) {
+            buf_free(out);
+            return 1;
+        }
+        buf_addn(out, piece, (size_t)got);
+    }
+    if (got < 0) {
+        buf_free(out);
+        return -1;
+    }
+    return 0;
+}
+
+void tr_zip_done(TrZipImages* z) {
+    if (z->a) archive_read_free(z->a);
+    free(z->name);
+    memset(z, 0, sizeof *z);
 }
 
 char* tr_unpacked_name(const char* name) {
@@ -558,14 +660,118 @@ static size_t email(const char* s, size_t n, size_t at, size_t* from) {
     *from = a;
     return z - a;
 }
-/* a line of the log as the site shows it, into b: each IPv4 address but the loopback's, 0.0.0.0 and a mask (255.) as
-   [ip], each e-mail address as [email]. A player's address and the other players' on a network game are theirs */
+/* ---- paths outside a home: where a player keeps games and folders says how they arrange their disks, and a disk's
+   label or a mount's name may be theirs ---- */
+
+/* a byte no path in a log runs past: a control (a line's end among them), or one no Windows name holds ('"', '<',
+   '>', '|', '*', '?'); a quote ends a path a JSON string holds */
+static int path_end(char c) { return (unsigned char)c < 0x20 || c == 0x7f || (c && strchr("\"<>|*?", c)); }
+static int path_sep(char c, int both) { return c == '/' || (both && c == '\\'); }
+/* a drive's root at s, D:\ or D:/: 3, else 0 */
+static size_t drive_root(const char* s, size_t n) {
+    return n >= 3 && letter(s[0]) && s[1] == ':' && (s[2] == '\\' || s[2] == '/') ? 3 : 0;
+}
+/* a drive's folder at s that the cut leaves, in any case: Users (a home: snx_logscan_tilde writes its own ~), Windows
+   and Program Files, with or without (x86) (the system's and the programs', which name no one) */
+static int left_on_drive(const char* s, size_t n) {
+    static const char* const left[] = {"users", "windows", "program files", "program files (x86)"};
+    size_t k, len;
+    for (k = 0; k < sizeof left / sizeof *left; ++k) {
+        len = strlen(left[k]);
+        if (n >= len && !strncasecmp(s, left[k], len) && (n == len || s[len] == '\\' || s[len] == '/')) return 1;
+    }
+    return 0;
+}
+/* the root of an absolute path outside a home at s: its length, *names how many names after it are the mount's own (a
+   disk's label, an account's under /media), which never stay, and *both whether \ parts its names too (a drive's);
+   0 for none, and for a drive's folder the cut leaves */
+static size_t path_root(const char* s, size_t n, int* names, int* both) {
+    static const struct {
+        const char* root;
+        int names;
+    } mounts[] = {{"/run/media/", 1}, {"/media/", 1},   {"/mnt/", 1},
+                  {"/Volumes/", 1},   {"/storage/", 1}, {"/sdcard/", 0}};
+    size_t k, len;
+    *names = 0;
+    *both = 0;
+    if (n >= 7 && !strncmp(s, "/mnt/", 5) && letter(s[5]) && s[6] == '/') /* WSL's drive */
+        return left_on_drive(s + 7, n - 7) ? 0 : 7;
+    if (drive_root(s, n)) {
+        *both = 1;
+        return left_on_drive(s + 3, n - 3) ? 0 : 3;
+    }
+    for (k = 0; k < sizeof mounts / sizeof *mounts; ++k) {
+        len = strlen(mounts[k].root);
+        if (n >= len && !strncmp(s, mounts[k].root, len)) {
+            *names = mounts[k].names;
+            return len;
+        }
+    }
+    return 0;
+}
+/* a file's name, not a folder's or a disk's: a dot, then a letter or a digit, after its first byte */
+static int file_name(const char* s, size_t n) {
+    size_t i;
+    for (i = 1; i + 1 < n; ++i)
+        if (s[i] == '.' && (letter(s[i + 1]) || digit(s[i + 1]))) return 1;
+    return 0;
+}
+/* whether a path may start at s + i: at the line's start, after file://, or after a byte no name ends with (a blank,
+   a quote, a bracket, '='), so that a folder named mnt in the middle of a path is no root */
+static int path_start(const char* s, size_t i) {
+    char c = i ? s[i - 1] : ' ';
+    if (i >= 7 && !memcmp(s + i - 7, "file://", 7)) return 1;
+    return !(letter(c) || digit(c) || strchr("._-~/\\", c));
+}
+/* whether another path starts after a blank at s, a quote or a bracket before it or not: a separator, a drive or
+   file:// */
+static int path_next(const char* s, size_t n) {
+    if (n && (s[0] == '\'' || s[0] == '(' || s[0] == '[')) ++s, --n;
+    return n && (path_sep(s[0], 1) || drive_root(s, n) || (n >= 7 && !memcmp(s, "file://", 7)));
+}
+/* the length of the absolute path outside a home at s, *keep where its last name starts when that name stays (a
+   file's, past the mount's own names), else that length. A name runs to a separator, to a byte no path holds or the
+   line's end, or to a blank before another path: a name no separator follows cannot be told from the words after it,
+   which go with it when it goes (as snx_logscan_tilde takes an account's name). 0 for no such path, or a root and no
+   name */
+static size_t outside_home(const char* s, size_t n, size_t* keep) {
+    int names, both, folders = 0;
+    size_t i = path_root(s, n, &names, &both), start;
+    if (!i || i >= n || path_end(s[i]) || s[i] == ' ') return 0;
+    for (;;) {
+        for (start = i; i < n && !path_end(s[i]) && !path_sep(s[i], both); ++i)
+            if (s[i] == ' ' && path_next(s + i + 1, n - i - 1)) break;
+        if (i == n || !path_sep(s[i], both)) break;
+        folders += i > start;
+        ++i;
+    }
+    if (folders >= names && file_name(s + start, i - start)) {
+        *keep = start;
+        return i;
+    }
+    while (i > start && s[i - 1] == ' ') --i; /* the line's blanks after a name that goes */
+    *keep = i;
+    return i;
+}
+
+/* a line of the log as the site shows it, into b: each absolute path outside a home as ~ and its file's name, each
+   IPv4 address but the loopback's, 0.0.0.0 and a mask (255.) as [ip], each e-mail address as [email]. A player's
+   address and the other players' on a network game are theirs */
 static void scrubbed(Buf* b, const char* s, size_t n) {
     size_t i = 0, done = 0;
     while (i < n) {
-        size_t len, from;
+        size_t len, from, keep;
         unsigned first = 0;
-        if (digit(s[i]) && (!i || (!digit(s[i - 1]) && s[i - 1] != '.')) && (len = ipv4(s + i, n - i, &first))) {
+        /* a root is a / or a drive's letter and colon: the rest of the bytes cost one look */
+        if ((s[i] == '/' || (i + 1 < n && s[i + 1] == ':' && letter(s[i]))) && path_start(s, i) &&
+            (len = outside_home(s + i, n - i, &keep))) {
+            size_t sep = keep; /* the separators before the file's name, both of a JSON string's doubled one */
+            buf_addn(b, s + done, i - done);
+            buf_add(b, "~");
+            while (keep < len && sep > 0 && path_sep(s[i + sep - 1], 1)) --sep;
+            if (keep < len) buf_addn(b, s + i + sep, len - sep);
+            done = i = i + len;
+        } else if (digit(s[i]) && (!i || (!digit(s[i - 1]) && s[i - 1] != '.')) && (len = ipv4(s + i, n - i, &first))) {
             if (first != 127 && first != 255 && (first || strncmp(s + i, "0.0.0.0", len))) {
                 buf_addn(b, s + done, i - done);
                 buf_add(b, "[ip]");

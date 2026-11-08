@@ -2,7 +2,7 @@
    Copyright 2026 the ScarletNX contributors */
 /* A report filed as a GitHub issue once an administrator of its server approves it, reacting to one of its messages
    with the approval's emoji: the issue holds what the site shows of it (its facts and its first log's summary, home
-   folders as ~, no dumps, no addresses) and the report's page. Asked of GitHub from the bot's own process (the worker
+   folders as ~, no dumps, no addresses, its screenshots as the site's) and the report's page. Asked of GitHub from the bot's own process (the worker
    never holds a token), once a report */
 #ifndef TR_ISSUES_H
 #define TR_ISSUES_H
@@ -28,9 +28,9 @@ void tr_issues_free(TrIssues* is);
 /* the start's line saying them, every value but the token's; owned */
 char* tr_issues_said(const TrIssues* is);
 
-/* report r's issue: its title, and its body of what the site shows (files' summaries, its page at url), each of a
-   log's or a player's words in a code block, where GitHub links no @name and no #number, and no "#" before the
-   report's own number; owned */
+/* report r's issue: its title, and its body of what the site shows (files' summaries, its page at url, its screenshots
+   as the site's images linked to them), each of a log's or a player's words in a code block, where GitHub links no
+   @name and no #number, and no "#" before the report's own number; owned */
 char* tr_issue_title(const StReport* r);
 char* tr_issue_body(const StReport* r, const StFile* files, int nfiles, const char* url);
 /* the issue opened: 0 with *number and *url (owned, its page on GitHub), or -1 with why (owned): GitHub's status and

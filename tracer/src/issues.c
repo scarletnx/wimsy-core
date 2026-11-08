@@ -122,6 +122,22 @@ static size_t ticks(const char* text) {
     return most;
 }
 
+/* the report's screenshots in the issue as its page shows them: each the site's image, 320 pixels wide, that links to
+   it, as the issue holds no file of its own (GitHub's API takes none; its image proxy fetches each from the site). The
+   text is "Screenshot N", N its number in the report: a file's name is a player's words, outside a code block */
+static void shots(Buf* b, long id, const StFile* files, int nfiles, const char* url) {
+    int i, any = 0;
+    for (i = 0; i < nfiles; ++i) {
+        const char* path = files[i].path;
+        if (strcmp(files[i].kind, "image") || !path || !*path ||
+            strspn(path, "0123456789.abcdefghijklmnopqrstuvwxyz") != strlen(path))
+            continue;
+        if (!any++) buf_add(b, "\nScreenshots, as the report's page shows them:\n\n");
+        buf_printf(b, "<a href=\"%s/r/%ld/%s\"><img src=\"%s/r/%ld/%s\" width=\"320\" alt=\"Screenshot %d\"></a>\n",
+                   url, id, path, url, id, path, files[i].n);
+    }
+}
+
 char* tr_issue_body(const StReport* r, const StFile* files, int nfiles, const char* url) {
     Buf facts = {0}, b = {0};
     const StFile* log = NULL;
@@ -178,8 +194,10 @@ char* tr_issue_body(const StReport* r, const StFile* files, int nfiles, const ch
     buf_add(&b, "text\n");
     buf_add(&b, facts.text ? facts.text : "");
     for (i = 0; i < (int)fence; ++i) buf_add(&b, "`");
-    buf_add(&b, "\n\nThe log's home folders are written as ~ and its addresses as [ip] and [email]; the crash report's "
-                "dumps of the game's bytes are not in it.\n");
+    buf_add(&b,
+            "\n\nThe log's home folders, and the folders of a path outside them, are written as ~ and its addresses "
+            "as [ip] and [email]; the crash report's dumps of the game's bytes are not in it.\n");
+    shots(&b, r->id, files, nfiles, url);
     buf_free(&facts);
     cJSON_Delete(s);
     return buf_take(&b);

@@ -81,8 +81,9 @@ searches in time linear in what it reads; nginx limits its requests by client an
 - ReiWimsy reads a message's text only for the numbers it names, sends GitHub only the numbers, and keeps no message,
   no text and no author: its state holds its replies' and cards' ids ([ReiWimsy](./REIWIMSY.md#what-it-keeps)).
 - Tracer keeps the sender's user id and the ids of the messages that lead to a report, for the deletion, the updates
-  and the hourly limit; the site and its JSON name no one. A log's home folders become `~`, its addresses `[ip]` and
-  `[email]`, and the crash report's dumps are left out; a picture loses its metadata and a video its place, time and
-  camera ([Tracer](./TRACER.md#what-a-report-keeps)).
+  and the hourly limit; the site and its JSON name no one. A log's home folders become `~`, and so do the folders of a
+  path outside them (a disk's, a drive's, Android's storage), its addresses `[ip]` and `[email]`, and the crash
+  report's dumps are left out; a picture loses its metadata and a video its place, time and camera
+  ([Tracer](./TRACER.md#what-a-report-keeps)).
 - AccordWimsy copies what GitHub shows publicly, each issue and comment opening with its GitHub author, day and link.
 - The status page keeps nothing of anyone.

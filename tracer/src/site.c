@@ -94,7 +94,8 @@ static void head(Buf* b, const char* root, const char* title, const char* descri
 }
 static void foot(Buf* b) {
     buf_add(b, "</main>\n<footer>Reports that players sent to Tracer on Discord, with logs of "
-               "<a href=\"" SITE_REPO "\">ScarletNX</a>. Home folders in the logs are shown as ~.</footer>\n"
+               "<a href=\"" SITE_REPO "\">ScarletNX</a>. Home folders in the logs, and the folders of a path outside "
+               "them, are shown as ~.</footer>\n"
                "</body>\n</html>\n");
 }
 /* the controls site.js reads: a search, and a choice of each key's values (filled in from the rows) */

@@ -28,6 +28,8 @@
 #include <sys/procctl.h>
 #endif
 
+#include "files.h"
+
 #define QUESTION_MAX  (1 << 20) /* the bytes of a question at most */
 #define NAME_MAX_KEPT 200       /* the bytes of a file's name kept from an answer */
 #define SKIPPED_MAX   4000      /* the bytes of the lines of the files not taken */
@@ -228,8 +230,10 @@ int wk_serve(FILE* in, FILE* out, TrGet get, void* ctx) {
         tr_message_free(&m);
         return 1;
     }
-    /* the downloads first, the network and the CA files still open to it; then it is shut in with what came */
+    /* the downloads first, the network and the CA files still open to it, and the locale's files for a zip's names;
+       then it is shut in with what came */
     tr_download(&t, &k, &m, dirfd, why);
+    if (tr_names_ready()) rei_log("no UTF-8 locale (C.UTF-8, en_US.UTF-8): a zip's names that are no ASCII are lost");
     if (!(shut = wk_shut_in(dirfd, &failed))) {
         rei_log("the worker could not shut itself in its folder: %s", failed);
         for (i = 0; i < m.nfiles; ++i) {
