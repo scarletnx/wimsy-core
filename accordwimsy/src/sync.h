@@ -8,8 +8,10 @@
    one (its head or the branch it went into gone from GitHub); the comments. Nothing is lost here when GitHub loses it:
    a branch or a tag GitHub has no more stays ACCORDWIMSY_GRACE_DAYS before it is deleted (said when first seen), a
    rewritten branch's old tip is kept that long (git.h), and an issue, a comment or a repository is never deleted.
-   Each says its GitHub author and links its GitHub page; an edit on GitHub (its updated_at) edits it. Releases stay
-   on GitHub: the repository's Releases tab is turned off on every pass. */
+   Each says its GitHub author and links its GitHub page; an edit on GitHub (its updated_at) edits it. Releases, with
+   their files, as ACCORDWIMSY_RELEASES's rules pick them (config.h): a release the rules no longer pick is deleted
+   here once those they pick are here, one GitHub has no more stays the grace; a repository no rule names has its
+   Releases tab turned off. */
 #ifndef AW_SYNC_H
 #define AW_SYNC_H
 #include "aw.h"
@@ -18,6 +20,8 @@
 typedef struct {
     const AwConfig* config;
     AwFetch fetch;
+    AwDownload download; /* a release's files: from GitHub */
+    AwUpload upload;     /* and to the Forgejo */
     void* ctx;
     cJSON* state;  /* state.json: per repository, what was made of it */
     long writes;   /* the Forgejo's POST, PATCH and PUT, for the log */
@@ -31,6 +35,6 @@ typedef struct {
    why) */
 int aw_sync(Aw* a);
 /* what state.json says of each repository, on stdout: its last good pass, or that GitHub lists it no more, and what
-   waits out the grace before it is deleted here */
+   waits out the grace before it is deleted here (a branch, a tag, a release) */
 void aw_status(const Aw* a);
 #endif

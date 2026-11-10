@@ -3,10 +3,13 @@
 #include "sync.h"
 #include "git.h"
 #include <errno.h>
+#include <fnmatch.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <time.h>
+#include <unistd.h>
 
 /* ---- the two APIs ---- */
 /* a request's JSON answer (owned), or NULL; *status its HTTP status. A failure (no answer, or a status but want's and
@@ -108,9 +111,11 @@ static cJSON* forgejo_all(Aw* a, const char* path) {
 }
 
 /* ---- state.json: { "repos": { NAME: { "next", "issues_since", "comments_since", "seen", "comments", "pulls", "gone",
-   "ok", "missing" } } }; "pulls": the numbers made as pull requests, each with the state it was left in here: "open",
-   "closed", "merged"; "gone": each ref the Forgejo has and GitHub has no more, with when it was first seen so; "ok":
-   when the repository's last pass went through; "missing": since when GitHub has not listed it */
+   "releases", "ok", "missing" } } }; "pulls": the numbers made as pull requests, each with the state it was left in
+   here: "open", "closed", "merged"; "gone": each ref the Forgejo has and GitHub has no more, with when it was first
+   seen so; "releases": each release made here, by its tag: { "id": the Forgejo's, "at": GitHub's updated_at it was
+   made or edited from, "assets": { file name: GitHub's id of the file sent }, "gone": since when GitHub has it no
+   more }; "ok": when the repository's last pass went through; "missing": since when GitHub has not listed it */
 static cJSON* child(cJSON* o, const char* key) {
     cJSON* c = cJSON_GetObjectItemCaseSensitive(o, key);
     if (!cJSON_IsObject(c)) {
@@ -161,13 +166,21 @@ static int ensure_repo(Aw* a, const cJSON* repo) {
     free(path);
     return rc;
 }
-/* what the repository says on GitHub, its Releases tab off (releases stay on GitHub), its pull requests on and a pull
-   request markable as merged by a commit of its own (GitHub's merge commit, AW_PULL_BRANCH's pull requests) */
+/* whether a rule of ACCORDWIMSY_RELEASES names the repository */
+static int has_rules(const Aw* a, const char* name) {
+    int i;
+    for (i = 0; i < a->config->rules; ++i)
+        if (!strcmp(a->config->rule[i].repo, name)) return 1;
+    return 0;
+}
+/* what the repository says on GitHub, its Releases tab on only when a rule of ACCORDWIMSY_RELEASES names it, its pull
+   requests on and a pull request markable as merged by a commit of its own (GitHub's merge commit, AW_PULL_BRANCH's
+   pull requests) */
 static int patch_repo(Aw* a, const cJSON* repo) {
     const char *name = jstr(repo, "name"), *branch = jstr(repo, "default_branch");
     char* path = aw_format("repos/%s/%s", a->config->forgejo_org, name);
     cJSON *edit = cJSON_CreateObject(), *got;
-    cJSON_AddBoolToObject(edit, "has_releases", 0);
+    cJSON_AddBoolToObject(edit, "has_releases", has_rules(a, name));
     cJSON_AddBoolToObject(edit, "has_pull_requests", 1);
     cJSON_AddBoolToObject(edit, "allow_manual_merge", 1);
     cJSON_AddBoolToObject(edit, "private", jbool(repo, "private"));
@@ -791,6 +804,282 @@ static int comments(Aw* a, const char* name, cJSON* st) {
     return rc;
 }
 
+/* ---- releases ---- */
+static const char* tag_of(const cJSON* release) { return jstr(release, "tag_name") ? jstr(release, "tag_name") : ""; }
+/* oldest first by when GitHub published it, its tag the tie-break */
+static int by_published(const void* x, const void* y) {
+    const cJSON *p = *(const cJSON* const*)x, *q = *(const cJSON* const*)y;
+    const char *s = jstr(p, "published_at"), *t = jstr(q, "published_at");
+    int c = strcmp(s ? s : "", t ? t : "");
+    return c ? c : strcmp(tag_of(p), tag_of(q));
+}
+/* the items of all (GitHub's releases of name) that come here, by ACCORDWIMSY_RELEASES's rules of name: a published
+   one (no draft) whose tag a rule matches, of a rule with a count only the newest that many of those it matches. Into
+   out, oldest first (room for all's count); how many */
+static int chosen(const Aw* a, const char* name, const cJSON* all, const cJSON** out) {
+    int n = 0, i, j, k, taken = 0;
+    const cJSON* r;
+    const cJSON** each = calloc((size_t)cJSON_GetArraySize(all) + 1, sizeof *each);
+    char* picked = calloc((size_t)cJSON_GetArraySize(all) + 1, 1);
+    for (r = all->child; r; r = r->next)
+        if (!jbool(r, "draft") && jstr(r, "tag_name") && jstr(r, "published_at")) each[n++] = r;
+    qsort(each, (size_t)n, sizeof *each, by_published);
+    for (i = 0; i < a->config->rules; ++i) {
+        if (strcmp(a->config->rule[i].repo, name)) continue;
+        for (j = n - 1, k = 0; j >= 0; --j) /* the newest first */
+            if (!fnmatch(a->config->rule[i].pattern, tag_of(each[j]), 0) &&
+                (!a->config->rule[i].newest || k++ < a->config->rule[i].newest))
+                picked[j] = 1;
+    }
+    for (j = 0; j < n; ++j)
+        if (picked[j]) out[taken++] = each[j];
+    free(picked);
+    free(each);
+    return taken;
+}
+/* the text on the Forgejo: where it is from, then GitHub's */
+static char* release_body(const cJSON* r) {
+    const char *who = jstr(cJSON_GetObjectItemCaseSensitive(r, "author"), "login"), *body = jstr(r, "body");
+    char when[11];
+    Buf b = {0};
+    day(jstr(r, "published_at"), when);
+    buf_printf(&b, "> From GitHub: [%s](%s), published by **@%s** on %s.", tag_of(r),
+               jstr(r, "html_url") ? jstr(r, "html_url") : "", who ? who : "ghost", when);
+    if (body && *body) buf_printf(&b, "\n\n%s", body);
+    return buf_take(&b);
+}
+/* the item of list whose key is value, or NULL */
+static const cJSON* item_of(const cJSON* list, const char* key, const char* value) {
+    const cJSON* i;
+    for (i = list ? list->child : NULL; i; i = i->next)
+        if (jstr(i, key) && !strcmp(jstr(i, key), value)) return i;
+    return NULL;
+}
+/* GitHub's file f of the release tag sent to the Forgejo's release id: fetched into ACCORDWIMSY_STATE/release.part,
+   its size and (when GitHub gives one) its SHA-256 checked against GitHub's, sent, its size checked again on the
+   Forgejo's answer. 0, or 1 (said: a checksum not GitHub's on stderr, for someone to see) */
+static int bring(Aw* a, const char* name, const char* tag, const cJSON* f, double id) {
+    const char *file = jstr(f, "name"), *digest = jstr(f, "digest");
+    char *part = aw_format("%s/release.part", a->config->state), *auth = github_auth(a), hex[65];
+    char *to = aw_format("%s/api/v1/repos/%s/%s/releases/%.0f/assets", a->config->forgejo, a->config->forgejo_org,
+                         name, id);
+    double size = jnum(f, "size");
+    AwAnswer got;
+    struct stat st;
+    cJSON* answer;
+    int rc = 1;
+    a->download(a->ctx, jstr(f, "url") ? jstr(f, "url") : "", auth, part, &got);
+    free(auth);
+    if (got.error)
+        aw_log("%s: release %s: %s could not be fetched: %s", name, tag, file, got.error);
+    else if (stat(part, &st) || (double)st.st_size != size)
+        aw_log("%s: release %s: %s came as %.0f bytes, GitHub says %.0f: not sent", name, tag, file,
+               stat(part, &st) ? -1.0 : (double)st.st_size, size);
+    else if (digest && !strncmp(digest, "sha256:", 7) && (aw_sha256_file(part, hex) || strcmp(hex, digest + 7)))
+        aw_warn("%s: release %s: %s came with a SHA-256 that is not GitHub's (%s): not sent, the next pass fetches it "
+                "again",
+                name, tag, file, digest + 7);
+    else {
+        aw_answer_free(&got);
+        auth = forgejo_auth(a);
+        a->upload(a->ctx, to, auth, part, file, &got);
+        a->writes++;
+        free(auth);
+        answer = got.body ? cJSON_Parse(got.body) : NULL;
+        if (got.error)
+            aw_log("%s", got.error);
+        else if (got.status != 201)
+            aw_log("POST %s: HTTP %d: %.200s", to, got.status, got.body ? got.body : "");
+        else if (jnum(answer, "size") != size)
+            aw_log("%s: release %s: %s is %.0f bytes on the Forgejo, %.0f on GitHub: the next pass sends it again",
+                   name, tag, file, jnum(answer, "size"), size);
+        else
+            rc = 0;
+        cJSON_Delete(answer);
+    }
+    aw_answer_free(&got);
+    unlink(part);
+    free(to);
+    free(part);
+    return rc;
+}
+/* the release's files on the Forgejo (here, its release) as GitHub's (r): one GitHub has not, or a second of a name,
+   deleted; one GitHub has (uploaded) and the Forgejo has not, or not as GitHub has it now (GitHub's id of it not the
+   one entry kept), brought. One of GitHub's size that entry kept no id of (state.json lost) is taken as it is */
+static int release_files(Aw* a, const char* name, const cJSON* r, const cJSON* here, cJSON* entry) {
+    const cJSON *theirs = cJSON_GetObjectItemCaseSensitive(r, "assets"),
+                *ours = cJSON_GetObjectItemCaseSensitive(here, "assets"), *f, *o, *p;
+    cJSON* ids = child(entry, "assets");
+    const char* tag = tag_of(r);
+    int rc = 0, brought = 0;
+    for (o = ours ? ours->child : NULL; o && !rc; o = o->next) {
+        const char* file = jstr(o, "name") ? jstr(o, "name") : "";
+        const cJSON* on = item_of(theirs, "name", file);
+        for (p = ours->child; p != o && strcmp(jstr(p, "name") ? jstr(p, "name") : "", file); p = p->next) continue;
+        if (on && p == o && strcmp(jstr(on, "state") ? jstr(on, "state") : "uploaded", "uploaded") == 0) continue;
+        {
+            char* path = aw_format("repos/%s/%s/releases/%.0f/assets/%.0f", a->config->forgejo_org, name,
+                                   jnum(here, "id"), jnum(o, "id"));
+            int status;
+            cJSON* got = forgejo(a, "DELETE", path, NULL, 204, &status);
+            rc = !got && status != 404;
+            if (!rc) aw_log("%s: release %s: %s deleted here, as GitHub's release has it not", name, tag, file);
+            if (!rc && p == o) cJSON_DeleteItemFromObjectCaseSensitive(ids, file);
+            cJSON_Delete(got);
+            free(path);
+        }
+    }
+    for (f = theirs ? theirs->child : NULL; f && !rc; f = f->next) {
+        const char* file = jstr(f, "name");
+        const cJSON* kept;
+        if (!file || strcmp(jstr(f, "state") ? jstr(f, "state") : "uploaded", "uploaded")) continue;
+        o = item_of(ours, "name", file);
+        kept = cJSON_GetObjectItemCaseSensitive(ids, file);
+        if (o && cJSON_IsNumber(kept) && kept->valuedouble == jnum(f, "id")) continue;
+        if (o && !cJSON_IsNumber(kept) && jnum(o, "size") == jnum(f, "size")) {
+            set_number(ids, file, jnum(f, "id"));
+            continue;
+        }
+        if (o) { /* GitHub's file of that name is another now */
+            char* path = aw_format("repos/%s/%s/releases/%.0f/assets/%.0f", a->config->forgejo_org, name,
+                                   jnum(here, "id"), jnum(o, "id"));
+            int status;
+            cJSON* got = forgejo(a, "DELETE", path, NULL, 204, &status);
+            rc = !got && status != 404;
+            cJSON_Delete(got);
+            free(path);
+            if (rc) break;
+        }
+        rc = bring(a, name, tag, f, jnum(here, "id"));
+        if (!rc) {
+            set_number(ids, file, jnum(f, "id"));
+            ++brought;
+            save(a);
+        }
+    }
+    if (brought) aw_log("%s: release %s: %d file(s) sent", name, tag, brought);
+    return rc;
+}
+/* GitHub's release r on the Forgejo (ours: its releases there), made, or edited when GitHub's updated_at moved or
+   it is not the one kept made, then its files. 0; -1 when its tag is not here yet (published after this pass's
+   fetch), said: the next pass makes it; or 1 (said) */
+static int release(Aw* a, const char* name, const cJSON* r, const cJSON* ours, cJSON* kept) {
+    const char *tag = tag_of(r), *updated = jstr(r, "updated_at") ? jstr(r, "updated_at") : "";
+    const cJSON* here = item_of(ours, "tag_name", tag);
+    cJSON *entry, *want, *got = NULL;
+    char* body;
+    int rc;
+    if (!aw_has_tag(a->config, name, tag)) {
+        aw_log("%s: release %s: its tag is not here yet: the next pass", name, tag);
+        return -1;
+    }
+    entry = child(kept, tag);
+    if (cJSON_IsNumber(cJSON_GetObjectItemCaseSensitive(entry, "gone"))) {
+        aw_log("%s: release %s is on GitHub again: it stays here", name, tag);
+        cJSON_DeleteItemFromObjectCaseSensitive(entry, "gone");
+    }
+    if (here && jnum(entry, "id") == jnum(here, "id") && jstr(entry, "at") && !strcmp(jstr(entry, "at"), updated))
+        return release_files(a, name, r, here, entry);
+    want = cJSON_CreateObject();
+    body = release_body(r);
+    cJSON_AddStringToObject(want, "tag_name", tag);
+    cJSON_AddStringToObject(want, "name", jstr(r, "name") && *jstr(r, "name") ? jstr(r, "name") : tag);
+    cJSON_AddStringToObject(want, "body", body);
+    cJSON_AddBoolToObject(want, "draft", 0);
+    cJSON_AddBoolToObject(want, "prerelease", jbool(r, "prerelease"));
+    if (here) { /* another release than the one kept made: its files known by their size alone */
+        char* path = aw_format("repos/%s/%s/releases/%.0f", a->config->forgejo_org, name, jnum(here, "id"));
+        if (jnum(entry, "id") != jnum(here, "id")) cJSON_DeleteItemFromObjectCaseSensitive(entry, "assets");
+        got = forgejo(a, "PATCH", path, want, 200, NULL);
+        free(path);
+    } else {
+        char* path = aw_format("repos/%s/%s/releases", a->config->forgejo_org, name);
+        got = forgejo(a, "POST", path, want, 201, NULL);
+        free(path);
+        if (got) {
+            aw_log("%s: release %s made here", name, tag);
+            cJSON_DeleteItemFromObjectCaseSensitive(entry, "assets");
+        }
+    }
+    rc = !got;
+    if (got) {
+        set_number(entry, "id", jnum(got, "id"));
+        set_string(entry, "at", updated);
+        rc = release_files(a, name, r, got, entry);
+    }
+    cJSON_Delete(got);
+    cJSON_Delete(want);
+    free(body);
+    return rc;
+}
+/* the releases ACCORDWIMSY_RELEASES's rules pick of GitHub's, oldest first, on the Forgejo with their files; then,
+   when every one of them is here (none failed, none waits for its tag), each one made here that the rules no longer
+   pick deleted, or, GitHub having it no more, kept the grace from when that was first seen, said then. A repository
+   no rule names: nothing. 0, or 1 (said) */
+static int releases(Aw* a, const char* name, cJSON* st) {
+    char *gh_path, *fj_path, when[16];
+    cJSON *theirs, *ours, *kept, *e, *next;
+    const cJSON** want = NULL;
+    int rc, n = 0, i, waits = 0, one;
+    if (!has_rules(a, name)) return 0;
+    gh_path = aw_format("repos/%s/%s/releases?", a->config->org, name);
+    fj_path = aw_format("repos/%s/%s/releases", a->config->forgejo_org, name);
+    kept = child(st, "releases");
+    theirs = github_all(a, gh_path);
+    ours = theirs ? forgejo_all(a, fj_path) : NULL;
+    rc = !theirs || !ours;
+    if (!rc) {
+        want = calloc((size_t)cJSON_GetArraySize(theirs) + 1, sizeof *want);
+        n = chosen(a, name, theirs, want);
+    }
+    for (i = 0; i < n && !rc; ++i) {
+        if ((one = release(a, name, want[i], ours, kept)) < 0)
+            waits = 1;
+        else
+            rc = one;
+        save(a);
+    }
+    for (e = rc || waits ? NULL : kept->child; e && !rc; e = next) {
+        const cJSON* on = item_of(theirs, "tag_name", e->string);
+        int picked = 0, status;
+        char* path;
+        cJSON* got;
+        next = e->next;
+        for (i = 0; i < n && !picked; ++i) picked = !strcmp(tag_of(want[i]), e->string);
+        if (picked) continue;
+        if (on && jbool(on, "draft")) on = NULL;
+        if (!on) {
+            if (!cJSON_IsNumber(cJSON_GetObjectItemCaseSensitive(e, "gone"))) {
+                set_number(e, "gone", a->now);
+                when_of(a->now + a->config->grace, "%Y-%m-%d", when, sizeof when);
+                if (a->config->grace)
+                    aw_log("%s: release %s is gone from GitHub: it stays here until %s, then it is deleted", name,
+                           e->string, when);
+            }
+            if (a->now - (long)jnum(e, "gone") < a->config->grace) continue;
+        }
+        path = aw_format("repos/%s/%s/releases/%.0f", a->config->forgejo_org, name, jnum(e, "id"));
+        got = forgejo(a, "DELETE", path, NULL, 204, &status);
+        free(path);
+        rc = !got && status != 404;
+        cJSON_Delete(got);
+        if (rc) break;
+        if (on)
+            aw_log("%s: release %s deleted here: ACCORDWIMSY_RELEASES's rules pick it no more", name, e->string);
+        else {
+            when_of((long)jnum(e, "gone"), "%Y-%m-%d", when, sizeof when);
+            aw_log("%s: release %s deleted here, gone from GitHub since %s", name, e->string, when);
+        }
+        cJSON_DeleteItemFromObjectCaseSensitive(kept, e->string);
+    }
+    free(want);
+    cJSON_Delete(theirs);
+    cJSON_Delete(ours);
+    free(gh_path);
+    free(fj_path);
+    return rc;
+}
+
 /* ---- a pass ---- */
 static int one(Aw* a, const cJSON* repo, cJSON* repos) {
     const char *name = jstr(repo, "name"), *main_branch = jstr(repo, "default_branch");
@@ -805,7 +1094,8 @@ static int one(Aw* a, const cJSON* repo, cJSON* repos) {
     a->numbers_off = 0;
     rc = ensure_repo(a, repo) || aw_mirror(a->config, name, from, to, stamp, main_branch, &stale, &pulls) ||
          patch_repo(a, repo) || labels(a, name, ids) || grace(a, name, st, stale, main_branch) ||
-         keep_open(a, name, st, pulls) || issues(a, name, st, ids) || comments(a, name, st);
+         keep_open(a, name, st, pulls) || issues(a, name, st, ids) || comments(a, name, st) ||
+         releases(a, name, st);
     if (!rc) {
         set_number(st, "ok", a->now);
         cJSON_DeleteItemFromObjectCaseSensitive(st, "numbers_off");
@@ -860,6 +1150,15 @@ static void missing(Aw* a, const cJSON* list, cJSON* repos) {
                 st->string);
     }
 }
+/* each rule of ACCORDWIMSY_RELEASES naming a repository GitHub did not list (list), said on stderr: a name mistyped
+   brings nothing */
+static void rules_listed(const Aw* a, const cJSON* list) {
+    int i;
+    for (i = 0; i < a->config->rules; ++i)
+        if (!item_of(list, "name", a->config->rule[i].repo))
+            aw_warn("ACCORDWIMSY_RELEASES names %s, which GitHub does not list in %s: its rule brings nothing",
+                    a->config->rule[i].repo, a->config->org);
+}
 int aw_sync(Aw* a) {
     char* path = aw_format("orgs/%s/repos?type=all&sort=full_name", a->config->org);
     cJSON *list = github_all(a, path), *repo, *repos = child(a->state, "repos");
@@ -876,6 +1175,7 @@ int aw_sync(Aw* a) {
         }
     }
     missing(a, list, repos);
+    rules_listed(a, list);
     save(a);
     write_fresh(a, list, repos);
     aw_log("%d repositories, %ld write(s) on the Forgejo%s", cJSON_GetArraySize(list), a->writes,
@@ -908,6 +1208,13 @@ void aw_status(const Aw* a) {
             when_of((long)g->valuedouble + a->config->grace, "%Y-%m-%d", until, sizeof until);
             printf("  %s: %s %s, deleted here on %s\n", g->string, kept ? "kept since" : "gone from GitHub since", at,
                    until);
+        }
+        const cJSON* rels = cJSON_GetObjectItemCaseSensitive(r, "releases");
+        for (g = rels ? rels->child : NULL; g; g = g->next) {
+            if (!cJSON_IsNumber(cJSON_GetObjectItemCaseSensitive(g, "gone"))) continue;
+            when_of((long)jnum(g, "gone"), "%Y-%m-%d", at, sizeof at);
+            when_of((long)jnum(g, "gone") + a->config->grace, "%Y-%m-%d", until, sizeof until);
+            printf("  release %s: gone from GitHub since %s, deleted here on %s\n", g->string, at, until);
         }
     }
 }

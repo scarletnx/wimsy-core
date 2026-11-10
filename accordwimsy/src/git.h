@@ -26,6 +26,8 @@ int aw_ref_count(const AwConfig* c, const char* name);
 int aw_delete_refs(const AwConfig* c, const char* name, const char* to, const char* refs);
 /* 1 when the mirror of name has the branch */
 int aw_has_branch(const AwConfig* c, const char* name, const char* branch);
+/* 1 when the mirror of name has the tag */
+int aw_has_tag(const AwConfig* c, const char* name, const char* tag);
 /* 1 when the mirror of name has GitHub's pull request number's head */
 int aw_has_pull(const AwConfig* c, const char* name, int number);
 /* 1 when from has ref now, 0 when it has not, -1 when it could not be asked (said) */

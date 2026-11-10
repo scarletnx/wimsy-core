@@ -268,6 +268,9 @@ static int has_ref(const AwConfig* c, const char* name, char* ref) {
 int aw_has_branch(const AwConfig* c, const char* name, const char* branch) {
     return has_ref(c, name, aw_format("refs/heads/%s", branch));
 }
+int aw_has_tag(const AwConfig* c, const char* name, const char* tag) {
+    return has_ref(c, name, aw_format("refs/tags/%s", tag));
+}
 int aw_has_pull(const AwConfig* c, const char* name, int number) {
     return has_ref(c, name, aw_format("refs/pull/%d/head", number));
 }

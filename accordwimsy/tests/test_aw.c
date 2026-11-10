@@ -78,6 +78,8 @@ static char* rev(const char* side, const char* name, const char* ref) {
     return aw_strdup(line);
 }
 
+static char* slurp(const char* path);
+
 /* ---- the fake Forgejo ---- */
 typedef struct {
     int number;
@@ -91,8 +93,22 @@ typedef struct {
     char* body;
 } Comment;
 typedef struct {
+    int id;
+    char name[64];
+    char* data; /* its bytes, text in these tests */
+} File;
+typedef struct {
+    int id, prerelease;
+    char tag[32], name[64];
+    char* body;
+    File files[8];
+    int nfiles;
+} Release;
+typedef struct {
     char name[64], branch[64], description[128];
     int private_, releases, pulls, manual; /* manual: a pull request can be marked merged by a commit */
+    Release rels[8];
+    int nrels;
     Issue issues[32];
     int nissues;
     struct {
@@ -129,6 +145,47 @@ static Issue* new_issue(Repo* r, const cJSON* in) {
          l && is->nlabels < 8; l = l->next)
         is->labels[is->nlabels++] = (int)l->valuedouble;
     return is;
+}
+/* a release as the Forgejo answers it, its files with it */
+static char* release_json(const Release* rel) {
+    cJSON *o = cJSON_CreateObject(), *files = cJSON_CreateArray();
+    char* text;
+    int i;
+    cJSON_AddNumberToObject(o, "id", rel->id);
+    cJSON_AddStringToObject(o, "tag_name", rel->tag);
+    cJSON_AddStringToObject(o, "name", rel->name);
+    cJSON_AddStringToObject(o, "body", rel->body ? rel->body : "");
+    cJSON_AddBoolToObject(o, "draft", 0);
+    cJSON_AddBoolToObject(o, "prerelease", rel->prerelease);
+    for (i = 0; i < rel->nfiles; ++i) {
+        cJSON* f = cJSON_CreateObject();
+        cJSON_AddNumberToObject(f, "id", rel->files[i].id);
+        cJSON_AddStringToObject(f, "name", rel->files[i].name);
+        cJSON_AddNumberToObject(f, "size", (double)strlen(rel->files[i].data));
+        cJSON_AddItemToArray(files, f);
+    }
+    cJSON_AddItemToObject(o, "assets", files);
+    text = cJSON_PrintUnformatted(o);
+    cJSON_Delete(o);
+    return text;
+}
+static Release* release_of(Repo* r, int id) {
+    int i;
+    for (i = 0; i < r->nrels; ++i)
+        if (r->rels[i].id == id) return &r->rels[i];
+    return NULL;
+}
+static Release* release_tagged(Repo* r, const char* tag) {
+    int i;
+    for (i = 0; r && i < r->nrels; ++i)
+        if (!strcmp(r->rels[i].tag, tag)) return &r->rels[i];
+    return NULL;
+}
+static File* file_named(Release* rel, const char* name) {
+    int i;
+    for (i = 0; rel && i < rel->nfiles; ++i)
+        if (!strcmp(rel->files[i].name, name)) return &rel->files[i];
+    return NULL;
 }
 static void set(char** field, const cJSON* o, const char* key) {
     if (!jstr(o, key)) return;
@@ -173,6 +230,64 @@ static void forgejo(const char* method, const char* path, const cJSON* in, AwAns
             snprintf(r->description, sizeof r->description, "%s", jstr(in, "description") ? jstr(in, "description") : "");
             out->status = 200;
             out->body = aw_strdup("{}");
+        }
+        return;
+    }
+    if (!strncmp(rest, "/releases", 9)) { /* releases: made only on a tag the repository has, one a tag */
+        int rid = 0, fid = 0, i;
+        Release* rel;
+        if (sscanf(rest, "/releases/%d/assets/%d", &rid, &fid) == 2) {
+            if (!(rel = release_of(r, rid)) || strcmp(method, "DELETE")) return;
+            for (i = 0; i < rel->nfiles && rel->files[i].id != fid; ++i) continue;
+            if (i == rel->nfiles) return;
+            free(rel->files[i].data);
+            memmove(&rel->files[i], &rel->files[i + 1], (size_t)(rel->nfiles - i - 1) * sizeof *rel->files);
+            rel->nfiles--;
+            out->status = 204;
+        } else if (sscanf(rest, "/releases/%d", &rid) == 1) {
+            if (!(rel = release_of(r, rid))) return;
+            if (!strcmp(method, "PATCH")) {
+                if (jstr(in, "name")) snprintf(rel->name, sizeof rel->name, "%s", jstr(in, "name"));
+                set(&rel->body, in, "body");
+                rel->prerelease = jbool(in, "prerelease");
+                out->status = 200;
+                out->body = release_json(rel);
+            } else if (!strcmp(method, "DELETE")) {
+                for (i = 0; i < rel->nfiles; ++i) free(rel->files[i].data);
+                free(rel->body);
+                i = (int)(rel - r->rels);
+                memmove(&r->rels[i], &r->rels[i + 1], (size_t)(r->nrels - i - 1) * sizeof *r->rels);
+                r->nrels--;
+                out->status = 204;
+            }
+        } else if (!strcmp(method, "GET")) {
+            Buf b = {0};
+            buf_add(&b, "[");
+            for (i = 0; strstr(rest, "page=1") && i < r->nrels; ++i) {
+                char* one = release_json(&r->rels[i]);
+                buf_printf(&b, "%s%s", i ? "," : "", one);
+                free(one);
+            }
+            buf_add(&b, "]");
+            out->status = 200;
+            out->body = buf_take(&b);
+        } else if (!strcmp(method, "POST")) {
+            const char* tag = jstr(in, "tag_name");
+            out->status = 422; /* a Forgejo would make the tag; here it is a fault of the program's */
+            if (!tag || quiet("git --git-dir=%s/fj/org/%s.git rev-parse --verify --quiet refs/tags/%s", root, r->name,
+                              tag))
+                return;
+            out->status = 409;
+            if (release_tagged(r, tag)) return;
+            rel = &r->rels[r->nrels++];
+            memset(rel, 0, sizeof *rel);
+            rel->id = next_id++;
+            snprintf(rel->tag, sizeof rel->tag, "%s", tag);
+            snprintf(rel->name, sizeof rel->name, "%s", jstr(in, "name") ? jstr(in, "name") : "");
+            rel->body = aw_strdup(jstr(in, "body"));
+            rel->prerelease = jbool(in, "prerelease");
+            out->status = 201;
+            out->body = release_json(rel);
         }
         return;
     }
@@ -360,6 +475,62 @@ static void fake(void* ctx, const char* method, const char* url, const char* aut
     out->error = aw_format("%s %s: no such host here", method, url);
 }
 
+/* ---- a release's files: GitHub's by their address, the Forgejo's sent to its release ---- */
+static struct {
+    char *url, *data;
+} served[16];
+static int nserved, downloads, uploads;
+static void serve(const char* url, const char* data) {
+    int i;
+    for (i = 0; i < nserved && strcmp(served[i].url, url); ++i) continue;
+    if (i == nserved) served[nserved++].url = aw_strdup(url);
+    else free(served[i].data);
+    served[i].data = aw_strdup(data);
+}
+static void fake_download(void* ctx, const char* url, const char* auth, const char* path, AwAnswer* out) {
+    FILE* f;
+    int i;
+    (void)ctx;
+    memset(out, 0, sizeof *out);
+    if (!auth || strcmp(auth, "Bearer gh-token")) fprintf(stderr, "test_aw: GitHub asked without its token\n");
+    for (i = 0; i < nserved && strcmp(served[i].url, url); ++i) continue;
+    if (i == nserved) {
+        out->status = 404;
+        out->error = aw_format("GET %s: HTTP 404", url);
+        return;
+    }
+    f = fopen(path, "wb");
+    if (!f || fputs(served[i].data, f) == EOF) out->error = aw_format("GET %s: %s cannot be written", url, path);
+    if (f) fclose(f);
+    out->status = 200;
+    downloads++;
+}
+static void fake_upload(void* ctx, const char* url, const char* auth, const char* path, const char* name,
+                        AwAnswer* out) {
+    char prefix[300], repo[64];
+    int rid;
+    Repo* r;
+    Release* rel;
+    (void)ctx;
+    memset(out, 0, sizeof *out);
+    out->status = 404;
+    snprintf(prefix, sizeof prefix, FJ "/api/v1/repos/org/", root);
+    if (!auth || strcmp(auth, "token fj-token")) fprintf(stderr, "test_aw: the Forgejo asked without its token\n");
+    writes[0]++;
+    uploads++;
+    if (strncmp(url, prefix, strlen(prefix)) ||
+        sscanf(url + strlen(prefix), "%63[^/]/releases/%d/assets", repo, &rid) != 2 || !(r = repo_of(repo)) ||
+        !(rel = release_of(r, rid)) || !strstr(url, "/assets"))
+        return;
+    rel->files[rel->nfiles].id = next_id++;
+    snprintf(rel->files[rel->nfiles].name, sizeof rel->files[0].name, "%s", name);
+    rel->files[rel->nfiles].data = slurp(path);
+    out->status = 201;
+    out->body = aw_format("{\"id\":%d,\"name\":\"%s\",\"size\":%zu}", rel->files[rel->nfiles].id, name,
+                          strlen(rel->files[rel->nfiles].data));
+    rel->nfiles++;
+}
+
 /* ---- git on the fake GitHub's side ---- */
 static int sh(const char* fmt, ...) {
     char command[2048];
@@ -481,6 +652,86 @@ static void stamp_of(long t, char out[32]) {
     strftime(out, 32, "%Y%m%d-%H%M%S", &tm);
 }
 
+/* the SHA-256 of the contents these tests send: "abc", "" and the fox (FIPS 180-2's and the usual vectors) */
+static const char* fox = "The quick brown fox jumps over the lazy dog";
+static const char* digest_of(const char* data) {
+    if (!strcmp(data, "abc")) return "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+    if (!*data) return "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+    if (strcmp(data, fox)) fprintf(stderr, "test_aw: no SHA-256 known of \"%s\"\n", data);
+    return "d7a8fbb307d7809469ca9abcb0082e4f8d5651e46d3cdb762d02d0bf37c9e592";
+}
+/* a file of a release of tools on GitHub, served at its address: its JSON (owned), GitHub's SHA-256 of it digest, or
+   (NULL) the one of data */
+static char* gh_file(int id, const char* name, const char* data, const char* digest) {
+    char *url = aw_format(GH_API "/repos/org/tools/releases/assets/%d", id),
+         *json = aw_format("{\"id\":%d,\"name\":\"%s\",\"size\":%zu,\"state\":\"uploaded\",\"digest\":\"sha256:%s\","
+                           "\"url\":\"%s\"}",
+                           id, name, strlen(data), digest ? digest : digest_of(data), url);
+    serve(url, data);
+    free(url);
+    return json;
+}
+/* a release of tools by ada on GitHub (published NULL: a draft; name NULL: none; body as JSON writes it), with n files'
+   JSON, each owned: its JSON (owned) */
+static char* gh_release(const char* tag, const char* name, const char* published, const char* updated, int prerelease,
+                        const char* body, int n, ...) {
+    Buf b = {0};
+    va_list a;
+    int i;
+    buf_printf(&b,
+               "{\"tag_name\":\"%s\",\"name\":%s%s%s,\"draft\":%s,\"prerelease\":%s,\"published_at\":%s%s%s,"
+               "\"updated_at\":\"%s\",\"html_url\":\"https://github.com/org/tools/releases/tag/%s\","
+               "\"author\":{\"login\":\"ada\"},\"body\":\"%s\",\"assets\":[",
+               tag, name ? "\"" : "", name ? name : "null", name ? "\"" : "", published ? "false" : "true",
+               prerelease ? "true" : "false", published ? "\"" : "", published ? published : "null",
+               published ? "\"" : "", updated, tag, body);
+    va_start(a, n);
+    for (i = 0; i < n; ++i) {
+        char* file = va_arg(a, char*);
+        buf_printf(&b, "%s%s", i ? "," : "", file);
+        free(file);
+    }
+    va_end(a);
+    buf_add(&b, "]}");
+    return buf_take(&b);
+}
+/* tools's releases on GitHub: n of gh_release's, each owned */
+static void tools_releases(int n, ...) {
+    Buf b = {0};
+    va_list a;
+    int i;
+    char* list;
+    buf_add(&b, "[");
+    va_start(a, n);
+    for (i = 0; i < n; ++i) {
+        char* entry = va_arg(a, char*);
+        buf_printf(&b, "%s%s", i ? "," : "", entry);
+        free(entry);
+    }
+    va_end(a);
+    buf_add(&b, "]");
+    list = buf_take(&b);
+    github("repos/org/tools/releases?", list);
+    free(list);
+}
+/* the state tools's release tag is kept in, NULL when none */
+static const cJSON* kept_release(const cJSON* state, const char* tag) {
+    const cJSON* tools = cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(state, "repos"), "tools");
+    return cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(tools, "releases"), tag);
+}
+/* an env file of root's like env, with ACCORDWIMSY_RELEASES=rules, read into c: 0, or why it was not */
+static int with_rules(AwConfig* c, const char* env, const char* rules, char* why, size_t size) {
+    char *text = slurp(env), *path = aw_format("%s/rules.env", root);
+    FILE* f = fopen(path, "w");
+    int rc;
+    fprintf(f, "%sACCORDWIMSY_RELEASES=%s\n", text, rules);
+    fclose(f);
+    rc = aw_config_read(c, path, why, size);
+    free(text);
+    free(path);
+    return rc;
+}
+
 static int pass(AwConfig* c, cJSON* state, long* written) {
     Aw a;
     int rc;
@@ -488,6 +739,8 @@ static int pass(AwConfig* c, cJSON* state, long* written) {
     a.config = c;
     a.now = now_t;
     a.fetch = fake;
+    a.download = fake_download;
+    a.upload = fake_upload;
     a.state = state;
     a.state_path = aw_format("%s/state/state.json", root);
     rc = aw_sync(&a);
@@ -566,9 +819,60 @@ int main(void) {
         fprintf(f, "ACCORDWIMSY_FORGEJO=x\nno equals here\n");
         fclose(f);
         CHECK(aw_config_read(&bad, wrong, why, sizeof why) && strstr(why, "bad.env:2: \"no equals here\" is no KEY=value"));
+        /* ACCORDWIMSY_RELEASES: its rules read, a space or a tab between; each word that is no rule refused, named */
+        f = fopen(wrong, "w");
+        fprintf(f, "ACCORDWIMSY_FORGEJO=x\nACCORDWIMSY_FORGEJO_TOKEN=t\nGITHUB_TOKEN=t\n"
+                   "ACCORDWIMSY_RELEASES= nightly:nightly-*:3\tedenprobe:*  \n");
+        fclose(f);
+        CHECK(!aw_config_read(&bad, wrong, why, sizeof why) && bad.rules == 2);
+        CHECK(!strcmp(bad.rule[0].repo, "nightly") && !strcmp(bad.rule[0].pattern, "nightly-*") &&
+              bad.rule[0].newest == 3);
+        CHECK(!strcmp(bad.rule[1].repo, "edenprobe") && !strcmp(bad.rule[1].pattern, "*") && bad.rule[1].newest == 0);
+        {
+            static const char* const none[] = {"game", "game:", ":v*", "game:v*:", "game:v*:0", "game:v*:x",
+                                               "game:v*:12345", "game:v*:3:4"};
+            size_t i;
+            for (i = 0; i < sizeof none / sizeof *none; ++i) {
+                char* said = aw_format("ACCORDWIMSY_RELEASES: \"%s\" is no rule", none[i]);
+                f = fopen(wrong, "w");
+                fprintf(f, "ACCORDWIMSY_FORGEJO=x\nACCORDWIMSY_FORGEJO_TOKEN=t\nGITHUB_TOKEN=t\n"
+                           "ACCORDWIMSY_RELEASES=edenprobe:* %s nightly:*\n",
+                        none[i]);
+                fclose(f);
+                CHECK(aw_config_read(&bad, wrong, why, sizeof why) && strstr(why, said));
+                free(said);
+            }
+            f = fopen(wrong, "w");
+            fprintf(f, "ACCORDWIMSY_FORGEJO=x\nACCORDWIMSY_FORGEJO_TOKEN=t\nGITHUB_TOKEN=t\nACCORDWIMSY_RELEASES=");
+            for (i = 0; i <= AW_RULES; ++i) fprintf(f, "r:* ");
+            fprintf(f, "\n");
+            fclose(f);
+            CHECK(aw_config_read(&bad, wrong, why, sizeof why) && strstr(why, "has more than 16 rules"));
+        }
         free(wrong);
     }
     CHECK(!strcmp(aw_base64("x-access-token:t"), "eC1hY2Nlc3MtdG9rZW46dA=="));
+    CHECK(c.rules == 0); /* no ACCORDWIMSY_RELEASES: no rule, none needed */
+    /* a file's SHA-256: the known vectors, a million a's over many reads, and a file that is not there */
+    {
+        char *file = aw_format("%s/sha", root), hex[65] = "";
+        FILE* f = fopen(file, "wb");
+        long i;
+        fputs("abc", f);
+        fclose(f);
+        CHECK(!aw_sha256_file(file, hex) && !strcmp(hex, digest_of("abc")));
+        f = fopen(file, "wb");
+        fclose(f);
+        CHECK(!aw_sha256_file(file, hex) && !strcmp(hex, digest_of("")));
+        f = fopen(file, "wb");
+        for (i = 0; i < 1000000; ++i) fputc('a', f);
+        fclose(f);
+        CHECK(!aw_sha256_file(file, hex) &&
+              !strcmp(hex, "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0"));
+        unlink(file);
+        CHECK(aw_sha256_file(file, hex) == -1);
+        free(file);
+    }
 
     /* GitHub: the repositories, a game with main, a branch and a tag, pull request #2 merged into main (its head kept
        as refs/pull/2/head, as GitHub keeps every one's), and an empty private one */
@@ -964,6 +1268,189 @@ int main(void) {
         CHECK(pass_err(&c, state, &err) == 0);
         CHECK(strstr(err, "game: 3 branches and tags gone from GitHub in one pass, 1 left there: each stays here "));
         free(err);
+    }
+
+    /* releases. tools on GitHub: tags v1 to v4 and pr-5; releases v1, v2 (named, its text with a CRLF), v3 (a
+       pre-release, two files), a draft and pr-5. The rules: tools's 2 newest v*, and a repository GitHub does not
+       list. game, which no rule names, keeps its Releases tab off */
+    {
+        AwConfig rc_;
+        char *err, *part = aw_format("%s/release.part", c.state);
+        Repo* tools;
+        Release* rel;
+        struct stat st;
+        int w0, d0, u0;
+        CHECK(!sh("git init --bare --quiet %s/gh/org/tools.git && cd %s/work && git tag v2 && git tag v3 && "
+                  "git tag v4 && git tag pr-5 && git push --quiet %s/gh/org/tools.git main v1 v2 v3 v4 pr-5",
+                  root, root, root));
+        github("orgs/org/repos?type=all&sort=full_name",
+               "[{\"name\":\"game\",\"private\":false,\"description\":\"A game\",\"default_branch\":\"main\","
+               "\"html_url\":\"https://github.com/org/game\"},{\"name\":\"tools\",\"private\":false,"
+               "\"description\":\"Tools\",\"default_branch\":\"main\",\"html_url\":\"https://github.com/org/tools\"}]");
+        github("repos/org/tools/labels?", "[]");
+        github("repos/org/tools/issues?state=all&sort=updated&direction=asc", "[]");
+        github("repos/org/tools/issues/comments?sort=updated&direction=asc", "[]");
+        tools_releases(5, gh_release("v1", "One", "2026-10-01T10:00:00Z", "2026-10-01T10:00:00Z", 0, "", 1,
+                                  gh_file(501, "a.txt", "abc", NULL)),
+                       gh_release("v2", "Two", "2026-10-02T10:00:00Z", "2026-10-02T10:00:00Z", 0, "Notes\\r\\n2", 1,
+                                  gh_file(502, "b.txt", "abc", NULL)),
+                       gh_release("v3", NULL, "2026-10-03T10:00:00Z", "2026-10-03T10:00:00Z", 1, "", 2,
+                                  gh_file(503, "c.txt", fox, NULL), gh_file(504, "d.txt", "", NULL)),
+                       gh_release("beta-1", "Beta", NULL, "2026-10-03T11:00:00Z", 0, "", 0),
+                       gh_release("pr-5", "Five", "2026-10-04T10:00:00Z", "2026-10-04T10:00:00Z", 0, "", 1,
+                                  gh_file(505, "e.txt", "abc", NULL)));
+
+        /* the first pass: v2 and v3 made here, oldest first, with their files, each fetched once and checked; the
+           repository GitHub does not list said on stderr; the file fetched gone after */
+        CHECK(!with_rules(&rc_, env, "tools:v*:2 nosuch:*", why, sizeof why) && rc_.rules == 2);
+        CHECK(pass_err(&rc_, state, &err) == 0);
+        CHECK(strstr(err,
+                     "ACCORDWIMSY_RELEASES names nosuch, which GitHub does not list in org: its rule brings nothing"));
+        free(err);
+        tools = repo_of("tools");
+        CHECK(tools && tools->releases && game && !game->releases);
+        CHECK(tools && tools->nrels == 2 && !strcmp(tools->rels[0].tag, "v2") && !strcmp(tools->rels[1].tag, "v3"));
+        CHECK(!release_tagged(tools, "v1") && !release_tagged(tools, "pr-5") && !release_tagged(tools, "beta-1"));
+        rel = release_tagged(tools, "v2");
+        CHECK(rel && !strcmp(rel->name, "Two") && !rel->prerelease &&
+              !strcmp(rel->body, "> From GitHub: [v2](https://github.com/org/tools/releases/tag/v2), published by "
+                                 "**@ada** on 2026-10-02.\n\nNotes\r\n2"));
+        CHECK(rel && rel->nfiles == 1 && file_named(rel, "b.txt") && !strcmp(file_named(rel, "b.txt")->data, "abc"));
+        rel = release_tagged(tools, "v3");
+        CHECK(rel && !strcmp(rel->name, "v3") && rel->prerelease &&
+              !strcmp(rel->body, "> From GitHub: [v3](https://github.com/org/tools/releases/tag/v3), published by "
+                                 "**@ada** on 2026-10-03."));
+        CHECK(rel && rel->nfiles == 2 && file_named(rel, "c.txt") && !strcmp(file_named(rel, "c.txt")->data, fox) &&
+              file_named(rel, "d.txt") && !strcmp(file_named(rel, "d.txt")->data, ""));
+        CHECK(downloads == 3 && uploads == 3 && stat(part, &st) != 0);
+        CHECK(kept_release(state, "v2") && kept_release(state, "v3") && !kept_release(state, "v1"));
+
+        /* nothing changed: nothing written for the releases, nothing fetched */
+        CHECK(!with_rules(&rc_, env, "tools:v*:2", why, sizeof why));
+        w0 = writes_total();
+        d0 = downloads;
+        CHECK(pass_err(&rc_, state, &err) == 0 && !strcmp(err, ""));
+        free(err);
+        CHECK(writes_total() - w0 == 2 && downloads == d0); /* each repository's PATCH, as every pass */
+
+        /* v4 published, v3 edited and its c.txt another file now, a file of v3's here GitHub has not: v4 made, v2
+           deleted as the rules pick it no more, v3 edited, its c.txt sent again and the stray file deleted; d.txt,
+           the same, not fetched again */
+        CHECK(!sh("cd %s/work && git push --quiet %s/gh/org/tools.git v4", root, root));
+        rel = release_tagged(tools, "v3");
+        rel->files[rel->nfiles].id = next_id++;
+        snprintf(rel->files[rel->nfiles].name, sizeof rel->files[0].name, "x.txt");
+        rel->files[rel->nfiles++].data = aw_strdup("stray");
+        tools_releases(4, gh_release("v1", "One", "2026-10-01T10:00:00Z", "2026-10-01T10:00:00Z", 0, "", 1,
+                                  gh_file(501, "a.txt", "abc", NULL)),
+                       gh_release("v2", "Two", "2026-10-02T10:00:00Z", "2026-10-02T10:00:00Z", 0, "Notes\\r\\n2", 1,
+                                  gh_file(502, "b.txt", "abc", NULL)),
+                       gh_release("v3", NULL, "2026-10-03T10:00:00Z", "2026-10-06T10:00:00Z", 1, "Fixed", 2,
+                                  gh_file(506, "c.txt", "abc", NULL), gh_file(504, "d.txt", "", NULL)),
+                       gh_release("v4", "Four", "2026-10-05T10:00:00Z", "2026-10-05T10:00:00Z", 0, "", 1,
+                                  gh_file(507, "f.txt", "abc", NULL)));
+        d0 = downloads;
+        CHECK(pass(&rc_, state, NULL) == 0);
+        CHECK(!release_tagged(tools, "v2") && !kept_release(state, "v2") && release_tagged(tools, "v4"));
+        rel = release_tagged(tools, "v4");
+        CHECK(rel && rel->nfiles == 1 && file_named(rel, "f.txt") && !strcmp(file_named(rel, "f.txt")->data, "abc"));
+        rel = release_tagged(tools, "v3");
+        CHECK(rel && strstr(rel->body, "on 2026-10-03.\n\nFixed") && rel->nfiles == 2 && !file_named(rel, "x.txt"));
+        CHECK(rel && file_named(rel, "c.txt") && !strcmp(file_named(rel, "c.txt")->data, "abc") &&
+              file_named(rel, "d.txt"));
+        CHECK(downloads - d0 == 2);
+
+        /* a file whose SHA-256 is not GitHub's: not sent, said on stderr, the repository stopped; sent once it is */
+        tools_releases(4, gh_release("v1", "One", "2026-10-01T10:00:00Z", "2026-10-01T10:00:00Z", 0, "", 1,
+                                  gh_file(501, "a.txt", "abc", NULL)),
+                       gh_release("v2", "Two", "2026-10-02T10:00:00Z", "2026-10-02T10:00:00Z", 0, "Notes\\r\\n2", 1,
+                                  gh_file(502, "b.txt", "abc", NULL)),
+                       gh_release("v3", NULL, "2026-10-03T10:00:00Z", "2026-10-06T10:00:00Z", 1, "Fixed", 2,
+                                  gh_file(506, "c.txt", "abc", NULL), gh_file(504, "d.txt", "", NULL)),
+                       gh_release("v4", "Four", "2026-10-05T10:00:00Z", "2026-10-05T10:00:00Z", 0, "", 2,
+                                  gh_file(507, "f.txt", "abc", NULL), gh_file(508, "g.txt", "abc", digest_of(fox))));
+        CHECK(pass_err(&rc_, state, &err) == 1);
+        CHECK(strstr(err, "tools: release v4: g.txt came with a SHA-256 that is not GitHub's (d7a8fbb3"));
+        free(err);
+        CHECK(!file_named(release_tagged(tools, "v4"), "g.txt") && stat(part, &st) != 0);
+        tools_releases(4, gh_release("v1", "One", "2026-10-01T10:00:00Z", "2026-10-01T10:00:00Z", 0, "", 1,
+                                  gh_file(501, "a.txt", "abc", NULL)),
+                       gh_release("v2", "Two", "2026-10-02T10:00:00Z", "2026-10-02T10:00:00Z", 0, "Notes\\r\\n2", 1,
+                                  gh_file(502, "b.txt", "abc", NULL)),
+                       gh_release("v3", NULL, "2026-10-03T10:00:00Z", "2026-10-06T10:00:00Z", 1, "Fixed", 2,
+                                  gh_file(506, "c.txt", "abc", NULL), gh_file(504, "d.txt", "", NULL)),
+                       gh_release("v4", "Four", "2026-10-05T10:00:00Z", "2026-10-05T10:00:00Z", 0, "", 2,
+                                  gh_file(507, "f.txt", "abc", NULL), gh_file(508, "g.txt", "abc", NULL)));
+        CHECK(pass(&rc_, state, NULL) == 0);
+        CHECK(file_named(release_tagged(tools, "v4"), "g.txt"));
+
+        /* v5 published, its tag not fetched yet: it waits for the next pass, and v3, which it pushes out of the 2
+           newest, stays until v5 is here */
+        tools_releases(5, gh_release("v1", "One", "2026-10-01T10:00:00Z", "2026-10-01T10:00:00Z", 0, "", 1,
+                                  gh_file(501, "a.txt", "abc", NULL)),
+                       gh_release("v2", "Two", "2026-10-02T10:00:00Z", "2026-10-02T10:00:00Z", 0, "Notes\\r\\n2", 1,
+                                  gh_file(502, "b.txt", "abc", NULL)),
+                       gh_release("v3", NULL, "2026-10-03T10:00:00Z", "2026-10-06T10:00:00Z", 1, "Fixed", 2,
+                                  gh_file(506, "c.txt", "abc", NULL), gh_file(504, "d.txt", "", NULL)),
+                       gh_release("v4", "Four", "2026-10-05T10:00:00Z", "2026-10-05T10:00:00Z", 0, "", 2,
+                                  gh_file(507, "f.txt", "abc", NULL), gh_file(508, "g.txt", "abc", NULL)),
+                       gh_release("v5", "Five", "2026-10-07T10:00:00Z", "2026-10-07T10:00:00Z", 0, "", 1,
+                                  gh_file(509, "h.txt", fox, NULL)));
+        CHECK(pass(&rc_, state, NULL) == 0);
+        CHECK(!release_tagged(tools, "v5") && release_tagged(tools, "v3") && release_tagged(tools, "v4"));
+        CHECK(!sh("cd %s/work && git tag v5 && git push --quiet %s/gh/org/tools.git v5", root, root));
+        CHECK(pass(&rc_, state, NULL) == 0);
+        CHECK(release_tagged(tools, "v5") && !release_tagged(tools, "v3") && release_tagged(tools, "v4"));
+
+        /* v5 deleted on GitHub, its tag left: v3 is among the 2 newest again, made again with its files; v5 stays
+           the grace, said by status, and is deleted after it */
+        tools_releases(4, gh_release("v1", "One", "2026-10-01T10:00:00Z", "2026-10-01T10:00:00Z", 0, "", 1,
+                                  gh_file(501, "a.txt", "abc", NULL)),
+                       gh_release("v2", "Two", "2026-10-02T10:00:00Z", "2026-10-02T10:00:00Z", 0, "Notes\\r\\n2", 1,
+                                  gh_file(502, "b.txt", "abc", NULL)),
+                       gh_release("v3", NULL, "2026-10-03T10:00:00Z", "2026-10-06T10:00:00Z", 1, "Fixed", 2,
+                                  gh_file(506, "c.txt", "abc", NULL), gh_file(504, "d.txt", "", NULL)),
+                       gh_release("v4", "Four", "2026-10-05T10:00:00Z", "2026-10-05T10:00:00Z", 0, "", 2,
+                                  gh_file(507, "f.txt", "abc", NULL), gh_file(508, "g.txt", "abc", NULL)));
+        now_t += 600;
+        CHECK(pass(&rc_, state, NULL) == 0);
+        rel = release_tagged(tools, "v3");
+        CHECK(rel && rel->nfiles == 2 && release_tagged(tools, "v5") && release_tagged(tools, "v4"));
+        CHECK(jnum(kept_release(state, "v5"), "gone") == now_t);
+        {
+            char *command = aw_format("./accordwimsy status %s/rules.env 2>&1", root), out[4096] = "", got[256];
+            FILE* p = popen(command, "r");
+            while (p && fgets(got, sizeof got, p)) strncat(out, got, sizeof out - strlen(out) - 1);
+            CHECK(p && pclose(p) == 0);
+            CHECK(strstr(out, "  release v5: gone from GitHub since ") != NULL);
+            free(command);
+        }
+        now_t += 7 * 86400L;
+        CHECK(pass(&rc_, state, NULL) == 0);
+        CHECK(!release_tagged(tools, "v5") && !kept_release(state, "v5") && release_tagged(tools, "v3"));
+
+        /* state.json's releases lost: each release here taken back, its files by their size, nothing fetched or sent */
+        cJSON_DeleteItemFromObjectCaseSensitive(
+            cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(state, "repos"), "tools"), "releases");
+        d0 = downloads;
+        u0 = uploads;
+        w0 = writes_total();
+        CHECK(pass(&rc_, state, NULL) == 0);
+        CHECK(downloads == d0 && uploads == u0 && writes_total() - w0 == 4 && tools->nrels == 2);
+        CHECK(jnum(cJSON_GetObjectItemCaseSensitive(kept_release(state, "v4"), "assets"), "g.txt") == 508);
+
+        /* v4 deleted on the Forgejo and made again by hand, its g.txt another file: taken back, g.txt by its size,
+           sent again; f.txt, of GitHub's size, kept */
+        rel = release_tagged(tools, "v4");
+        rel->id = next_id++;
+        free(file_named(rel, "g.txt")->data);
+        file_named(rel, "g.txt")->data = aw_strdup("not g");
+        u0 = uploads;
+        CHECK(pass(&rc_, state, NULL) == 0);
+        rel = release_tagged(tools, "v4");
+        CHECK(rel && rel->nfiles == 2 && !strcmp(file_named(rel, "g.txt")->data, "abc") && uploads - u0 == 1);
+        CHECK(jnum(kept_release(state, "v4"), "id") == rel->id);
+        free(part);
     }
 
     /* a Forgejo whose next number is not GitHub's: said, the repository stopped, the state where it was */

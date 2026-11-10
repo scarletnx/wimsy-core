@@ -2,9 +2,9 @@
 <!-- Copyright 2026 the ScarletNX contributors -->
 # The forge
 
-A copy of the GitHub organization on [Forgejo](https://forgejo.org): code, issues and pull requests, kept the same
-every 10 minutes by [AccordWimsy](./ACCORDWIMSY.md); releases stay on GitHub. Three isolated jails, each doing one
-thing, so the one that holds the tokens to GitHub is not the one that answers the internet:
+A copy of the GitHub organization on [Forgejo](https://forgejo.org): code, issues and pull requests, kept the same every
+10 minutes by [AccordWimsy](./ACCORDWIMSY.md), with the releases its `ACCORDWIMSY_RELEASES` picks. Three isolated jails,
+each doing one thing, so the one that holds the tokens to GitHub is not the one that answers the internet:
 
 | Jail | Runs | Reaches |
 |---|---|---|

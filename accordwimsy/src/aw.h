@@ -44,5 +44,16 @@ typedef struct {
 } AwAnswer;
 typedef void (*AwFetch)(void* ctx, const char* method, const char* url, const char* auth, const char* body,
                         AwAnswer* out);
+/* url's bytes into the file at path, made or written over: GET, Accept: application/octet-stream, redirects followed,
+   Authorization auth (when not NULL) sent to url's own host alone. out's status and error as AwFetch's, its body
+   NULL; a status past 299 is an error too */
+typedef void (*AwDownload)(void* ctx, const char* url, const char* auth, const char* path, AwAnswer* out);
+/* the file at path sent to url: POST, multipart/form-data, as the field "attachment" with the file name name, a JSON
+   answer. out as AwFetch's */
+typedef void (*AwUpload)(void* ctx, const char* url, const char* auth, const char* path, const char* name,
+                         AwAnswer* out);
 void aw_answer_free(AwAnswer* a);
+
+/* the SHA-256 of the file at path, 64 lowercase hex digits and a NUL into hex: 0, or -1 when it cannot be read */
+int aw_sha256_file(const char* path, char hex[65]);
 #endif

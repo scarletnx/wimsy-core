@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
    Copyright 2026 the ScarletNX contributors */
 #include "aw.h"
+#include <openssl/evp.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -121,4 +122,23 @@ void aw_answer_free(AwAnswer* a) {
     free(a->body);
     free(a->error);
     a->body = a->error = NULL;
+}
+int aw_sha256_file(const char* path, char hex[65]) {
+    static const char digits[] = "0123456789abcdef";
+    FILE* f = fopen(path, "rb");
+    EVP_MD_CTX* md = f ? EVP_MD_CTX_new() : NULL;
+    unsigned char chunk[65536], digest[EVP_MAX_MD_SIZE];
+    unsigned int n = 0, i;
+    size_t got;
+    int ok = md && EVP_DigestInit_ex(md, EVP_sha256(), NULL);
+    while (ok && (got = fread(chunk, 1, sizeof chunk, f)) > 0) ok = EVP_DigestUpdate(md, chunk, got);
+    ok = ok && !ferror(f) && EVP_DigestFinal_ex(md, digest, &n) && n == 32;
+    for (i = 0; ok && i < n; ++i) {
+        hex[2 * i] = digits[digest[i] >> 4];
+        hex[2 * i + 1] = digits[digest[i] & 15];
+    }
+    if (ok) hex[64] = 0;
+    EVP_MD_CTX_free(md);
+    if (f) fclose(f);
+    return ok ? 0 : -1;
 }
