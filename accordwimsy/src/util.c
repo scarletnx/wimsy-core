@@ -142,3 +142,36 @@ int aw_sha256_file(const char* path, char hex[65]) {
     if (f) fclose(f);
     return ok ? 0 : -1;
 }
+int aw_has_line(const char* list, const char* line) {
+    size_t n = strlen(line);
+    const char* at;
+    for (at = list; (at = strstr(at, line)) != NULL; at += n)
+        if ((at == list || at[-1] == '\n') && (at[n] == '\n' || !at[n])) return 1;
+    return 0;
+}
+/* the days from 1970-01-01 to y-m-d of the proleptic Gregorian calendar (Howard Hinnant's days_from_civil) */
+static long days_from_civil(long y, long m, long d) {
+    long era, yoe, doy;
+    y -= m <= 2;
+    era = (y >= 0 ? y : y - 399) / 400;
+    yoe = y - era * 400;
+    doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+    return era * 146097 + yoe * 365 + yoe / 4 - yoe / 100 + doy - 719468;
+}
+long aw_epoch(const char* stamp) {
+    int y, mo, d, h, mi, sec, oh = 0, om = 0, used = 0;
+    const char* zone;
+    if (!stamp || sscanf(stamp, "%4d-%2d-%2dT%2d:%2d:%2d%n", &y, &mo, &d, &h, &mi, &sec, &used) != 6 || used != 19)
+        return -1;
+    zone = stamp + used;
+    if (*zone == '.')
+        for (++zone; *zone >= '0' && *zone <= '9'; ++zone) continue;
+    if (!strcmp(zone, "Z"))
+        ;
+    else if ((*zone == '+' || *zone == '-') && sscanf(zone + 1, "%2d:%2d%n", &oh, &om, &used) == 2 && !zone[1 + used]) {
+        if (*zone == '-') oh = -oh, om = -om;
+    } else
+        return -1;
+    if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59 || sec > 60) return -1;
+    return days_from_civil(y, mo, d) * 86400L + h * 3600L + mi * 60L + sec - oh * 3600L - om * 60L;
+}

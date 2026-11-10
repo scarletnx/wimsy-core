@@ -35,7 +35,7 @@ static char root[256];
 static struct {
     char* path;
     char* body;
-} gh[64];
+} gh[128];
 static int ngh;
 static char* gh_asked[512];
 static int ngh_asked;
@@ -45,6 +45,13 @@ static void github(const char* path, const char* body) {
     if (i == ngh) gh[ngh++].path = aw_strdup(path);
     else free(gh[i].body);
     gh[i].body = aw_strdup(body);
+}
+/* what the fake GitHub answers at path, or NULL */
+static const char* github_body(const char* path) {
+    int i;
+    for (i = 0; i < ngh; ++i)
+        if (!strcmp(gh[i].path, path)) return gh[i].body;
+    return NULL;
 }
 static int github_asked(const char* part) {
     int i, n = 0;
@@ -87,10 +94,13 @@ typedef struct {
     int labels[8], nlabels;
     int pull, merged; /* a pull request: from head into base; merged by merge */
     char head[64], base[64], merge[48];
+    int gone, author_id; /* gone: a number a migration had not; author: GitHub's, a migration's */
+    char author[32];
 } Issue;
 typedef struct {
-    int id, issue;
+    int id, issue, author_id; /* author: GitHub's, a migration's */
     char* body;
+    char author[32], created[40];
 } Comment;
 typedef struct {
     int id;
@@ -109,6 +119,7 @@ typedef struct {
     int private_, releases, pulls, manual; /* manual: a pull request can be marked merged by a commit */
     Release rels[8];
     int nrels;
+    int migrated, archived; /* migrated: made by a migration, its original_url GitHub's */
     Issue issues[32];
     int nissues;
     struct {
@@ -119,7 +130,7 @@ typedef struct {
     Comment comments[32];
     int ncomments;
 } Repo;
-static Repo repos[4];
+static Repo repos[8];
 static int nrepos, next_id = 1000, writes[4], skew; /* POST PATCH PUT DELETE; skew: a number the Forgejo gets wrong */
 static int merge_fails; /* the next merges failing, as a Forgejo that answers 500 */
 static Repo* repo_of(const char* name) {
@@ -128,7 +139,9 @@ static Repo* repo_of(const char* name) {
         if (!strcmp(repos[i].name, name)) return &repos[i];
     return NULL;
 }
-static Issue* issue_of(Repo* r, int number) { return number >= 1 && number <= r->nissues ? &r->issues[number - 1] : NULL; }
+static Issue* issue_of(Repo* r, int number) {
+    return number >= 1 && number <= r->nissues && !r->issues[number - 1].gone ? &r->issues[number - 1] : NULL;
+}
 static int has_branch(const Repo* r, const char* branch) {
     return !quiet("git --git-dir=%s/fj/org/%s.git rev-parse --verify --quiet refs/heads/%s", root, r->name, branch);
 }
@@ -192,6 +205,122 @@ static void set(char** field, const cJSON* o, const char* key) {
     free(*field);
     *field = aw_strdup(jstr(o, key));
 }
+/* GitHub's time as the Forgejo writes it, three hours west (2026-10-01T11:00:00Z: 2026-10-01T08:00:00-03:00) */
+static void west(const char* stamp, char out[40]) {
+    time_t at = (time_t)(aw_epoch(stamp) - 3 * 3600);
+    struct tm tm;
+    gmtime_r(&at, &tm);
+    strftime(out, 40, "%Y-%m-%dT%H:%M:%S-03:00", &tm);
+}
+/* POST repos/migrate: the repository made from the fake GitHub's, as a Forgejo's migration makes it. Its git cloned,
+   every pull request's head as refs/pull/<n>/head; each number GitHub has with its title, text, state and GitHub
+   author, one it has not as a gap; a pull request into its base from its own branch, or, a fork's open one, from the
+   branch <owner>/<ref> the fork's head is fetched into; merged as GitHub's; each comment with its GitHub author and
+   time. Refused (422) when asked for anything but issues, pull requests, labels and milestones from GitHub, once */
+static void migrate(const cJSON* in, AwAnswer* out) {
+    const char *name = jstr(in, "repo_name"), *from = jstr(in, "clone_addr");
+    char *path, *fj;
+    cJSON *list, *pull;
+    const cJSON* i;
+    Repo* r;
+    int top = 0, n;
+    out->status = 422;
+    if (!name || !from || !jstr(in, "service") || strcmp(jstr(in, "service"), "github") || !jstr(in, "auth_token") ||
+        strcmp(jstr(in, "auth_token"), "gh-token") || !jstr(in, "repo_owner") ||
+        strcmp(jstr(in, "repo_owner"), "org") ||
+        jbool(in, "mirror") || jbool(in, "releases") || jbool(in, "wiki") || !jbool(in, "issues") ||
+        !jbool(in, "pull_requests") || !jbool(in, "labels") || !jbool(in, "milestones"))
+        return;
+    out->status = 409;
+    if (repo_of(name)) return;
+    r = &repos[nrepos++];
+    memset(r, 0, sizeof *r);
+    snprintf(r->name, sizeof r->name, "%s", name);
+    r->migrated = r->pulls = r->releases = 1;
+    fj = aw_format("%s/fj/org/%s.git", root, name);
+    if (quiet("git clone --bare --quiet %s %s && "
+              "git --git-dir=%s fetch --quiet %s '+refs/pull/*/head:refs/pull/*/head'",
+              from, fj, fj, from))
+        fprintf(stderr, "test_aw: the migration's clone of %s failed\n", from);
+    path = aw_format("repos/org/%s/issues?state=all&sort=updated&direction=asc", name);
+    list = cJSON_Parse(github_body(path) ? github_body(path) : "[]");
+    free(path);
+    for (i = list->child; i; i = i->next)
+        if ((int)jnum(i, "number") > top) top = (int)jnum(i, "number");
+    for (n = 1; n <= top; ++n) {
+        Issue* is = &r->issues[r->nissues++];
+        const cJSON *e, *who;
+        memset(is, 0, sizeof *is);
+        is->number = n;
+        for (e = list->child; e && (int)jnum(e, "number") != n; e = e->next) continue;
+        if (!e) {
+            is->gone = 1;
+            is->title = aw_strdup("");
+            is->body = aw_strdup("");
+            is->state = aw_strdup("closed");
+            continue;
+        }
+        who = cJSON_GetObjectItemCaseSensitive(e, "user");
+        is->title = aw_strdup(jstr(e, "title"));
+        is->body = aw_strdup(jstr(e, "body"));
+        is->state = aw_strdup(jstr(e, "state"));
+        snprintf(is->author, sizeof is->author, "%s", jstr(who, "login") ? jstr(who, "login") : "");
+        is->author_id = (int)jnum(who, "id");
+        if (!cJSON_GetObjectItemCaseSensitive(e, "pull_request")) continue;
+        path = aw_format("repos/org/%s/pulls/%d", name, n);
+        pull = cJSON_Parse(github_body(path) ? github_body(path) : "{}");
+        free(path);
+        {
+            const cJSON *head = cJSON_GetObjectItemCaseSensitive(pull, "head"),
+                        *base = cJSON_GetObjectItemCaseSensitive(pull, "base");
+            const char *owner = jstr(cJSON_GetObjectItemCaseSensitive(head, "repo"), "full_name"),
+                       *ref = jstr(head, "ref");
+            char* mine = aw_format("org/%s", name);
+            is->pull = 1;
+            snprintf(is->base, sizeof is->base, "%s", jstr(base, "ref") ? jstr(base, "ref") : "");
+            if (owner && strcmp(owner, mine) && !strcmp(is->state, "open")) {
+                snprintf(is->head, sizeof is->head, "%.*s/%s", (int)strcspn(owner, "/"), owner, ref);
+                quiet("git --git-dir=%s update-ref refs/heads/%s refs/pull/%d/head", fj, is->head, n);
+            } else
+                snprintf(is->head, sizeof is->head, "%s", ref ? ref : "");
+            if (jstr(cJSON_GetObjectItemCaseSensitive(e, "pull_request"), "merged_at")) {
+                is->merged = 1;
+                snprintf(is->merge, sizeof is->merge, "%s", jstr(pull, "merge_commit_sha"));
+            }
+            free(mine);
+        }
+        cJSON_Delete(pull);
+    }
+    cJSON_Delete(list);
+    path = aw_format("repos/org/%s/issues/comments?sort=updated&direction=asc", name);
+    list = cJSON_Parse(github_body(path) ? github_body(path) : "[]");
+    free(path);
+    for (;;) { /* the oldest made left, as GitHub's downloader reads them: not the list's order, by when edited */
+        const cJSON* oldest = NULL;
+        Comment* c;
+        const cJSON* who;
+        const char* slash;
+        for (i = list->child; i; i = i->next)
+            if (!jbool(i, "taken") && (!oldest || strcmp(jstr(i, "created_at"), jstr(oldest, "created_at")) < 0))
+                oldest = i;
+        if (!(i = oldest)) break;
+        cJSON_AddBoolToObject((cJSON*)i, "taken", 1);
+        c = &r->comments[r->ncomments++];
+        who = cJSON_GetObjectItemCaseSensitive(i, "user");
+        slash = strrchr(jstr(i, "issue_url"), '/');
+        memset(c, 0, sizeof *c);
+        c->id = next_id++;
+        c->issue = slash ? atoi(slash + 1) : 0;
+        c->body = aw_strdup(jstr(i, "body"));
+        snprintf(c->author, sizeof c->author, "%s", jstr(who, "login") ? jstr(who, "login") : "");
+        c->author_id = (int)jnum(who, "id");
+        west(jstr(i, "created_at"), c->created);
+    }
+    cJSON_Delete(list);
+    free(fj);
+    out->status = 201;
+    out->body = aw_strdup("{}");
+}
 static void forgejo(const char* method, const char* path, const cJSON* in, AwAnswer* out) {
     char name[64] = "", rest[256] = "";
     int number = 0, id = 0;
@@ -216,9 +345,24 @@ static void forgejo(const char* method, const char* path, const cJSON* in, AwAns
         out->body = aw_strdup("{}");
         return;
     }
+    if (!strcmp(method, "POST") && !strcmp(path, "repos/migrate")) {
+        migrate(in, out);
+        return;
+    }
     if (sscanf(path, "repos/org/%63[^/?]%255s", name, rest) < 1 || !(r = repo_of(name))) return;
     if (!rest[0]) {
         if (!strcmp(method, "GET")) {
+            out->status = 200;
+            out->body = aw_format("{\"original_url\":\"%s\"}", r->migrated ? "https://github.com/org/x" : "");
+        } else if (!strcmp(method, "PATCH") && jstr(in, "name")) { /* renamed, its git with it */
+            char *was = aw_format("%s/fj/org/%s.git", root, r->name),
+                 *now = aw_format("%s/fj/org/%s.git", root, jstr(in, "name"));
+            if (rename(was, now)) fprintf(stderr, "test_aw: %s cannot be renamed\n", was);
+            snprintf(r->name, sizeof r->name, "%s", jstr(in, "name"));
+            r->archived = jbool(in, "archived");
+            r->private_ = jbool(in, "private");
+            free(was);
+            free(now);
             out->status = 200;
             out->body = aw_strdup("{}");
         } else if (!strcmp(method, "PATCH")) {
@@ -319,13 +463,49 @@ static void forgejo(const char* method, const char* path, const cJSON* in, AwAns
         out->body = aw_format("{\"number\":%d,\"state\":\"open\"}", is->number);
         return;
     }
-    if (!strncmp(rest, "/pulls?", 7) && !strcmp(method, "GET")) { /* the open pull requests, all on page 1 */
+    if (!strncmp(rest, "/pulls?", 7) && !strcmp(method, "GET")) { /* the open pull requests, or all; all on page 1 */
+        Buf b = {0};
+        int i, n = 0, all = strstr(rest, "state=all") != NULL;
+        buf_add(&b, "[");
+        for (i = 0; strstr(rest, "page=1") && i < r->nissues; ++i)
+            if (r->issues[i].pull && !r->issues[i].gone && (all || !strcmp(r->issues[i].state, "open")))
+                buf_printf(&b, "%s{\"number\":%d,\"state\":\"%s\",\"merged\":%s,\"head\":{\"ref\":\"%s\"}}",
+                           n++ ? "," : "", r->issues[i].number, r->issues[i].state,
+                           r->issues[i].merged ? "true" : "false", r->issues[i].head);
+        buf_add(&b, "]");
+        out->status = 200;
+        out->body = buf_take(&b);
+        return;
+    }
+    if (!strncmp(rest, "/issues?", 8) && !strcmp(method, "GET")) { /* issues and pull requests, all on page 1 */
         Buf b = {0};
         int i, n = 0;
         buf_add(&b, "[");
         for (i = 0; strstr(rest, "page=1") && i < r->nissues; ++i)
-            if (r->issues[i].pull && !strcmp(r->issues[i].state, "open"))
-                buf_printf(&b, "%s{\"number\":%d}", n++ ? "," : "", r->issues[i].number);
+            if (!r->issues[i].gone)
+                buf_printf(&b, "%s{\"number\":%d,\"original_author\":\"%s\",\"original_author_id\":%d,"
+                               "\"pull_request\":%s}",
+                           n++ ? "," : "", r->issues[i].number, r->issues[i].author, r->issues[i].author_id,
+                           !r->issues[i].pull    ? "null"
+                           : r->issues[i].merged ? "{\"merged\":true}"
+                                                 : "{\"merged\":false}");
+        buf_add(&b, "]");
+        out->status = 200;
+        out->body = buf_take(&b);
+        return;
+    }
+    if (!strncmp(rest, "/issues/comments?", 17) && !strcmp(method, "GET")) { /* every comment, all on page 1 */
+        Buf b = {0};
+        int i;
+        buf_add(&b, "[");
+        for (i = 0; strstr(rest, "page=1") && i < r->ncomments; ++i) {
+            Issue* of = issue_of(r, r->comments[i].issue);
+            buf_printf(&b, "%s{\"id\":%d,\"%s\":\"https://fj.test/org/%s/%s/%d\",\"original_author\":\"%s\","
+                           "\"original_author_id\":%d,\"created_at\":\"%s\"}",
+                       i ? "," : "", r->comments[i].id, of && of->pull ? "pull_request_url" : "issue_url", r->name,
+                       of && of->pull ? "pulls" : "issues", r->comments[i].issue, r->comments[i].author,
+                       r->comments[i].author_id, r->comments[i].created);
+        }
         buf_add(&b, "]");
         out->status = 200;
         out->body = buf_take(&b);
@@ -766,6 +946,111 @@ static int pass_err(AwConfig* c, cJSON* state, char** err) {
     return rc;
 }
 static int writes_total(void) { return writes[0] + writes[1] + writes[2] + writes[3]; }
+/* aw_migrate or aw_adopt of name, as main runs it, what it said on standard error into *err (owned) */
+static int act(AwConfig* c, cJSON* state, int (*what)(Aw*, const char*), const char* name, char** err) {
+    Aw a;
+    char* path = aw_format("%s/stderr", root);
+    int saved, fd, rc;
+    memset(&a, 0, sizeof a);
+    a.config = c;
+    a.now = now_t;
+    a.fetch = fake;
+    a.download = fake_download;
+    a.upload = fake_upload;
+    a.state = state;
+    a.state_path = aw_format("%s/state/state.json", root);
+    fflush(stderr);
+    saved = dup(2);
+    fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    dup2(fd, 2);
+    close(fd);
+    rc = what(&a, name);
+    fflush(stderr);
+    dup2(saved, 2);
+    close(saved);
+    *err = slurp(path);
+    free(path);
+    free(a.state_path);
+    return rc;
+}
+/* port's state, from state.json */
+static const cJSON* port_of(const cJSON* state) {
+    return cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(state, "repos"), "port");
+}
+/* a GitHub issue of port's by who (id), a pull request when merged is not NULL ("" for none): its JSON (owned) */
+static char* port_entry(int number, const char* title, const char* state, const char* who, int id, const char* body,
+                        const char* updated, const char* merged) {
+    return aw_format("{\"number\":%d,\"title\":\"%s\",\"state\":\"%s\",\"body\":\"%s\",\"html_url\":"
+                     "\"https://github.com/org/port/issues/%d\",\"user\":{\"login\":\"%s\",\"id\":%d},\"created_at\":"
+                     "\"2026-10-01T10:00:00Z\",\"updated_at\":\"%s\",\"labels\":[]%s%s%s%s}",
+                     number, title, state, body, number, who, id, updated,
+                     merged ? ",\"pull_request\":{\"merged_at\":" : "", merged && *merged ? "\"" : "",
+                     merged ? (*merged ? merged : "null") : "", merged ? (*merged ? "\"}" : "}") : "");
+}
+/* port's issues list (since: NULL for the whole of it): n entries, each owned */
+static void port_issues(const char* since, int n, ...) {
+    char *path = aw_format("repos/org/port/issues?state=all&sort=updated&direction=asc%s%s", since ? "&since=" : "",
+                           since ? since : ""),
+         *list;
+    Buf b = {0};
+    va_list a;
+    int i;
+    buf_add(&b, "[");
+    va_start(a, n);
+    for (i = 0; i < n; ++i) {
+        char* entry = va_arg(a, char*);
+        buf_printf(&b, "%s%s", i ? "," : "", entry);
+        free(entry);
+    }
+    va_end(a);
+    buf_add(&b, "]");
+    list = buf_take(&b);
+    github(path, list);
+    free(list);
+    free(path);
+}
+/* GitHub's pulls/<number> of port: its head (owner/repository it is from, its branch), its base, its merge commit */
+static void port_pull(int number, const char* from, const char* ref, const char* merge) {
+    char *path = aw_format("repos/org/port/pulls/%d", number),
+         *body = aw_format("{\"head\":{\"label\":\"%.*s:%s\",\"ref\":\"%s\",\"repo\":{\"full_name\":\"%s\"}},"
+                           "\"base\":{\"ref\":\"main\",\"repo\":{\"full_name\":\"org/port\"}},"
+                           "\"merge_commit_sha\":%s%s%s}",
+                           (int)strcspn(from, "/"), from, ref, ref, from, merge ? "\"" : "", merge ? merge : "null",
+                           merge ? "\"" : "");
+    github(path, body);
+    free(path);
+    free(body);
+}
+/* a comment of GitHub's on port's issue */
+static char* port_comment(int id, int issue, const char* who, int uid, const char* body, const char* created,
+                          const char* updated) {
+    return aw_format("{\"id\":%d,\"issue_url\":\"https://gh.test/repos/org/port/issues/%d\",\"body\":\"%s\","
+                     "\"html_url\":\"https://github.com/org/port/issues/%d#issuecomment-%d\",\"user\":{\"login\":"
+                     "\"%s\",\"id\":%d},\"created_at\":\"%s\",\"updated_at\":\"%s\"}",
+                     id, issue, body, issue, id, who, uid, created, updated);
+}
+/* port's comments list (since: NULL for the whole of it): n entries, each owned */
+static void port_comments(const char* since, int n, ...) {
+    char *path = aw_format("repos/org/port/issues/comments?sort=updated&direction=asc%s%s", since ? "&since=" : "",
+                           since ? since : ""),
+         *list;
+    Buf b = {0};
+    va_list a;
+    int i;
+    buf_add(&b, "[");
+    va_start(a, n);
+    for (i = 0; i < n; ++i) {
+        char* entry = va_arg(a, char*);
+        buf_printf(&b, "%s%s", i ? "," : "", entry);
+        free(entry);
+    }
+    va_end(a);
+    buf_add(&b, "]");
+    list = buf_take(&b);
+    github(path, list);
+    free(list);
+    free(path);
+}
 
 int main(void) {
     AwConfig c;
@@ -1453,6 +1738,196 @@ int main(void) {
         free(part);
     }
 
+    /* RFC 3339 times: a zone, an offset, a fraction; what is none */
+    CHECK(aw_epoch("1970-01-01T00:00:00Z") == 0 && aw_epoch("2000-03-01T00:00:00Z") == 951868800L);
+    CHECK(aw_epoch("2026-10-01T08:00:00.123-03:00") == aw_epoch("2026-10-01T11:00:00Z") &&
+          aw_epoch("2026-10-01T13:30:00+02:30") == aw_epoch("2026-10-01T11:00:00Z"));
+    CHECK(aw_epoch("2026-10-01") == -1 && aw_epoch("2026-10-01T11:00:00") == -1 &&
+          aw_epoch("2026-13-01T00:00:00Z") == -1 && aw_epoch("2026-10-01T11:00:00Zx") == -1 && aw_epoch(NULL) == -1);
+
+    /* a repository made again by the Forgejo's migration, then adopted. port on GitHub: #1 an issue, #2 merged from
+       its own branch, #3 deleted there, #4 open from eve's fork, #5 open from its own branch, #6 a fork's closed; three
+       comments, two of them cy's on #1, the first edited after the second (GitHub lists them by when edited, the
+       migration makes them by when made). The copy the program made first is moved aside */
+    {
+        char *err, *merge, stamp[32], *aside;
+        const cJSON *st, *pulls, *heads, *kept;
+        Repo* port;
+        int w0;
+        CHECK(!sh("git init --bare --quiet %s/gh/org/port.git && git init --quiet -b main %s/wp && cd %s/wp && "
+                  "git commit --quiet --allow-empty -m base && git switch --quiet -c fix && "
+                  "git commit --quiet --allow-empty -m fix && git switch --quiet main && "
+                  "git merge --quiet --no-ff -m 'Merge #2' fix && git switch --quiet -c topic2 && "
+                  "git commit --quiet --allow-empty -m t2 && git switch --quiet -c feat main && "
+                  "git commit --quiet --allow-empty -m e1 && git switch --quiet -c patch main && "
+                  "git commit --quiet --allow-empty -m p1 && git switch --quiet main && "
+                  "git push --quiet %s/gh/org/port.git main fix topic2 fix:refs/pull/2/head feat:refs/pull/4/head "
+                  "topic2:refs/pull/5/head patch:refs/pull/6/head",
+                  root, root, root, root));
+        merge = rev("gh", "port", "refs/heads/main");
+        github("orgs/org/repos?type=all&sort=full_name",
+               "[{\"name\":\"game\",\"private\":false,\"description\":\"A game\",\"default_branch\":\"main\","
+               "\"html_url\":\"https://github.com/org/game\"},{\"name\":\"tools\",\"private\":false,"
+               "\"description\":\"Tools\",\"default_branch\":\"main\",\"html_url\":\"https://github.com/org/tools\"},"
+               "{\"name\":\"port\",\"private\":false,\"description\":\"A port\",\"default_branch\":\"main\","
+               "\"html_url\":\"https://github.com/org/port\"}]");
+        github("repos/org/port", "{\"name\":\"port\",\"private\":false,\"description\":\"A port\"}");
+        github("repos/org/port/labels?", "[]");
+        port_issues(NULL, 5, port_entry(1, "First", "open", "ada", 1001, "First.", "2026-10-01T10:00:00Z", NULL),
+                    port_entry(2, "Fix", "closed", "bob", 1002, "Fixes it.", "2026-10-02T10:00:00Z",
+                               "2026-10-02T10:00:00Z"),
+                    port_entry(4, "Feature", "open", "eve", 1005, "A feature.", "2026-10-04T10:00:00Z", ""),
+                    port_entry(5, "Topic two", "open", "ada", 1001, "Two.", "2026-10-05T10:00:00Z", ""),
+                    port_entry(6, "Patch", "closed", "eve", 1005, "A patch.", "2026-10-06T10:00:00Z", ""));
+        port_pull(2, "org/port", "fix", merge);
+        port_pull(4, "eve/port", "feat", NULL);
+        port_pull(5, "org/port", "topic2", NULL);
+        port_pull(6, "eve/port", "patch-1", NULL);
+        github("repos/org/port/pulls?state=all",
+               "[{\"number\":2,\"head\":{\"repo\":{\"full_name\":\"org/port\"}},"
+               "\"base\":{\"repo\":{\"full_name\":\"org/port\"}}},"
+               "{\"number\":4,\"head\":{\"repo\":{\"full_name\":\"eve/port\"}},"
+               "\"base\":{\"repo\":{\"full_name\":\"org/port\"}}},"
+               "{\"number\":5,\"head\":{\"repo\":{\"full_name\":\"org/port\"}},"
+               "\"base\":{\"repo\":{\"full_name\":\"org/port\"}}},"
+               "{\"number\":6,\"head\":{\"repo\":{\"full_name\":\"eve/port\"}},"
+               "\"base\":{\"repo\":{\"full_name\":\"org/port\"}}}]");
+        port_comments(NULL, 3,
+                      port_comment(2002, 1, "cy", 1003, "Still.", "2026-10-01T12:00:00Z", "2026-10-01T12:00:00Z"),
+                      port_comment(2001, 1, "cy", 1003, "Same here.", "2026-10-01T11:00:00Z", "2026-10-01T13:00:00Z"),
+                      port_comment(2003, 4, "ada", 1001, "Nice.", "2026-10-04T11:00:00Z", "2026-10-04T11:00:00Z"));
+        CHECK(pass(&c, state, NULL) == 0);
+        CHECK(repo_of("port") && !repo_of("port")->migrated && repo_of("port")->nissues == 6);
+
+        /* migrated: the bot's copy aside, archived and private; the Forgejo's migration in its place, adopted */
+        stamp_of(now_t, stamp);
+        aside = aw_format("port-bot-%s", stamp);
+        CHECK(act(&c, state, aw_migrate, "port", &err) == 0 && !strcmp(err, ""));
+        free(err);
+        CHECK(repo_of(aside) && repo_of(aside)->archived && repo_of(aside)->private_ && !repo_of(aside)->migrated);
+        port = repo_of("port");
+        CHECK(port && port->migrated && port->nissues == 6 && port->issues[2].gone && port->ncomments == 3);
+        st = port_of(state);
+        pulls = cJSON_GetObjectItemCaseSensitive(st, "pulls");
+        heads = cJSON_GetObjectItemCaseSensitive(st, "heads");
+        kept = cJSON_GetObjectItemCaseSensitive(st, "comments");
+        CHECK(jnum(st, "next") == 7 && jnum(st, "native") == 6 && !jstr(st, "issues_since") &&
+              !jstr(st, "comments_since"));
+        CHECK(!strcmp(jstr(pulls, "2"), "merged") && !strcmp(jstr(pulls, "4"), "open") &&
+              !strcmp(jstr(pulls, "5"), "open") && !strcmp(jstr(pulls, "6"), "closed") &&
+              cJSON_GetArraySize(pulls) == 4);
+        CHECK(!strcmp(jstr(heads, "2"), "fix") && !strcmp(jstr(heads, "4"), "eve/feat") &&
+              !strcmp(jstr(heads, "5"), "topic2") && !strcmp(jstr(heads, "6"), ""));
+        CHECK(port && jnum(cJSON_GetObjectItemCaseSensitive(kept, "2001"), "id") == port->comments[0].id &&
+              jnum(cJSON_GetObjectItemCaseSensitive(kept, "2002"), "id") == port->comments[1].id &&
+              jnum(cJSON_GetObjectItemCaseSensitive(kept, "2003"), "id") == port->comments[2].id &&
+              jbool(cJSON_GetObjectItemCaseSensitive(kept, "2003"), "native"));
+        CHECK(!strcmp(jstr(cJSON_GetObjectItemCaseSensitive(st, "seen"), "6"), "2026-10-06T10:00:00Z") &&
+              !jstr(cJSON_GetObjectItemCaseSensitive(st, "seen"), "3"));
+
+        /* refused: a migration's made again; a copy no migration made adopted */
+        CHECK(act(&c, state, aw_migrate, "port", &err) == 1 &&
+              strstr(err, "port: the Forgejo's was made by a migration already"));
+        free(err);
+        CHECK(act(&c, state, aw_adopt, "game", &err) == 1 &&
+              strstr(err, "game: the Forgejo's was not made by a migration"));
+        free(err);
+
+        /* the next pass reads all of GitHub's once: nothing written but the comment the migration had not, made by
+           the bot; and the branch the migration fetched eve's head into is no branch GitHub has gone, kept past the
+           grace */
+        port_comments(NULL, 4,
+                      port_comment(2002, 1, "cy", 1003, "Still.", "2026-10-01T12:00:00Z", "2026-10-01T12:00:00Z"),
+                      port_comment(2001, 1, "cy", 1003, "Same here.", "2026-10-01T11:00:00Z", "2026-10-01T13:00:00Z"),
+                      port_comment(2003, 4, "ada", 1001, "Nice.", "2026-10-04T11:00:00Z", "2026-10-04T11:00:00Z"),
+                      port_comment(2004, 5, "bob", 1002, "Late.", "2026-10-07T09:00:00Z", "2026-10-07T09:00:00Z"));
+        w0 = writes_total();
+        CHECK(pass(&c, state, NULL) == 0);
+        CHECK(writes_total() - w0 == 4); /* each repository's PATCH, and the comment */
+        CHECK(port->ncomments == 4 && port->comments[3].issue == 5 &&
+              !strncmp(port->comments[3].body, "> From GitHub: **@bob** on 2026-10-07", 37));
+        CHECK(!strcmp(jstr(port_of(state), "issues_since"), "2026-10-06T10:00:00Z") &&
+              !strcmp(jstr(port_of(state), "comments_since"), "2026-10-07T09:00:00Z"));
+        /* the branches the migration's open pull requests are made from are no branches GitHub has gone */
+        CHECK(!cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(port_of(state), "gone"),
+                                                "refs/heads/eve/feat"));
+        port_issues("2026-10-06T10:00:00Z", 1,
+                    port_entry(6, "Patch", "closed", "eve", 1005, "A patch.", "2026-10-06T10:00:00Z", ""));
+        port_comments("2026-10-07T09:00:00Z", 1,
+                      port_comment(2004, 5, "bob", 1002, "Late.", "2026-10-07T09:00:00Z", "2026-10-07T09:00:00Z"));
+        now_t += 8 * 86400L;
+        CHECK(pass(&c, state, NULL) == 0);
+        CHECK(has_branch(port, "eve/feat") && has_branch(port, "topic2"));
+
+        /* #4 pushed to and retitled, cy's first comment edited: the branch the migration made moved, the texts
+           GitHub's alone, as the Forgejo shows their GitHub authors */
+        CHECK(!sh("cd %s/wp && git switch --quiet feat && git commit --quiet --allow-empty -m e2 && "
+                  "git switch --quiet main && git push --quiet --force %s/gh/org/port.git feat:refs/pull/4/head",
+                  root, root));
+        port_issues("2026-10-06T10:00:00Z", 2,
+                    port_entry(6, "Patch", "closed", "eve", 1005, "A patch.", "2026-10-06T10:00:00Z", ""),
+                    port_entry(4, "Feature, better", "open", "eve", 1005, "A feature.", "2026-10-08T10:00:00Z", ""));
+        port_comments("2026-10-07T09:00:00Z", 2,
+                      port_comment(2004, 5, "bob", 1002, "Late.", "2026-10-07T09:00:00Z", "2026-10-07T09:00:00Z"),
+                      port_comment(2001, 1, "cy", 1003, "Same here, twice.", "2026-10-01T11:00:00Z",
+                                   "2026-10-08T11:00:00Z"));
+        CHECK(pass(&c, state, NULL) == 0);
+        CHECK(issue_of(port, 4) && !strcmp(issue_of(port, 4)->title, "Feature, better") &&
+              !strcmp(issue_of(port, 4)->body, "A feature."));
+        {
+            char *here = rev("fj", "port", "refs/heads/eve/feat"), *there = rev("gh", "port", "refs/pull/4/head");
+            CHECK(*here && !strcmp(here, there));
+            free(here);
+            free(there);
+        }
+        CHECK(!strcmp(port->comments[0].body, "Same here, twice."));
+
+        /* #4 closed, #6 (a fork's, closed when it came) reopened, #1 edited: #4 closed here, its branch gone; #6 stays
+           closed, said; #1's text GitHub's alone */
+        port_issues("2026-10-08T10:00:00Z", 3,
+                    port_entry(4, "Feature, better", "closed", "eve", 1005, "A feature.", "2026-10-09T10:00:00Z", ""),
+                    port_entry(6, "Patch", "open", "eve", 1005, "A patch.", "2026-10-09T11:00:00Z", ""),
+                    port_entry(1, "First", "open", "ada", 1001, "First, edited.", "2026-10-09T12:00:00Z", NULL));
+        port_comments("2026-10-08T11:00:00Z", 0);
+        CHECK(pass(&c, state, NULL) == 0);
+        CHECK(!strcmp(issue_of(port, 4)->state, "closed") && !has_branch(port, "eve/feat") &&
+              !strcmp(jstr(cJSON_GetObjectItemCaseSensitive(port_of(state), "pulls"), "4"), "closed"));
+        CHECK(!strcmp(issue_of(port, 6)->state, "closed") &&
+              !strcmp(jstr(cJSON_GetObjectItemCaseSensitive(port_of(state), "pulls"), "6"), "closed"));
+        CHECK(!strcmp(issue_of(port, 1)->body, "First, edited."));
+
+        /* a new one on GitHub: made by the bot, saying its GitHub author */
+        port_issues("2026-10-09T12:00:00Z", 1,
+                    port_entry(7, "Seventh", "open", "cy", 1003, "Seven.", "2026-10-10T10:00:00Z", NULL));
+        CHECK(pass(&c, state, NULL) == 0);
+        CHECK(issue_of(port, 7) &&
+              strstr(issue_of(port, 7)->body,
+                     "> From GitHub: [#7](https://github.com/org/port/issues/7), opened by **@cy**"));
+
+        /* adopted again, the Forgejo missing GitHub's #5 and #7 the bot's: refused, said, the state as it was */
+        port->issues[4].gone = 1;
+        CHECK(act(&c, state, aw_adopt, "port", &err) == 1 && strstr(err, "#7 has no GitHub author") &&
+              strstr(err, "GitHub's #5 is not here") && strstr(err, "nothing adopted"));
+        free(err);
+        port->issues[4].gone = 0;
+        /* the numbers right, but the comments not: the bot's has no GitHub author, and one of the migration's whose
+           time is not GitHub's matches none; refused, as the next pass would make GitHub's again beside them */
+        port->issues[6].author_id = 1003;
+        snprintf(port->issues[6].author, sizeof port->issues[6].author, "cy");
+        snprintf(port->comments[1].created, sizeof port->comments[1].created, "2026-10-01T09:00:01-03:00");
+        CHECK(act(&c, state, aw_adopt, "port", &err) == 1 &&
+              strstr(err, "port: 2 of the Forgejo's comments match none of GitHub's (") &&
+              strstr(err, "the comment 2002 of #5 has no GitHub author") == NULL &&
+              strstr(err, " of #5 has no GitHub author") &&
+              strstr(err, " of #1, @cy's at 2026-10-01T09:00:01-03:00, is none of GitHub's"));
+        free(err);
+        port->issues[6].author_id = 0;
+        port->issues[6].author[0] = 0;
+        CHECK(jnum(port_of(state), "next") == 8 && jnum(port_of(state), "native") == 6);
+        free(aside);
+        free(merge);
+    }
+
     /* a Forgejo whose next number is not GitHub's: said, the repository stopped, the state where it was */
     github("repos/org/game/issues?state=all&sort=updated&direction=asc&since=2026-10-10T01:00:00Z",
            "[{\"number\":11,\"title\":\"Eleven\",\"state\":\"open\",\"body\":\"11\","
@@ -1487,11 +1962,39 @@ int main(void) {
         free(lock);
         free(command);
     }
+    /* the usage, all of it read before the pipe closes: no command, an unknown one, a repository missing or no
+       name, one too many */
     {
-        FILE* p = popen("./accordwimsy 2>&1", "r");
-        char line[256] = "";
-        CHECK(p && fgets(line, sizeof line, p) && strstr(line, "usage: accordwimsy sync"));
-        CHECK(p && WEXITSTATUS(pclose(p)) == 2);
+        static const char* const wrong[] = {"", " sink", " migrate", " adopt 'a/b'", " sync a b"};
+        size_t i;
+        for (i = 0; i < sizeof wrong / sizeof *wrong; ++i) {
+            char *command = aw_format("./accordwimsy%s 2>&1", wrong[i]), out[1024] = "", got[256];
+            FILE* p = popen(command, "r");
+            while (p && fgets(got, sizeof got, p)) strncat(out, got, sizeof out - strlen(out) - 1);
+            CHECK(strstr(out, "usage: accordwimsy sync|status [ENV FILE]\n") &&
+                  strstr(out, "accordwimsy migrate|adopt REPOSITORY [ENV FILE]"));
+            CHECK(p && WEXITSTATUS(pclose(p)) == 2);
+            free(command);
+        }
+    }
+    /* migrate while a pass holds the lock: said, not done, exit 1 */
+    {
+        char *lock = aw_format("%s/lock", c.state), *command = aw_format("./accordwimsy migrate port %s 2>&1", env),
+             out[1024] = "", got[256];
+        int fd = open(lock, O_RDWR | O_CREAT, 0600);
+        struct flock whole;
+        FILE* p;
+        memset(&whole, 0, sizeof whole);
+        whole.l_type = F_WRLCK;
+        whole.l_whence = SEEK_SET;
+        CHECK(fd >= 0 && !fcntl(fd, F_SETLK, &whole));
+        p = popen(command, "r");
+        while (p && fgets(got, sizeof got, p)) strncat(out, got, sizeof out - strlen(out) - 1);
+        CHECK(strstr(out, "a pass is going already") != NULL);
+        CHECK(p && WEXITSTATUS(pclose(p)) == 1);
+        close(fd);
+        free(lock);
+        free(command);
     }
 
     sh("rm -rf %s", root);

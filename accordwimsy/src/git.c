@@ -122,10 +122,10 @@ static int rewritten(const AwConfig* c, const char* name, char* git_dir, char* f
    kept the AW_PULL_BRANCH branches out of it, git warned "helper reported unexpected status" for each of them on every
    pass, git.scarletnx.dev 2026-10-28; they stayed). A branch whose new tip does not hold the old one, or a tag moved, keeps its old tip there as
    AW_KEPT_BRANCH, said. *stale: what to has under refs/heads and refs/tags that the mirror has not, a ref a line (an
-   AW_KEPT_BRANCH one too; never an AW_PULL_BRANCH one); *pulls: the AW_PULL_BRANCH ones to has, a ref a line. 0, or
-   git's status, said */
+   AW_KEPT_BRANCH one too; never an AW_PULL_BRANCH one, nor one of own); *pulls: the AW_PULL_BRANCH ones and those of
+   own to has, a ref a line. 0, or git's status, said */
 static int push_mirror(const AwConfig* c, const char* name, char* git_dir, const char* to, const char* stamp,
-                       const char* main_branch, const char* before, char** stale, char** pulls) {
+                       const char* main_branch, const char* before, const char* own, char** stale, char** pulls) {
     char heads[] = "+refs/heads/*:refs/heads/*", tags[] = "+refs/tags/*:refs/tags/*", quiet[] = "--quiet",
          verb[] = "push", list[] = "ls-remote", h[] = "--heads", t[] = "--tags";
     char* ls[] = {"git", list, h, t, (char*)to, NULL};
@@ -179,7 +179,7 @@ static int push_mirror(const AwConfig* c, const char* name, char* git_dir, const
             end = strchr(line, '\n') ? strchr(line, '\n') : line + strlen(line);
             if (!tab || tab > end) continue;
             ref = aw_format("%.*s", (int)(end - tab - 1), tab + 1);
-            if (!strncmp(ref, "refs/heads/accordwimsy/pull/", 28))
+            if (!strncmp(ref, "refs/heads/accordwimsy/pull/", 28) || (own && aw_has_line(own, ref)))
                 buf_printf(&ours, "%s\n", ref);
             else if ((!strncmp(ref, "refs/heads/", 11) || !strncmp(ref, "refs/tags/", 10)) && !strstr(ref, "^{}") &&
                      !object_of(after, ref, ' ', object))
@@ -197,7 +197,7 @@ static int push_mirror(const AwConfig* c, const char* name, char* git_dir, const
     return r;
 }
 int aw_mirror(const AwConfig* c, const char* name, const char* from, const char* to, const char* stamp,
-              const char* main_branch, char** stale, char** pull_branches) {
+              const char* main_branch, const char* own, char** stale, char** pull_branches) {
     char *dir = mirror_of(c, name), *git_dir = aw_format("--git-dir=%s", dir), *before = NULL;
     char heads[] = "+refs/heads/*:refs/heads/*", tags[] = "+refs/tags/*:refs/tags/*",
          pulls[] = "+refs/pull/*/head:refs/pull/*/head", no_gc[] = "-c", gc_off[] = "gc.auto=0";
@@ -227,7 +227,7 @@ int aw_mirror(const AwConfig* c, const char* name, const char* from, const char*
             *stale = aw_strdup("");
             *pull_branches = aw_strdup("");
         } else
-            r = push_mirror(c, name, git_dir, to, stamp, main_branch, before, stale, pull_branches);
+            r = push_mirror(c, name, git_dir, to, stamp, main_branch, before, own, stale, pull_branches);
         if (!r && git(c, gc, 1)) aw_log("%s: git gc --auto in the mirror failed", name);
     }
     free(before);
@@ -281,9 +281,9 @@ int aw_remote_has(const AwConfig* c, const char* name, const char* from, const c
     aw_log("%s: git ls-remote %s %s: status %d", name, from, ref, r);
     return -1;
 }
-int aw_push_pull(const AwConfig* c, const char* name, const char* to, int number) {
+int aw_push_pull(const AwConfig* c, const char* name, const char* to, int number, const char* branch) {
     char *dir = mirror_of(c, name), *git_dir = aw_format("--git-dir=%s", dir),
-         *spec = aw_format("+refs/pull/%d/head:refs/heads/" AW_PULL_BRANCH, number, number);
+         *spec = aw_format("+refs/pull/%d/head:refs/heads/%s", number, branch);
     char* push[] = {"git", git_dir, "push", "--quiet", (char*)to, spec, NULL};
     int r = git(c, push, 1);
     if (r) aw_log("%s: git push of pull request #%d's head to %s: status %d", name, number, to, r);

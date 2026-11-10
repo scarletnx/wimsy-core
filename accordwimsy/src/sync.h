@@ -34,6 +34,21 @@ typedef struct {
 /* every repository, state.json written after each, then config->fresh: 0, or 1 when one or more stopped (each said
    why) */
 int aw_sync(Aw* a);
+/* name's state rebuilt, in place of what state.json had of it, from the Forgejo's copy a migration of GitHub's made
+   (the Forgejo's own, which keeps each issue's, pull request's and comment's GitHub author and number): each number up
+   to its last the migration's, its text GitHub's alone from then on; GitHub's updated_at of each, so that the next
+   pass edits only what changed since; each pull request's state, and the branch here it is made from (GitHub's own,
+   or the one the migration fetched a fork's open one into; a fork's closed one has none, and stays closed if GitHub
+   reopens it); each of GitHub's comments matched to the Forgejo's of the same issue, author and time, the rest made
+   by the next pass. Refused, nothing written, when the Forgejo's was not made by a migration (no original_url), has an
+   issue with no GitHub author, misses a number GitHub has below its last, or has a comment that matches none of
+   GitHub's (the matching wrong, the next pass would make them again). 0, or 1 (said on stderr) */
+int aw_adopt(Aw* a, const char* name);
+/* name made again on the Forgejo by its own migration from GitHub (issues, pull requests, comments, labels and
+   milestones; no release, no wiki), then adopted (aw_adopt). The copy this program made is moved aside first, renamed
+   <name>-bot-<YYYYMMDD-HHMMSS>, archived and private, for someone to delete; one a migration made is left alone. 0,
+   or 1 (said on stderr) */
+int aw_migrate(Aw* a, const char* name);
 /* what state.json says of each repository, on stdout: its last good pass, or that GitHub lists it no more, and what
    waits out the grace before it is deleted here (a branch, a tag, a release) */
 void aw_status(const Aw* a);

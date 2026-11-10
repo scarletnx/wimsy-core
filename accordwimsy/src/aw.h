@@ -56,4 +56,9 @@ void aw_answer_free(AwAnswer* a);
 
 /* the SHA-256 of the file at path, 64 lowercase hex digits and a NUL into hex: 0, or -1 when it cannot be read */
 int aw_sha256_file(const char* path, char hex[65]);
+/* whether line is one of list's lines (each ended by a newline, the last one maybe not) */
+int aw_has_line(const char* list, const char* line);
+/* an RFC 3339 time (2026-10-01T11:00:00Z, 2026-10-01T08:00:00.5-03:00) as seconds since the epoch, its fraction
+   dropped; -1 when it is none */
+long aw_epoch(const char* stamp);
 #endif

@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+static long timeout = 60;
+void aw_http_timeout(long seconds) { timeout = seconds; }
 static size_t body_of(char* data, size_t size, size_t n, void* to) {
     buf_addn(to, data, size * n);
     return size * n;
@@ -38,7 +40,7 @@ void aw_http(void* ctx, const char* method, const char* url, const char* auth, c
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, body_of);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &got);
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeout);
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     done = curl_easy_perform(curl);
     if (done == CURLE_OK) {

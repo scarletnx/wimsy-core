@@ -15,11 +15,13 @@
    not), its pull requests' heads as refs/pull/<n>/head, and the branches and tags pushed to to, which loses nothing:
    a rewritten branch's (or a moved tag's) old tip is kept there as AW_KEPT_BRANCH/.../<stamp>, said in the log, and
    on standard error, for someone to see, when it is main_branch's (the default branch; NULL: none); nothing is
-   deleted. *stale (owned): what to has under refs/heads and refs/tags that from has not, a ref a line (never an
-   AW_PULL_BRANCH one), for aw_delete_refs once it has been gone long enough; *pull_branches (owned): the AW_PULL_BRANCH
-   branches to has, a ref a line. The tokens go in git's environment, never its arguments. 0, or git's status, said */
+   deleted. own: the other branches pull requests are made from there (a migration's), a ref a line, or NULL.
+   *stale (owned): what to has under refs/heads and refs/tags that from has not, a ref a line (never an AW_PULL_BRANCH
+   one, nor one of own), for aw_delete_refs once it has been gone long enough; *pull_branches (owned): the
+   AW_PULL_BRANCH branches and those of own to has, a ref a line. The tokens go in git's environment, never its
+   arguments. 0, or git's status, said */
 int aw_mirror(const AwConfig* c, const char* name, const char* from, const char* to, const char* stamp,
-              const char* main_branch, char** stale, char** pull_branches);
+              const char* main_branch, const char* own, char** stale, char** pull_branches);
 /* how many branches and tags the mirror of name has (GitHub's, as of its last fetch) */
 int aw_ref_count(const AwConfig* c, const char* name);
 /* refs (a ref a line) deleted from to: 0, or git's status, said */
@@ -32,6 +34,6 @@ int aw_has_tag(const AwConfig* c, const char* name, const char* tag);
 int aw_has_pull(const AwConfig* c, const char* name, int number);
 /* 1 when from has ref now, 0 when it has not, -1 when it could not be asked (said) */
 int aw_remote_has(const AwConfig* c, const char* name, const char* from, const char* ref);
-/* the head of pull request number pushed to to as its AW_PULL_BRANCH, made or moved there: 0, or git's status, said */
-int aw_push_pull(const AwConfig* c, const char* name, const char* to, int number);
+/* the head of pull request number pushed to to as the branch, made or moved there: 0, or git's status, said */
+int aw_push_pull(const AwConfig* c, const char* name, const char* to, int number, const char* branch);
 #endif

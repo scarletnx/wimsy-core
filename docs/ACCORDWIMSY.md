@@ -6,6 +6,7 @@
 
 * [What a pass mirrors](#what-a-pass-mirrors)
 * [Releases](#releases)
+* [A migration's copy](#a-migrations-copy)
 * [A pass, its state and its logs](#a-pass-its-state-and-its-logs)
 * [Commands](#commands)
 * [Settings](#settings)
@@ -74,12 +75,43 @@ more is deleted: with a count, the oldest goes when a new one comes in. One GitH
 tag no rule picks, is never touched. A `state.json` lost takes back each release here by its tag and each file of
 GitHub's size by its name, without fetching it again.
 
+## A migration's copy
+
+The Forgejo's API makes an issue, a pull request or a comment as its caller: only its own migration from GitHub writes
+them with their GitHub authors and days. `accordwimsy migrate REPOSITORY` has it do so for one repository: the copy
+this program made is moved aside, renamed `<name>-bot-<YYYYMMDD-HHMMSS>`, archived and private, for someone to delete;
+the Forgejo migrates the repository from GitHub with `GITHUB_TOKEN` (its git, issues, pull requests, comments, labels
+and milestones; no release, no wiki); then the command adopts it, as below. A repository a migration made already is
+left alone. The Forgejo answers once its migration is done, minutes for a thousand pull requests, and the command
+waits up to 4 hours for it. The migration runs in the Forgejo, which then reaches GitHub on 443:
+[Forge](./FORGE.md#a-repository-made-again-by-the-migration).
+
+`accordwimsy adopt REPOSITORY` rebuilds the repository's entry of `state.json` from the migration's copy, in place of
+what it had:
+
+- each number up to the copy's last is the migration's: from then on its text, and its comments', is GitHub's alone,
+  as the Forgejo shows their GitHub authors; a new one is the program's, saying its author, as before;
+- GitHub's `updated_at` of each, so that the next pass, which reads all of GitHub's once, edits only what changed;
+- each pull request's state, and the branch it is made from here: GitHub's own, which the mirror keeps, or, for a
+  fork's pull request open when it came, the branch `<owner>/<branch>` the migration fetched its head into, which the
+  program moves with GitHub's new commits, keeps out of the grace, and deletes once the pull request is closed. A
+  fork's pull request closed when it came has no branch here: GitHub reopening it leaves it closed here, said;
+- each of GitHub's comments, matched to the Forgejo's of the same issue, GitHub author and time; one the migration did
+  not make (made while it went) is made by the next pass.
+
+It refuses, writing nothing, when the Forgejo's copy was not made by a migration (it has no `original_url`), has an
+issue with no GitHub author (a GitHub account linked to one of the Forgejo's users has the migration write that user
+instead), misses a number GitHub has below its last, or has a comment that matches none of GitHub's: the matching gone
+wrong, the next pass would make GitHub's comments again beside the migration's. What it found goes to its log: the
+numbers, the pull requests open and their branches, the comments matched, and those left to the next pass.
+
 ## A pass, its state and its logs
 
 A pass asks only for what changed since the last one (GitHub's `since`), keeps in `state.json` what it made (the next
 number, each issue's and comment's `updated_at`, the Forgejo's id of each comment, the state each pull request was left
 in, each release made and the GitHub id of each file sent, what waits out the grace and since when, when its last
-pass went through, since when GitHub lists it no more), and
+pass went through, since when GitHub lists it no more, the numbers a migration made and the branches of its pull
+requests), and
 writes it after each repository: a pass that stops goes on from there. A `state.json` that is no JSON object stops the
 pass, since starting from nothing would make every issue again. One pass at a time: a second one, while one goes, says
 so and does nothing.
@@ -90,7 +122,8 @@ rewritten, a pull request closed rather than merged). stderr, which the host mai
 holds only what someone has to see: the default branch gone from GitHub or rewritten, half or more of a repository's
 branches and tags gone in one pass (3 at least), a repository GitHub lists no more, the Forgejo's issue numbers no
 longer GitHub's (once, until that repository passes again), a release's file whose SHA-256 is not GitHub's, a rule of
-`ACCORDWIMSY_RELEASES` naming a repository GitHub does not list (each pass), a `state.json` or `ACCORDWIMSY_FRESH` it
+`ACCORDWIMSY_RELEASES` naming a repository GitHub does not list (each pass), a migration or an adoption refused or
+failed, a fork's open pull request whose head a migration did not fetch, a `state.json` or `ACCORDWIMSY_FRESH` it
 cannot write, and what keeps a pass from starting. A repository that keeps failing shows in its last good pass, which
 noirjail.sh's `jail fresh` mails about once it lags. The exit status is 1 when a repository stopped.
 
@@ -101,10 +134,13 @@ its last good pass>` (0: none yet), for the host to tell a copy that lags (noirj
 
     accordwimsy sync [ENV FILE]      # a pass; ENV FILE: /usr/local/etc/accordwimsy/accordwimsy.env when not given
     accordwimsy status [ENV FILE]    # each repository's last good pass, and what waits out the grace with the day it goes
+    accordwimsy migrate REPOSITORY [ENV FILE]   # the repository made again by the Forgejo's migration, then adopted
+    accordwimsy adopt REPOSITORY [ENV FILE]     # state.json's entry of the repository rebuilt from a migration's copy
 
 `status` reads `state.json` as a pass going leaves it after each repository; what waits out the grace is a branch, a tag
-or a release. A pass run by hand goes as the user `accordwimsy`, which owns its state and mirrors
-([Install](./INSTALL.md#accordwimsy)).
+or a release. `migrate` and `adopt` hold the lock a pass holds: one of them, while a pass goes, says so and does
+nothing (exit 1). A pass, a migration or an adoption run by hand goes as the user `accordwimsy`, which owns its state
+and mirrors ([Install](./INSTALL.md#accordwimsy)).
 
 ## Settings
 
