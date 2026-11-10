@@ -2,10 +2,12 @@
    Copyright 2026 the ScarletNX contributors */
 /* AccordWimsy: the repositories of a GitHub organization, the same on a Forgejo, a pass at a time (cron)
 
-     accordwimsy sync [ENV FILE]     default /usr/local/etc/accordwimsy/accordwimsy.env
-     accordwimsy status [ENV FILE]   each repository's last good pass, and what waits out the grace
+     accordwimsy sync [ENV FILE]               default /usr/local/etc/accordwimsy/accordwimsy.env
+     accordwimsy status [ENV FILE]             each repository's last good pass, and what waits out the grace
+     accordwimsy migrate REPOSITORY [ENV FILE] the repository made again by the Forgejo's migration, then adopted
+     accordwimsy adopt REPOSITORY [ENV FILE]   state.json's of the repository rebuilt from a migration's copy
 
-   One pass at a time: a second one, while one goes, says so and does nothing. */
+   One at a time: a pass, a migration or an adoption, while another goes, says so and does nothing. */
 #include "aw.h"
 #include "config.h"
 #include "http.h"
@@ -21,6 +23,8 @@
 #include <unistd.h>
 
 #define ENV_FILE "/usr/local/etc/accordwimsy/accordwimsy.env"
+/* how long a migration may take: the Forgejo answers once it is done */
+#define MIGRATION_SECONDS (4L * 3600)
 
 static cJSON* load(const char* path) {
     FILE* f = fopen(path, "rb");
@@ -47,16 +51,22 @@ int main(int argc, char** argv) {
     AwConfig config;
     Aw a;
     char why[1024], *lock_path, *mirrors;
-    int lock, rc;
-    if (argc < 2 || (strcmp(argv[1], "sync") && strcmp(argv[1], "status")) || argc > 3) {
-        fprintf(stderr, "usage: accordwimsy sync|status [ENV FILE]   (default %s)\n", ENV_FILE);
+    const char* command = argc > 1 ? argv[1] : "";
+    int lock, rc, named = !strcmp(command, "migrate") || !strcmp(command, "adopt");
+    static const char repository[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-";
+    if ((!named && strcmp(command, "sync") && strcmp(command, "status")) || argc < 2 + named || argc > 3 + named ||
+        (named && (!argv[2][0] || strspn(argv[2], repository) != strlen(argv[2])))) {
+        fprintf(stderr,
+                "usage: accordwimsy sync|status [ENV FILE]\n"
+                "       accordwimsy migrate|adopt REPOSITORY [ENV FILE]   (ENV FILE: %s when not given)\n",
+                ENV_FILE);
         return 2;
     }
-    if (aw_config_read(&config, argc == 3 ? argv[2] : ENV_FILE, why, sizeof why)) {
+    if (aw_config_read(&config, argc == 3 + named ? argv[2 + named] : ENV_FILE, why, sizeof why)) {
         aw_warn("%s", why);
         return 2;
     }
-    if (!strcmp(argv[1], "status")) { /* reads state.json, as a pass going leaves it after each repository */
+    if (!strcmp(command, "status")) { /* reads state.json, as a pass going leaves it after each repository */
         memset(&a, 0, sizeof a);
         a.config = &config;
         a.now = (long)time(NULL);
@@ -85,7 +95,7 @@ int main(int argc, char** argv) {
     whole.l_whence = SEEK_SET;
     if (fcntl(lock, F_SETLK, &whole)) {
         aw_log("a pass is going already (%s held): this one does nothing", lock_path);
-        return 0;
+        return named; /* a migration or an adoption asked for and not done */
     }
     free(lock_path);
     if (curl_global_init(CURL_GLOBAL_DEFAULT)) {
@@ -96,9 +106,17 @@ int main(int argc, char** argv) {
     a.config = &config;
     a.now = (long)time(NULL);
     a.fetch = aw_http;
+    a.download = aw_http_download;
+    a.upload = aw_http_upload;
     a.state_path = aw_format("%s/state.json", config.state);
     a.state = load(a.state_path);
-    rc = aw_sync(&a);
+    if (!strcmp(command, "migrate")) {
+        aw_http_timeout(MIGRATION_SECONDS);
+        rc = aw_migrate(&a, argv[2]);
+    } else if (!strcmp(command, "adopt"))
+        rc = aw_adopt(&a, argv[2]);
+    else
+        rc = aw_sync(&a);
     cJSON_Delete(a.state);
     free(a.state_path);
     curl_global_cleanup();

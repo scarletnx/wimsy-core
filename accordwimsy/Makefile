@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright 2026 the ScarletNX contributors
 #
-#   make        accordwimsy, linked with libcurl
+#   make        accordwimsy, linked with libcurl and OpenSSL's libcrypto (its SHA-256)
 #   make test   the tests: no network (a fake GitHub and Forgejo), git on local bare repositories
 #
 # BSD make and GNU make alike. cJSON is ReiWimsy's copy (../rei/third_party/cjson).
@@ -10,6 +10,8 @@ CC ?= cc
 CFLAGS ?= -O2 -g
 CURL_CFLAGS ?= `pkg-config --cflags libcurl`
 CURL_LIBS ?= `pkg-config --libs libcurl`
+CRYPTO_CFLAGS ?= `pkg-config --cflags libcrypto`
+CRYPTO_LIBS ?= `pkg-config --libs libcrypto`
 CJSON = ../rei/third_party/cjson
 WARN = -std=c99 -Wall -Wextra -Wpedantic -Wshadow -Wstrict-prototypes -Werror
 DEFS = -D_POSIX_C_SOURCE=200809L
@@ -20,16 +22,16 @@ LOGIC = src/util.o src/config.o src/git.o src/sync.o src/cjson.o
 all: accordwimsy
 
 accordwimsy: $(LOGIC) src/http.o src/main.o
-	$(CC) $(CFLAGS) -o $@ $(LOGIC) src/http.o src/main.o $(CURL_LIBS) -lm
+	$(CC) $(CFLAGS) -o $@ $(LOGIC) src/http.o src/main.o $(CURL_LIBS) $(CRYPTO_LIBS) -lm
 
 test: accordwimsy tests/test_aw
 	./tests/test_aw
 
 tests/test_aw: $(LOGIC) tests/test_aw.c
-	$(CC) $(CFLAGS) $(OURS) -o $@ tests/test_aw.c $(LOGIC) -lm
+	$(CC) $(CFLAGS) $(OURS) -o $@ tests/test_aw.c $(LOGIC) $(CRYPTO_LIBS) -lm
 
 src/util.o: src/util.c src/aw.h
-	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/util.c
+	$(CC) $(CFLAGS) $(OURS) $(CRYPTO_CFLAGS) -c -o $@ src/util.c
 src/config.o: src/config.c src/config.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ src/config.c
 src/git.o: src/git.c src/git.h src/config.h src/aw.h

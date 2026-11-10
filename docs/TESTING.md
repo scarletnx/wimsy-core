@@ -36,10 +36,16 @@ run with nothing to do).
 ## AccordWimsy
 
 `accordwimsy/tests/test_aw.c`, against a fake GitHub and a fake Forgejo and git on bare repositories: the env file and
-its refusals; the first pass (repositories, branches and tags, labels, every number, a missing one, a pull request); a
-pass with nothing new (GitHub asked from where the last stopped, the Forgejo written to only for its Releases tab);
-edits and new ones (an issue, a comment, a branch deleted); a Forgejo whose numbers differ; and the program's lock and
-usage.
+its refusals, the release rules among them; a file's SHA-256 against the known vectors; the first pass (repositories,
+branches and tags, labels, every number, a missing one, a pull request); a pass with nothing new (GitHub asked from
+where the last stopped, the Forgejo written to only for its Releases tab); edits and new ones (an issue, a comment, a
+branch deleted); the releases (those the rules pick made with their files, nothing written again, an edit, a file
+replaced and one removed, one the rules pick no more, a file whose SHA-256 is not GitHub's, one waiting for its tag,
+one GitHub deleted kept the grace, a `state.json` lost); RFC 3339 times; a repository made again by a migration (the
+bot's copy moved aside, the copy adopted: its numbers, pull requests and the branches they are made from, its comments
+matched by issue, author and time; the next pass writing only what the migration missed, a fork's branch kept past
+the grace and moved with its head, GitHub's texts alone on an edit, a fork's closed pull request left closed; a second
+migration and an adoption refused); a Forgejo whose numbers differ; and the program's lock and usage.
 
 ## Tracer
 

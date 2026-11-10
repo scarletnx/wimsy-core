@@ -2,9 +2,18 @@
 <!-- Copyright 2026 the ScarletNX contributors -->
 # The forge
 
-A copy of the GitHub organization on [Forgejo](https://forgejo.org): code, issues and pull requests, kept the same
-every 10 minutes by [AccordWimsy](./ACCORDWIMSY.md); releases stay on GitHub. Three isolated jails, each doing one
-thing, so the one that holds the tokens to GitHub is not the one that answers the internet:
+## Index
+
+* [The jails](#the-jails)
+* [The guard](#the-guard)
+* [Forgejo](#forgejo)
+* [The start page and the themes](#the-start-page-and-the-themes)
+* [AccordWimsy's jail](#accordwimsys-jail)
+* [A repository made again by the migration](#a-repository-made-again-by-the-migration)
+
+A copy of the GitHub organization on [Forgejo](https://forgejo.org): code, issues and pull requests, kept the same every
+10 minutes by [AccordWimsy](./ACCORDWIMSY.md), with the releases its `ACCORDWIMSY_RELEASES` picks. Three isolated jails,
+each doing one thing, so the one that holds the tokens to GitHub is not the one that answers the internet:
 
 | Jail | Runs | Reaches |
 |---|---|---|
@@ -86,3 +95,23 @@ Its tokens, env file, first pass, cron line and log rotation: [Install](./INSTAL
 `cron_flags="-J 60"`. From the host, noirjail.sh's own cron mails the new lines of its `accordwimsy.err`
 (`noirjail.sh config set JAIL_LOG_MAIL "gitsync:/var/log/accordwimsy/accordwimsy.err"`) and says when a mirror falls
 behind (`JAIL_FRESH`, `"gitsync:/var/log/accordwimsy/accordwimsy.fresh:60"`, read by `noirjail.sh jail fresh`).
+
+## A repository made again by the migration
+
+The Forgejo's own migration is the one way its issues, pull requests and comments carry their GitHub authors
+([AccordWimsy](./ACCORDWIMSY.md#a-migrations-copy)). It runs in `gitscarlet`, which reaches GitHub only while the
+group is paused and its egress open for it; a snapshot first, and the organization's limit of repositories one higher
+for each repository (the copy moved aside still counts):
+
+    zfs snapshot -r "$(zfs list -H -o name /usr/local/bastille/jails/gitscarlet)@before-migration"
+    noirjail.sh guard pause <the forge's name> --minutes 120
+    noirjail.sh firewall jail gitscarlet egress allow --to table:github --port 443
+    noirjail.sh firewall jail gitscarlet sync
+    jexec gitsync su -m accordwimsy -c '/usr/local/bin/accordwimsy migrate <repository>'
+    noirjail.sh firewall jail gitscarlet egress remove --to table:github --port 443
+    noirjail.sh firewall jail gitscarlet sync
+    noirjail.sh guard learn <the forge's name>
+
+`app.ini`'s migrations from github.com and api.github.com alone let it fetch a fork's head too, which is on
+github.com. The copy moved aside, `<repository>-bot-<YYYYMMDD-HHMMSS>`, stays archived and private until someone
+deletes it.

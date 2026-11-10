@@ -3,12 +3,12 @@
 # Build
 
 The programs are C99, built with BSD make or GNU make, a C compiler and pkg-config's flags for libcurl (and for
-SQLite, libarchive, zlib and libmicrohttpd, Tracer's). Run from the checkout's top:
+OpenSSL's libcrypto, AccordWimsy's; SQLite, libarchive, zlib and libmicrohttpd, Tracer's). Run from the checkout's top:
 
 | System | What to install |
 |---|---|
-| FreeBSD | `pkg install git gmake pkgconf curl ca_root_nss sqlite3 libmicrohttpd` (libarchive and zlib are in base) |
-| Debian, Ubuntu | `apt install build-essential pkg-config libcurl4-openssl-dev libsqlite3-dev libarchive-dev zlib1g-dev libmicrohttpd-dev git` |
+| FreeBSD | `pkg install git gmake pkgconf curl ca_root_nss sqlite3 libmicrohttpd` (libarchive, zlib and OpenSSL are in base) |
+| Debian, Ubuntu | `apt install build-essential pkg-config libcurl4-openssl-dev libssl-dev libsqlite3-dev libarchive-dev zlib1g-dev libmicrohttpd-dev git` |
 
 ReiWimsy and Tracer link [Concord](https://github.com/Cogmasters/concord); their tests, AccordWimsy and tracer-mcp
 build without it.
