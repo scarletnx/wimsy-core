@@ -1089,8 +1089,6 @@ static void pr_card(void) {
        "{\"name\":\"Android APK\",\"status\":\"completed\",\"conclusion\":\"failure\",\"html_url\":\"https://j/2\"},"
        "{\"name\":\"Linux AppImage (aarch64)\",\"status\":\"completed\",\"conclusion\":\"success\"},"
        "{\"name\":\"macOS and iOS (arm64)\",\"status\":\"queued\",\"html_url\":\"https://j/3\"},"
-       "{\"name\":\"Linux (ppc64, cross)\",\"status\":\"completed\",\"conclusion\":\"failure\","
-       "\"html_url\":\"https://j/4\"},"
        "{\"name\":\"Linux (x86_64, ASan + UBSan)\",\"status\":\"completed\",\"conclusion\":\"failure\","
        "\"html_url\":\"https://j/5\"},"
        "{\"name\":\"Linux (x86_64)\",\"status\":\"completed\",\"conclusion\":\"success\",\"html_url\":\"https://j/6\"},"
@@ -1115,8 +1113,7 @@ static void pr_card(void) {
         "([its nightly](https://n/1)).");
     HAS(text, "**2 commits**, the newest first\\n- \\\\[gpu\\\\] Second \\\\*one\\\\*\\n- \\\\[gpu\\\\] First");
     /* a line a package in one Downloads field, its icon, then its link or its job's state; then in Tests the jobs
-       of CHECKS, what their tests did, and the other jobs that make no file and failed, not those running or passed,
-       each with the icon of the system its name names.
+       that make no file and failed, not those running or passed, each with the icon of the system its name names.
        No Build field (each job has its line) and no Builds while this push's are published (each has its link) */
     HAS(text,
         "{\"name\":\"Downloads\",\"value\":\"<:wimsy_linux:11> Linux x86-64: Building ([log](https://j/1))\\n"
@@ -1126,8 +1123,8 @@ static void pr_card(void) {
         "<:wimsy_windows:22> Windows x86-64: [.zip](https://n/w)\\n"
         "<:wimsy_android:33> Android: Failed ([log](https://j/2))\\n"
         "<:wimsy_macos:44> macOS ARM64: Waiting\\n<:wimsy_ios:55> iOS ARM64: Waiting\",\"inline\":false},"
-        "{\"name\":\"Tests\",\"value\":\"<:wimsy_linux:11> Linux PowerPC64 BE ELFv1: Failed ([log](https://j/4))\\n"
-        "<:wimsy_linux:11> Linux (x86_64, ASan + UBSan): Failed ([log](https://j/5))\",\"inline\":false}");
+        "{\"name\":\"Tests\",\"value\":\"<:wimsy_linux:11> Linux (x86_64, ASan + UBSan): Failed ([log](https://j/5))\","
+        "\"inline\":false}");
     CHECK(!strstr(text, " MB") && !strstr(text, "https://j/6") && !strstr(text, "https://j/7"));
     CHECK(!strstr(text, "\"name\":\"Build\"") && !strstr(text, "\"name\":\"Builds\""));
     HAS(text, "\"color\":2066493"); /* GitHub's green: open */
@@ -1183,7 +1180,7 @@ static void pr_card(void) {
             CHECK(!strncmp(cJSON_GetObjectItemCaseSensitive(second, "value")->valuestring, windows, strlen(windows)));
         }
         text = cJSON_PrintUnformatted(e);
-        HAS(text, "<:wimsy_linux:1563256571297923183> Linux PowerPC64 BE ELFv1: Waiting");
+        CHECK(!strstr(text, "ELFv1") && !strstr(text, "\"Tests\""));
         HAS(text, "{\"name\":\"Builds\",\"value\":\"[The push before](https://n/pr-7)\",\"inline\":true}");
         free(text);
         cJSON_Delete(e);

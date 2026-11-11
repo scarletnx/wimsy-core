@@ -52,12 +52,6 @@ static const struct {
 #define GO_ON     "\xe2\x80\x8b"
 /* each package's emoji as a message writes it, <:name:id>; "" until cd_icons found it */
 static char g_icons[NPACKAGES][64];
-/* Build's jobs that make no release file whose state Tests always says: each job, as build.yml names it, and what it
-   tests. The others are said when they fail */
-static const struct {
-    const char *job, *label;
-} CHECKS[] = {{"Linux (ppc64, cross)", "Linux PowerPC64 BE ELFv1"}};
-#define NCHECKS (int)(sizeof CHECKS / sizeof *CHECKS)
 
 static const char* S(const char* s) { return s ? s : ""; }
 /* FNV-1a of text, as 16 hex digits */
@@ -347,8 +341,7 @@ void cd_icons(const cJSON* emojis) {
                     PACKAGES[i].icon, PACKAGES[i].system);
     }
 }
-/* the emoji cd_icons found for the system name names first (Linux, Windows...), as a job's name or a check's;
-   "" for none */
+/* the emoji cd_icons found for the system a job's name names first (Linux, Windows...); "" for none */
 static const char* icon_of(const char* name) {
     const char *first = NULL, *icon = "";
     int i;
@@ -393,8 +386,7 @@ int cd_downloads(Buf* b, const cJSON* release) {
 }
 char* cd_mascot(const char* repo) { return rei_format(WIMSY, repo); }
 /* a line per release file in Downloads: published, its extension linked; else what its job does; built: what a built
-   one waits for. Then in Tests a line per job of CHECKS, what its tests did, and one per other job that makes no file
-   and failed */
+   one waits for. Then in Tests a line per job that makes no file and failed */
 static void packages(cJSON* fields, const cJSON* jobs, const cJSON* release, const char* built) {
     Lines downloads = {fields, "Downloads", {0}}, tests = {fields, "Tests", {0}};
     const cJSON* job;
@@ -425,34 +417,11 @@ static void packages(cJSON* fields, const cJSON* jobs, const cJSON* release, con
         buf_free(&v);
     }
     lines_end(&downloads);
-    for (i = 0; i < NCHECKS; ++i) {
-        const char *status, *conclusion, *icon = icon_of(CHECKS[i].label);
-        Buf one = {0};
-        job = named(jobs, "name", CHECKS[i].job);
-        status = S(jstr(job, "status"));
-        conclusion = S(jstr(job, "conclusion"));
-        if (*icon) buf_printf(&one, "%s ", icon);
-        buf_printf(&one, "%s: ", CHECKS[i].label);
-        if (!job || !strcmp(status, "queued") || !strcmp(status, "waiting") || !strcmp(status, "pending") ||
-            !strcmp(status, "requested"))
-            buf_add(&one, "Waiting");
-        else if (strcmp(status, "completed"))
-            buf_printf(&one, "Testing ([log](%s))", S(jstr(job, "html_url")));
-        else if (!strcmp(conclusion, "success"))
-            buf_add(&one, "Passed");
-        else if (!strcmp(conclusion, "cancelled") || !strcmp(conclusion, "skipped"))
-            capitalized(&one, conclusion);
-        else
-            buf_printf(&one, "Failed ([log](%s))", S(jstr(job, "html_url")));
-        lines_add(&tests, one.text);
-        buf_free(&one);
-    }
     cJSON_ArrayForEach(job, jobs) {
         const char* name = S(jstr(job, "name"));
         int listed = 0;
         Buf one = {0};
         for (i = 0; i < NPACKAGES; ++i) listed |= !strcmp(name, PACKAGES[i].job);
-        for (i = 0; i < NCHECKS; ++i) listed |= !strcmp(name, CHECKS[i].job);
         if (listed || strcmp(S(jstr(job, "status")), "completed") || !failure(S(jstr(job, "conclusion")))) continue;
         if (*icon_of(name)) buf_printf(&one, "%s ", icon_of(name));
         buf_printf(&one, "%s: Failed ([log](%s))", name, S(jstr(job, "html_url")));
