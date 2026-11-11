@@ -33,9 +33,10 @@ and logs nothing said, and pings no one.
 
 A message for each open pull request, each open issue and each push to main, in channels of their own, drawn from what
 GitHub says now and edited as it changes: its state, its commits or changes, the latest comment a person wrote, each
-package of its build. Its activity (a push, a person's comment, a change of state, a pull request's builds published
-or failed) moves it to the end of its channel, posted again before the old one is deleted; a pull request or an issue
-closed keeps its card a day, as it closed, then the card is deleted.
+package of its build (a pull request's leaves out those only a nightly builds, unless its run made them). Its
+activity (a push, a person's comment, a change of state, a pull request's builds published or failed) moves it to the
+end of its channel, posted again before the old one is deleted; a pull request or an issue closed keeps its card a
+day, as it closed, then the card is deleted.
 
 The bot asks GitHub's API every 30 s, with ETags (an unchanged answer costs nothing of GitHub's 5000 an hour): the
 issues and pull requests updated, the builds that run and their jobs, the nightly releases, main's head and the pushes

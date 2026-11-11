@@ -29,21 +29,25 @@
 
 /* each release file, in the order the cards list them: the job of ScarletNX's build.yml that makes it (macOS's and
    iOS's share one runner), what it is for, as scripts/nightly-notes.py's SYSTEMS has it, what it holds where that is
-   not all, and the application's emoji beside it (Wimsy as its system, scarletnx/wimsy-dist's emoji/) */
+   not all, the application's emoji beside it (Wimsy as its system, scarletnx/wimsy-dist's emoji/), and 1 for a file
+   only a run a nightly can come of makes (build.yml's appimage-cross): a pull request's card lists it only when its
+   run has its job or its release the file */
 static const struct {
     const char *file, *job, *system, *arch, *note, *icon;
+    int nightly;
 } PACKAGES[] = {
-    {"ScarletNX-linux-x86_64.AppImage", "Linux AppImage (x86_64)", "Linux", "x86-64", "", "wimsy_linux"},
-    {"ScarletNX-linux-aarch64.AppImage", "Linux AppImage (aarch64)", "Linux", "ARM64", "", "wimsy_linux"},
-    {"ScarletNX-linux-ppc64le.AppImage", "Linux AppImage (ppc64le)", "Linux", "PowerPC64 LE", "", "wimsy_linux"},
+    {"ScarletNX-linux-x86_64.AppImage", "Linux AppImage (x86_64)", "Linux", "x86-64", "", "wimsy_linux", 0},
+    {"ScarletNX-linux-aarch64.AppImage", "Linux AppImage (aarch64)", "Linux", "ARM64", "", "wimsy_linux", 0},
+    {"ScarletNX-linux-ppc64le.AppImage", "Linux AppImage (ppc64le)", "Linux", "PowerPC64 LE", "", "wimsy_linux", 1},
     {"ScarletNX-linux-ppc64.AppImage", "Linux AppImage (ppc64)", "Linux", "PowerPC64 BE", " (Linux programs)",
-     "wimsy_linux"},
-    {"ScarletNX-linux-riscv64.AppImage", "Linux AppImage (riscv64)", "Linux", "RISC-V 64", "", "wimsy_linux"},
-    {"ScarletNX-linux-loongarch64.AppImage", "Linux AppImage (loongarch64)", "Linux", "LoongArch64", "", "wimsy_linux"},
-    {"ScarletNX-windows-x86_64.zip", "Windows (Clang + LLVM)", "Windows", "x86-64", "", "wimsy_windows"},
-    {"ScarletNX-android-universal.apk", "Android APK", "Android", "ARM64, x86-64", "", "wimsy_android"},
-    {"ScarletNX-macos-arm64.zip", "macOS and iOS (arm64)", "macOS", "ARM64", "", "wimsy_macos"},
-    {"ScarletNX-ios-arm64.ipa", "macOS and iOS (arm64)", "iOS", "ARM64", "", "wimsy_ios"},
+     "wimsy_linux", 0},
+    {"ScarletNX-linux-riscv64.AppImage", "Linux AppImage (riscv64)", "Linux", "RISC-V 64", "", "wimsy_linux", 1},
+    {"ScarletNX-linux-loongarch64.AppImage", "Linux AppImage (loongarch64)", "Linux", "LoongArch64", "", "wimsy_linux",
+     1},
+    {"ScarletNX-windows-x86_64.zip", "Windows (Clang + LLVM)", "Windows", "x86-64", "", "wimsy_windows", 0},
+    {"ScarletNX-android-universal.apk", "Android APK", "Android", "ARM64, x86-64", "", "wimsy_android", 0},
+    {"ScarletNX-macos-arm64.zip", "macOS and iOS (arm64)", "macOS", "ARM64", "", "wimsy_macos", 0},
+    {"ScarletNX-ios-arm64.ipa", "macOS and iOS (arm64)", "iOS", "ARM64", "", "wimsy_ios", 0},
 };
 #define NPACKAGES (int)(sizeof PACKAGES / sizeof *PACKAGES)
 /* a field's value Discord takes, in letters */
@@ -386,8 +390,9 @@ int cd_downloads(Buf* b, const cJSON* release) {
 }
 char* cd_mascot(const char* repo) { return rei_format(WIMSY, repo); }
 /* a line per release file in Downloads: published, its extension linked; else what its job does; built: what a built
-   one waits for. Then in Tests a line per job that makes no file and failed */
-static void packages(cJSON* fields, const cJSON* jobs, const cJSON* release, const char* built) {
+   one waits for; pr: a pull request's card, which leaves out a nightly's file its run and release have nothing of.
+   Then in Tests a line per job that makes no file and failed */
+static void packages(cJSON* fields, const cJSON* jobs, const cJSON* release, const char* built, int pr) {
     Lines downloads = {fields, "Downloads", {0}}, tests = {fields, "Tests", {0}};
     const cJSON* job;
     int i;
@@ -396,6 +401,7 @@ static void packages(cJSON* fields, const cJSON* jobs, const cJSON* release, con
         const char *status, *conclusion;
         Buf v = {0}, one = {0};
         job = named(jobs, "name", PACKAGES[i].job);
+        if (pr && PACKAGES[i].nightly && !asset && !job) continue;
         status = S(jstr(job, "status"));
         conclusion = S(jstr(job, "conclusion"));
         if (asset)
@@ -575,7 +581,7 @@ cJSON* cd_pr(Cards* c, int number, int* open, double* closed_at) {
         fork_name = rei_strdup(S(jstr(cJSON_GetObjectItemCaseSensitive(head_obj, "repo"), "full_name")));
         built = rei_strdup(strcmp(fork_name, c->gh->repo) && !labeled(pr, LABEL) ? "waits for the team's label"
                                                                                  : "being published");
-        packages(fields, jobs, current, built);
+        packages(fields, jobs, current, built, 1);
         /* the outcome that moves the card: published or failed, kept while its push's builds run again or are
            cancelled */
         if (current)
@@ -894,7 +900,7 @@ cJSON* cd_nightly(Cards* c, const char* sha) {
     }
     for (i = 0; i < n; ++i) free(lines[i]);
     if (n >= 0) free(lines);
-    packages(fields, jobs, own, built);
+    packages(fields, jobs, own, built, 0);
     {
         char *source = rei_format("[`%.7s`](%s)", sha, commit),
              *every = rei_format("[%s](" SERVER "/%s/releases)", c->gh->nightly, c->gh->nightly);
