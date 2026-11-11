@@ -968,6 +968,19 @@ static void fix_cards(void) {
             cJSON_Delete(drawn);
             free(run);
         }
+        /* cancelled once a job of it had failed (ScarletNX's fail-fast): failed */
+        gh_shas("repos/o/r/actions/workflows/build.yml/runs?head_sha=@c&per_page=100&page=1",
+                "{\"workflow_runs\":[{\"id\":71,\"event\":\"push\",\"status\":\"completed\",\"conclusion\":"
+                "\"cancelled\",\"created_at\":\"2026-11-04T22:00:05Z\"}]}");
+        gh("repos/o/r/actions/runs/71/jobs?per_page=100&page=1",
+           "{\"jobs\":[{\"name\":\"Linux (aarch64)\",\"status\":\"completed\",\"conclusion\":\"failure\"},"
+           "{\"name\":\"Android APK\",\"status\":\"completed\",\"conclusion\":\"cancelled\"}]}");
+        {
+            cJSON* drawn = cd_nightly(&c, head);
+            HAS(jstr(drawn, "description"), "failed ([run]");
+            cJSON_Delete(drawn);
+        }
+        gh("repos/o/r/actions/runs/71/jobs?per_page=100&page=1", "{\"jobs\":[]}");
         /* built, and older than the oldest nightly kept: none of it is kept now, which is all the card can know */
         gh_shas("repos/o/r/actions/workflows/build.yml/runs?head_sha=@c&per_page=100&page=1",
                 "{\"workflow_runs\":[{\"id\":71,\"event\":\"push\",\"status\":\"completed\",\"conclusion\":"
@@ -1217,6 +1230,14 @@ static void pr_card(void) {
         SAME(c.activity, was); /* a job done */
         run_is(&c, "\"completed\",\"conclusion\":\"cancelled\"");
         SAME(c.activity, was); /* cancelled, none failed before */
+        gh("repos/o/r/actions/runs/9/jobs?per_page=100&page=1",
+           "{\"jobs\":[{\"name\":\"Linux AppImage (x86_64)\",\"status\":\"completed\",\"conclusion\":\"success\"},"
+           "{\"name\":\"Linux (aarch64)\",\"status\":\"completed\",\"conclusion\":\"failure\"}]}");
+        run_is(&c, "\"completed\",\"conclusion\":\"cancelled\"");
+        CHECK(strcmp(c.activity, was)); /* cancelled once a job had failed (ScarletNX's fail-fast): failed */
+        SAME(c.builds, "failed 1111111111111111111111111111111111111111");
+        gh("repos/o/r/actions/runs/9/jobs?per_page=100&page=1",
+           "{\"jobs\":[{\"name\":\"Linux AppImage (x86_64)\",\"status\":\"completed\",\"conclusion\":\"success\"}]}");
         run_is(&c, "\"completed\",\"conclusion\":\"failure\"");
         CHECK(strcmp(c.activity, was)); /* failed */
         SAME(c.builds, "failed 1111111111111111111111111111111111111111");

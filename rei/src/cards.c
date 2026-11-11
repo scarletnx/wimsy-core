@@ -362,6 +362,17 @@ static const char* icon_of(const char* name) {
 static int failure(const char* conclusion) {
     return !strcmp(conclusion, "failure") || !strcmp(conclusion, "timed_out") || !strcmp(conclusion, "startup_failure");
 }
+/* a run that ended failed: GitHub says so, or it was cancelled once one of its jobs had failed (ScarletNX's
+   scripts/fail-fast.py cancels the rest of a run at its first failed job) */
+static int run_failed(const cJSON* run, const cJSON* jobs) {
+    const char* ended = S(jstr(run, "conclusion"));
+    const cJSON* job;
+    if (failure(ended)) return 1;
+    if (strcmp(ended, "cancelled")) return 0;
+    cJSON_ArrayForEach(job, jobs) if (!strcmp(S(jstr(job, "status")), "completed") &&
+                                      failure(S(jstr(job, "conclusion")))) return 1;
+    return 0;
+}
 /* package i's line: its icon, its system and its architecture where it has one, then what */
 static void line_of(Buf* b, int i, const char* what) {
     if (*g_icons[i]) buf_printf(b, "%s ", g_icons[i]);
@@ -586,9 +597,7 @@ cJSON* cd_pr(Cards* c, int number, int* open, double* closed_at) {
            cancelled */
         if (current)
             snprintf(c->builds, sizeof c->builds, "published %s", head);
-        else if (run && !strcmp(S(jstr(run, "status")), "completed") &&
-                 (!strcmp(S(jstr(run, "conclusion")), "failure") || !strcmp(S(jstr(run, "conclusion")), "timed_out") ||
-                  !strcmp(S(jstr(run, "conclusion")), "startup_failure")))
+        else if (run && !strcmp(S(jstr(run, "status")), "completed") && run_failed(run, jobs))
             snprintf(c->builds, sizeof c->builds, "failed %s", head);
         else {
             char* mine = rei_format(" %s", head);
@@ -867,7 +876,8 @@ cJSON* cd_nightly(Cards* c, const char* sha) {
         buf_printf(&b, "Building main at [`%.7s`](%s), committed %s.", sha, commit, date);
     else if (strcmp(S(jstr(run, "conclusion")), "success")) {
         const char* ended = S(jstr(run, "conclusion"));
-        char* how = !strcmp(ended, "failure")     ? rei_strdup("failed")
+        char* how = !strcmp(ended, "failure") || (!strcmp(ended, "cancelled") && run_failed(run, jobs))
+                        ? rei_strdup("failed")
                     : !strcmp(ended, "cancelled") ? rei_strdup("was cancelled")
                                                   : rei_format("ended as %s", *ended ? ended : "nothing GitHub said");
         buf_printf(&b, "Not published: the build of [`%.7s`](%s) %s ([run](%s)).", sha, commit, how,
