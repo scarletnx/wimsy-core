@@ -16,6 +16,7 @@
 #define TR_HOURLY    10                 /* the reports one person sends in an hour */
 #define TR_ROLES     256                /* the roles of a member that a message names, at most */
 #define TR_KEY       72                 /* a game's key: its title ID, or n- and its name's letters and digits */
+#define TR_SAME      5                  /* the other reports of a failure a report's reply and page name, at most */
 /* the bot's settings, its env file's keys; tracer-mcp knows them too, so that both may be given one env file */
 #define TR_KEYS                                                                                                        \
     "TRACER_TOKEN", "TRACER_URL", "TRACER_CHANNELS", "TRACER_ADMINS", "TRACER_DB", "TRACER_SITE", "TRACER_ASSETS",     \

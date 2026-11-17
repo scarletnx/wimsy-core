@@ -78,7 +78,9 @@ static const char* const UPGRADES[] = {
     "ALTER TABLE reports ADD COLUMN fix_pr INTEGER NOT NULL DEFAULT 0;"
     "ALTER TABLE reports ADD COLUMN fix_commit TEXT;"
     "ALTER TABLE reports ADD COLUMN fix_nightly TEXT;"
-    "ALTER TABLE reports ADD COLUMN told REAL NOT NULL DEFAULT 0;"};
+    "ALTER TABLE reports ADD COLUMN told REAL NOT NULL DEFAULT 0;",
+    /* 11, the reports of one failure, found by their signature */
+    "CREATE INDEX reports_signature ON reports(signature, id);"};
 
 /* a report's columns, in the order row_report reads them */
 #define REPORT_COLUMNS                                                                                                 \
@@ -532,6 +534,24 @@ int st_followed(Store* s, int telling, StReport** reports, int* n) {
     }
     sqlite3_finalize(q);
     return 0;
+}
+
+int st_same_failure(Store* s, const char* signature, const char* key, long except, long* ids, long* issues, int max) {
+    sqlite3_stmt* q = prepared(s, "SELECT id, issue FROM reports WHERE signature = ? AND id != ? AND (? IS NULL OR"
+                                  " game = ?) ORDER BY id DESC LIMIT ?");
+    int n = 0;
+    if (!q) return -1;
+    text_at(q, 1, signature);
+    sqlite3_bind_int64(q, 2, except);
+    text_at(q, 3, key);
+    text_at(q, 4, key);
+    sqlite3_bind_int(q, 5, max);
+    while (n < max && sqlite3_step(q) == SQLITE_ROW) {
+        ids[n] = (long)sqlite3_column_int64(q, 0);
+        issues[n++] = (long)sqlite3_column_int64(q, 1);
+    }
+    sqlite3_finalize(q);
+    return n;
 }
 
 int st_set_bytes(Store* s, long report, int n, double bytes) {

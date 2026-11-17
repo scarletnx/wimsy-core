@@ -255,6 +255,14 @@ static cJSON* help(void) {
         TONE_SAID);
 }
 
+/* the pages of the reports of signature's failure drawn again, as except came or went: TR_SAME * 4 at most, the
+   newest, whose pages name except */
+static void same_drawn(Tracer* t, const char* signature, long except) {
+    long ids[TR_SAME * 4], issues[TR_SAME * 4];
+    int n = signature ? st_same_failure(t->store, signature, NULL, except, ids, issues, TR_SAME * 4) : 0, i;
+    for (i = 0; i < n; ++i) site_report_page(t->store, t->root, ids[i]);
+}
+
 /* report id gone: its files, its page, its row, and the pages that listed it */
 static void forget(Tracer* t, long id) {
     StReport r;
@@ -264,6 +272,7 @@ static void forget(Tracer* t, long id) {
     if (!st_remove(t->store, id)) {
         site_forget(t->root, id, files, nfiles);
         site_update(t->store, t->root, 0, r.key);
+        same_drawn(t, r.signature, id);
     }
     st_report_free(&r);
     st_files_free(files, nfiles);
@@ -742,6 +751,18 @@ static cJSON* made(Tracer* t, const StReport* r, const Taken* k) {
         add_field(e, "Not kept", skipped);
         free(skipped);
     }
+    if (r->signature) { /* the newest other reports of this failure, any game's, with their issues */
+        long ids[TR_SAME + 1], issues[TR_SAME + 1];
+        int n = st_same_failure(t->store, r->signature, NULL, r->id, ids, issues, TR_SAME + 1), i;
+        Buf same = {0};
+        for (i = 0; i < n && i < TR_SAME; ++i) {
+            buf_printf(&same, "%s#%ld", i ? ", " : "", ids[i]);
+            if (issues[i] > 0) buf_printf(&same, " (issue #%ld)", issues[i]);
+        }
+        if (n > TR_SAME) buf_add(&same, ", and more");
+        if (same.len) add_field(e, "Same failure", same.text);
+        buf_free(&same);
+    }
     if (k->probe_why) { /* lines of edenprobe that are no whole run: kept as a log, not on the Probe pages */
         char* why = plain(k->probe_why, 1000);
         add_field(e, "Not a run of Amberlith", why);
@@ -1083,6 +1104,7 @@ static cJSON* reported(Tracer* t, const TrMessage* asker, const TrMessage* m, co
         return said("The report could not be kept: try again later, please.");
     }
     site_update(t->store, t->root, r.id, r.key);
+    same_drawn(t, r.signature, r.id);
     rei_log("report #%ld: %d logs, %d screenshots, %s", r.id, k.logs, k.images, r.key);
     e = made(t, &r, &k);
     *report = r.id;
@@ -1585,6 +1607,42 @@ int tr_rescan(Tracer* t, const char* version) {
     return done;
 }
 
+/* approved report r linked to issue, report other's, which has the same game's same failure, in place of a new one:
+   the link kept, the issue told in a comment; the reply (owned) */
+static cJSON* same_linked(Tracer* t, const StReport* r, long other, long issue) {
+    StReport o;
+    char *text, *why = NULL, *body, *page;
+    cJSON* e;
+    if (st_get(t->store, other, &o, NULL, NULL) != 1 || !o.issue_url)
+        return said("The approval could not be kept: try again later, please.");
+    if (st_claim_issue(t->store, r->id) != 1 || st_set_issue(t->store, r->id, issue, o.issue_url)) {
+        st_set_issue(t->store, r->id, 0, NULL);
+        st_report_free(&o);
+        return said("The approval could not be kept: try again later, please.");
+    }
+    site_update(t->store, t->root, r->id, r->key);
+    page = rei_format("%s/r/%ld/", t->url, r->id);
+    body = rei_format("Tracer report %ld has this issue's failure (the same game, the same signature as report %ld), "
+                      "approved on Discord by a server's administrator: %s",
+                      r->id, other, page);
+    if (tr_issue_comment(t->issues, issue, body, &why))
+        rei_log("report #%ld linked to #%ld as report #%ld is, and the comment that says so was refused: %s", r->id,
+                issue, other, why);
+    rei_log("report #%ld approved: linked to #%ld, report #%ld's, the same game's same failure", r->id, issue, other);
+    text =
+        rei_format("Report #%ld has the failure of report #%ld, which is issue #%ld: linked to it, and no other issue "
+                   "opened.%s%s",
+                   r->id, other, issue, why ? " Its comment on the issue was refused: " : "", why ? why : "");
+    e = said(text);
+    jset(e, "url", o.issue_url);
+    free(text);
+    free(body);
+    free(page);
+    free(why);
+    st_report_free(&o);
+    return e;
+}
+
 cJSON* tr_approved(Tracer* t, const TrReaction* r) {
     StReport rep;
     StFile* files;
@@ -1599,6 +1657,17 @@ cJSON* tr_approved(Tracer* t, const TrReaction* r) {
         st_report_free(&rep);
         st_files_free(files, nfiles);
         return NULL;
+    }
+    if (!rep.issue && rep.signature) { /* the same game's same failure an issue has already: linked to it */
+        long ids[TR_SAME], issues[TR_SAME];
+        int n = st_same_failure(t->store, rep.signature, rep.key, id, ids, issues, TR_SAME), i;
+        for (i = 0; i < n && issues[i] <= 0; ++i) continue;
+        if (i < n) {
+            e = same_linked(t, &rep, ids[i], issues[i]);
+            st_report_free(&rep);
+            st_files_free(files, nfiles);
+            return e;
+        }
     }
     if ((claimed = st_claim_issue(t->store, id)) != 1) {
         if (!claimed)

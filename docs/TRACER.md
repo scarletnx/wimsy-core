@@ -236,6 +236,12 @@ no issue for, and a comment GitHub refuses, are said with its status and message
 comment. A report linked to another issue says which it replaced; `@Tracer unlink 12` takes the link out, the comment
 on GitHub staying. A report with an issue opens no other at an approval.
 
+A new report whose first log failed with a signature other reports have (the log summary's: where and how the run
+ended) names the newest five in its reply (`Same failure: #40 (issue #1234), #52`), on its page and in its JSON
+(`same_failure`), whatever their game; their pages name it too. An approval of a report whose game and signature a
+report linked to an issue has links it to that issue, with a comment on it that says so, and opens none: `Report #61
+has the failure of report #40, which is issue #1234: linked to it, and no other issue opened.`
+
 ### Followed, and the sender told
 
 With `TRACER_ISSUES_TOKEN`, every 10 minutes Tracer asks GitHub (one GraphQL query for 50 issues at a time, from the
@@ -325,7 +331,7 @@ Static files, drawn again where a report changes them, and all of them at each s
 | `index.html` | each game, its latest outcome, its reports' count; a search and a filter by outcome |
 | `all.html` | every report, the newest first |
 | `g/<key>.html` | a game's reports: `<key>` its title ID, or `n-` and its name's letters for a game known by name |
-| `r/<id>/` | a report: its facts, its screenshots (each shown small, and opened whole by a click), and each log with its summary, to read or download (a log sent in a `.zip` or a `.gz` is kept as its text and downloads as one: `logs.zip` as `logs.log`, `game.log.gz` as `game.log`); a run of edenprobe's has its counts and each case that did not pass |
+| `r/<id>/` | a report: its facts (its issue as GitHub said it last, and its fix; the other reports of its failure), its screenshots (each shown small, and opened whole by a click), and each log with its summary, to read or download (a log sent in a `.zip` or a `.gz` is kept as its text and downloads as one: `logs.zip` as `logs.log`, `game.log.gz` as `game.log`); a run of edenprobe's has its counts and each case that did not pass |
 | `probe/index.html` | the runs of Amberlith: the machines (an emulator, a driver and its version, a system), each case that fails somewhere with its results on each machine, each suite's, and each run |
 | `probe/c/<key>.html` | a case of Amberlith: `<key>` 16 hex digits of its suite and name; its results on each machine, what the rules say of it, and its newest 200 failures and skips with their detail |
 | `probe/d/<driver>.html` | a driver, by the ban table's name (`radv`, `nvidia`; `unknown` for the console's reports): its machines, the cases that fail on it, its ban candidates, its runs |

@@ -3104,6 +3104,94 @@ static void test_links(void) {
     comment_body = NULL;
 }
 
+/* ---- the reports of one failure ---- */
+/* two reports of one failure: each named in the other's reply, page and JSON; the second's approval links it to the
+   first's issue, no new one opened; the first gone from the second's page with its message */
+static void test_same_failure(void) {
+    TrIssues is;
+    TrMessage m;
+    TrReaction r;
+    StReport rep;
+    long first, second;
+    char *t, *p, *rel, *want;
+    memset(&is, 0, sizeof is);
+    is.repo = "o/r";
+    is.emoji = "\xe2\x9c\x85";
+    is.fetch = fake_links;
+    tracer.issues = &is;
+    m = message(8400, 170, "<@99> it stops");
+    attach(&m, "game.log", "https://cdn.discordapp.com/1/game.log", 10);
+    free(answer_text(respond(&m)));
+    tr_message_free(&m);
+    first = st_by_message(tracer.store, 8400);
+    CHECK(!st_set_issue(tracer.store, first, 1234, "https://github.com/o/r/issues/1234"));
+    m = message(8401, 171, "<@99> it stops for me too");
+    attach(&m, "game.log", "https://cdn.discordapp.com/1/game.log", 10);
+    t = answer_text(respond(&m));
+    tr_message_free(&m);
+    second = st_by_message(tracer.store, 8401);
+    want = rei_format("#%ld (issue #1234)", first);
+    HAS(t, "Same failure");
+    HAS(t, want);
+    free(want);
+    free(t);
+    rel = rei_format("r/%ld/index.html", second);
+    p = page(rel);
+    want = rei_format("<dt>Same failure</dt><dd><a href=\"../%ld/\">#%ld</a> (issue #1234)", first, first);
+    HAS(p, want);
+    free(want);
+    free(p);
+    free(rel);
+    rel = rei_format("r/%ld/index.html", first); /* drawn again as the second came */
+    p = page(rel);
+    want = rei_format("<a href=\"../%ld/\">#%ld</a>", second, second);
+    HAS(p, want);
+    free(want);
+    free(p);
+    free(rel);
+    rel = rei_format("api/r/%ld.json", second);
+    p = page(rel);
+    want = rei_format("\"same_failure\":[{\"report\":%ld,\"issue\":1234}", first);
+    HAS(p, want);
+    free(want);
+    free(p);
+    free(rel);
+    /* the second approved: linked to the first's issue, which a comment tells, and no issue opened */
+    link_asks = 0;
+    r = reaction(88, 33, 8401, "\xe2\x9c\x85");
+    r.roles[r.nroles++] = 5;
+    t = answer_text(tr_approved(&tracer, &r));
+    tr_reaction_free(&r);
+    want = rei_format("Report #%ld has the failure of report #%ld, which is issue #1234: linked to it, and no other "
+                      "issue opened.",
+                      second, first);
+    HAS(t, want);
+    free(want);
+    free(t);
+    CHECK(link_asks == 1);
+    SAME(comment_url, "POST https://api.github.com/repos/o/r/issues/1234/comments");
+    want = rei_format("Tracer report %ld has this issue's failure (the same game, the same signature as report %ld)",
+                      second, first);
+    HAS(comment_body, want);
+    free(want);
+    CHECK(st_get(tracer.store, second, &rep, NULL, NULL) == 1 && rep.issue == 1234);
+    SAME(rep.issue_url, "https://github.com/o/r/issues/1234");
+    st_report_free(&rep);
+    /* the first gone: the second's page names it no more */
+    CHECK(tr_forget(&tracer, 8400));
+    rel = rei_format("r/%ld/index.html", second);
+    p = page(rel);
+    want = rei_format("<a href=\"../%ld/\">#%ld</a>", first, first);
+    LACKS(p, want);
+    free(want);
+    free(p);
+    free(rel);
+    CHECK(tr_forget(&tracer, 8401));
+    tracer.issues = NULL;
+    free(comment_body);
+    comment_body = NULL;
+}
+
 /* ---- the issues followed ---- */
 static char* follow_answer; /* GraphQL's answer, whole */
 static int follow_status = 200, follow_asks;
@@ -4955,6 +5043,7 @@ static void every_test(const char* self_path) {
         test_issues();
         test_links();
         test_follow();
+        test_same_failure();
         test_age();
         test_archive_download();
         test_zip_reports();

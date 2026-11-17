@@ -47,6 +47,8 @@ int site_assets(const char* from, const char* root);
 /* a report's page, its game's page (gone when the game has no report left) and the lists drawn again, and every page
    of the runs of edenprobe when key is PROBE_KEY: 0, or -1 */
 int site_update(Store* s, const char* root, long id, const char* key);
+/* report id's page and JSON drawn again, alone (its game's and the lists left as they are): 0, or -1 */
+int site_report_page(Store* s, const char* root, long id);
 /* the pages of the runs of edenprobe, every one drawn again from the database: probe/index.html (each case that fails
    somewhere, by machine: the emulator, the driver and its version, the system; each suite; each run),
    probe/c/<key>.html (a case on each machine, and its failures and skips with their detail, the newest 200),

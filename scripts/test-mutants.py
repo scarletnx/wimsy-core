@@ -314,8 +314,15 @@ PROBE = (
 )
 
 # what only the whole suite holds: the worker, a process of its own shut in its folder (test_worker); who links a
-# report to an issue (test_links); when a report's sender is told its fix is out (test_follow)
+# report to an issue (test_links); when a report's sender is told its fix is out (test_follow); an approval of a
+# failure an issue has (test_same_failure)
 WORKER = (
+    (
+        "an approval opens a new issue for a failure an issue has",
+        'report.c',
+        '        if (i < n) {\n            e = same_linked(',
+        '        if (0 && i < n) {\n            e = same_linked(',
+    ),
     (
         "a sender is told before a nightly has the fix",
         'follow.c',

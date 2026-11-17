@@ -32,6 +32,10 @@ typedef struct {
     char* fix_commit;  /* owned: that pull request's merge commit, NULL for none */
     char* fix_nightly; /* owned: the first nightly's tag that has it, NULL before one does */
     double told;       /* when the one who sent it was told it is fixed, 0 for not */
+    /* not kept: the newest other reports whose first log failed with its signature (st_same_failure) and each one's
+       issue, filled where its page is drawn */
+    long same[TR_SAME], same_issue[TR_SAME];
+    int nsame;
 } StReport;
 
 /* what GitHub said of a commit (age.h), kept by the commit */
@@ -114,6 +118,9 @@ int st_followed(Store* s, int telling, StReport** reports, int* n);
 int st_set_facts(Store* s, const StReport* r);
 /* report id's game named again, as a later log names it: 0, or -1 */
 int st_set_game(Store* s, long id, const char* key, const char* title, const char* title_id, int named);
+/* the reports whose first log failed with signature, but except, the newest first: their ids, and each one's issue (0
+   for none), max at most; their count, or -1 said in the log. key, when not NULL, keeps them to that game */
+int st_same_failure(Store* s, const char* signature, const char* key, long except, long* ids, long* issues, int max);
 /* the report sent as message, or 0 */
 long st_by_message(Store* s, u64 message);
 /* report id, and its files (*files owned, NULL when not wanted): 1, 0 when there is none, -1 said in the log */
