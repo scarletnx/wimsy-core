@@ -131,13 +131,13 @@ temporary folder:
 `python3 scripts/test-mutants.py` then changes Tracer's code one way at a time in a copy of the tree, and expects its
 tests to fail on each: `tracer/src/rules.c` (a threshold one off, a comparison that lets one more in, a condition left
 out: 19 mutants, `test_tracer --rules`); what a report keeps of its files, in `files.c`, `report.c` and `issues.c` (a
-zip's screenshots, a picture never read as a log, the paths outside a home, the limits said with their values, what
-an issue may hold of the game: 33 mutants, `test_tracer --files`); what a log holds of a run, in `probe.c` (Amberlith's starting note, a name that only
-begins like it, libc's detail kept, a worker's answer naming another program: 4 mutants, `test_tracer --probe`); and
-the worker's locale for a zip's names, made before it shuts itself in, who links a report to an issue, and when a
-report's sender is told its fix is out, an approval of a failure an issue has, and a worker's environment (7
-mutants, the whole suite). A mutant they pass,
-or one whose text its file no longer has once, fails it. About 30 s.
+zip's screenshots, a picture never read as a log, the paths outside a home, the limits said with their values, what an
+issue may hold of the game: 33 mutants, `test_tracer --files`); what a log holds of a run, in `probe.c` (Amberlith's
+starting note, a name that only begins like it, libc's detail kept, a worker's answer naming another program: 4 mutants,
+`test_tracer --probe`); and the worker's locale for a zip's names, made before it shuts itself in, who links a report to
+an issue, and when a report's sender is told its fix is out, an approval of a failure an issue has, and a worker's
+environment (7 mutants, the whole suite). A mutant they pass, or one whose text its file no longer has once, fails it.
+About 30 s.
 
 `make -C tracer bench [RUNS=1000] [FOLDER=/tmp/tracer-bench]` (`tracer/tests/bench_probe.c`, built by `make test`,
 run by hand) keeps RUNS runs like edenprobe 0.9.0's graphics run (1069 cases) on fifteen machines in a new database in
@@ -194,6 +194,10 @@ In a job of its own, on each pull request and each push to main, the bots built 
   forever: the bot has to end with status 1 on its own, saying its session was last seen ready longer ago than three
   heartbeat intervals. `stalled` (ReiWimsy) the same, once the first connection is left each `GET /gateway/bot` held
   with no answer, which Concord also waits on forever.
+- `both`: `reiwimsy` with `TRACER_TOKEN`, Tracer beside ReiWimsy in one process. The fake knows two tokens, each its
+  own user in `users/@me` and in its gateway's READY; once both are ready, each gateway brings `<@200> delete #12`,
+  which mentions Tracer, and `see #12`. Tracer has to answer the first and ReiWimsy the second, each with its own token,
+  and ReiWimsy never the first; then the gateways close under both and the program ends with status 1.
 - `reiwimsy --fix-cards` on a nightly channel holding two cards that say "Building": its dry run changes nothing,
   `--apply` deletes the one of a commit inside a push and redraws the push's head with its failed build, and a second
   `--apply` finds nothing to do.

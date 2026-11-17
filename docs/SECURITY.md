@@ -13,7 +13,7 @@ None is in this repository; each is made or put in place on the host. `.gitignor
 | Secret | Where |
 |---|---|
 | ReiWimsy's Discord token, its GitHub token | `discordbots`: `/usr/local/etc/reiwimsy.env` (root's, 600) |
-| Tracer's Discord token, its issues token | `tracer`: `/usr/local/etc/tracer.env` (root's, 600) |
+| Tracer's Discord token, its issues token | `tracer`: `/usr/local/etc/tracer.env` (root's, 600); or, Tracer beside ReiWimsy, `discordbots`: `/usr/local/etc/reiwimsy.env` |
 | AccordWimsy's Forgejo token, its GitHub token | `gitsync`: `/usr/local/etc/accordwimsy/accordwimsy.env` (its user's, 600) |
 | Forgejo's `SECRET_KEY`, `INTERNAL_TOKEN`, `JWT_SECRET` | `gitscarlet`: `app.ini`, made in place, never leaving the jail |
 | Each tunnel's connector token | the file `--token-file` names, in `gitedge`, `tracerweb` and `status` |
@@ -41,8 +41,10 @@ asks for no privileged intent, and the reactions only when it files issues
 
 ## What each jail reaches
 
-Each program runs in a jail of its own, as its own user ([Install](./INSTALL.md#the-jails)). The bots listen on no
-port. Tracer's bot writes its site into a folder that the web jail, `tracerweb`, mounts read-only: the jail that
+Each program runs in a jail of its own, as its own user ([Install](./INSTALL.md#the-jails)); Tracer beside ReiWimsy
+runs in ReiWimsy's process and jail, its workers keeping both bots' tokens away
+([ReiWimsy](./REIWIMSY.md#tracer-beside-it)). The bots listen on no port. Tracer's bot writes its site into a folder
+that the web jail, `tracerweb`, mounts read-only: the jail that
 answers the internet holds no token and cannot change the site. The forge's three jails are isolated: the one that
 holds the GitHub token (`gitsync`) answers no one, the one that answers the internet (`gitedge`) holds no token, and
 Forgejo (`gitscarlet`) reaches nothing but DNS; a guard stops the three at the first process, socket or file it never

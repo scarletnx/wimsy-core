@@ -9,10 +9,10 @@ CI runs. Building: [Build](./BUILD.md); the tests: [Testing](./TESTING.md).
 
 | Folder | What it holds |
 |---|---|
-| `rei/src/` | ReiWimsy: `main.c` (its settings, the gateway and its threads), `event.c` (the gateway's events, from their JSON), `watch.c` (the gateway's watch), `refs.c` (what a message asks for), `link.c` (the replies), `cards.c` (the cards), `look.c` (how an issue or a pull request reads), `github.c` (GitHub's REST and GraphQL APIs), `rest.c` (Discord's REST API), `http.c` (libcurl), `state.c` (the state file), `util.c` (strings, cJSON's lookups, the log, the clock) |
+| `rei/src/` | ReiWimsy: `main.c` (the program: ReiWimsy, and Tracer beside it with `TRACER_TOKEN`), `bot.c` (ReiWimsy's settings, its gateway and its threads), `event.c` (the gateway's events, from their JSON), `watch.c` (the gateway's watch), `refs.c` (what a message asks for), `link.c` (the replies), `cards.c` (the cards), `look.c` (how an issue or a pull request reads), `github.c` (GitHub's REST and GraphQL APIs), `rest.c` (Discord's REST API), `http.c` (libcurl), `state.c` (the state file), `util.c` (strings, cJSON's lookups, the log, the clock) |
 | `rei/tests/` | `test_rei.c`; `test_gateway.sh` and `fake_discord.py`, the bots against a fake Discord |
 | `rei/third_party/cjson/` | cJSON 1.7.19, as its release has it, and the files' `SHA256SUMS` |
-| `tracer/src/` | Tracer: `main.c` (its settings, the gateway), `message.c` (what a message asks), `report.c` (what it does with one), `files.c` (logs, pictures and videos), `worker.c` (the worker that reads them), `fetch.c` (the downloads), `store.c` (the SQLite database), `site.c` (the pages), `issues.c`, `age.c`, `titles.c`, `channels.c`; `mcp.c` and `mcp_main.c`, tracer-mcp |
+| `tracer/src/` | Tracer: `main.c` (Tracer alone), `bot.c` (its settings, the gateway, the thread of its events), `follow.c` (the issues followed), `message.c` (what a message asks), `report.c` (what it does with one), `files.c` (logs, pictures and videos), `worker.c` (the worker that reads them), `fetch.c` (the downloads), `store.c` (the SQLite database), `site.c` (the pages), `issues.c`, `age.c`, `titles.c`, `channels.c`; `mcp.c` and `mcp_main.c`, tracer-mcp |
 | `tracer/site/` | the site's `style.css`, `site.js` and `tracer.svg` |
 | `tracer/third_party/logscan/` | ScarletNX's log summary, its commit in `COMMIT` |
 | `tracer/tests/` | `test_tracer.c` |
@@ -23,7 +23,9 @@ CI runs. Building: [Build](./BUILD.md); the tests: [Testing](./TESTING.md).
 | `scripts/` | `install.sh`, `make-titles.py`, `sync-logscan.sh`, `check-docs.py`, and the tests of the first and the last |
 
 Tracer builds ReiWimsy's `util.c`, `http.c`, `rest.c` and `watch.c` again as its own, and AccordWimsy builds
-ReiWimsy's cJSON: a change there is a change to all of them, and every program's tests run it.
+ReiWimsy's cJSON: a change there is a change to all of them, and every program's tests run it. `reiwimsy` links
+Tracer's objects (`tracer/libtracer.a`, which leaves those out) and runs both bots: a log line names the bot its file
+is built for (`REI_NAME`), and the gateway's watch follows each Concord client of the program.
 
 ## Rules
 

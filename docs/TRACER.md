@@ -24,7 +24,9 @@
 
 `tracer/`, in C99 with [Concord](https://github.com/Cogmasters/concord) 3.0.1, libcurl, SQLite, libarchive, cJSON
 (ReiWimsy's copy) and ScarletNX's own log summary (`tracer/third_party/logscan`, the runtime's `--scan-log`). It keeps
-the game reports that people send it on Discord and draws them as a static site, grouped by game. Its MCP server,
+the game reports that people send it on Discord and draws them as a static site, grouped by game. It runs alone, as
+`tracer`, or beside ReiWimsy in `reiwimsy`'s process, as a bot of its own ([ReiWimsy](./REIWIMSY.md#tracer-beside-it)),
+where its settings are the same keys in `reiwimsy.env`. Its MCP server,
 which gives the same reports to agents, has a page of its own: [tracer-mcp](./TRACER-MCP.md). Installing both:
 [Install](./INSTALL.md#tracer).
 

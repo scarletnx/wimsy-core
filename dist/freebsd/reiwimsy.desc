@@ -2,3 +2,6 @@ ReiWimsy answers a Discord message that names an issue or a pull request of a Gi
 repository with a link to each, its title, state and labels, and keeps a card on Discord
 for each open pull request, each open issue and each nightly build, edited as GitHub
 changes. It runs as the service reiwimsy, its settings in /usr/local/etc/reiwimsy.env.
+With TRACER_TOKEN in its env file it runs Tracer beside it, in one process and as a bot
+of its own: the ScarletNX game reports people send on Discord, kept and drawn as a static
+site (Tracer's package holds tracer-mcp, and Tracer alone).
