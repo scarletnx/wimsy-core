@@ -3391,6 +3391,19 @@ static void test_probe_parts(void) {
     CHECK(probe_keeps_detail("astc") && probe_keeps_detail("fs") && probe_keeps_detail("game"));
     CHECK(!probe_keeps_detail("account") && !probe_keeps_detail("ldn") && !probe_keeps_detail("nifm"));
     CHECK(!probe_keeps_detail("pad") && !probe_keeps_detail("nonesuch"));
+    /* Amberlith 1.0.0's families: its new suites in them, libc's losing their detail as the network's do */
+    CHECK(probe_family("pace-gpu") == PROBE_PACE && probe_family("mandelbrot") == PROBE_DEMO);
+    CHECK(probe_family("nvn") == PROBE_NVN && probe_family("music") == PROBE_MUSIC &&
+          probe_family("wimsy") == PROBE_GAME);
+    CHECK(probe_family("socket") == PROBE_LIBC && probe_family("svc") == PROBE_KERNEL &&
+          probe_family("sdk") == PROBE_SERVICE);
+    CHECK(probe_family("stencil") == PROBE_GRAPHICS && probe_family("xfb") == PROBE_GRAPHICS);
+    SAME(probe_family_name(PROBE_PACE), "pace");
+    SAME(probe_family_name(PROBE_LIBC), "libc");
+    SAME(probe_family_name(PROBE_OTHER), "other");
+    CHECK(probe_keeps_detail("pace-timer") && probe_keeps_detail("julia") && probe_keeps_detail("nvn"));
+    CHECK(probe_keeps_detail("music") && probe_keeps_detail("coverage"));
+    CHECK(!probe_keeps_detail("system") && !probe_keeps_detail("socket") && !probe_keeps_detail("audin"));
     /* the drivers, by the ban table's names, and by their own names as Eden logs them */
     SAME(probe_driver_name(3), "radv");
     SAME(probe_driver_name(30), "apesoft");
@@ -3719,8 +3732,8 @@ static void test_probe_reports(void) {
            "crashed");
     HAS(t, "Report #");
     HAS(t, ": edenprobe 0.9.0 on ScarletNX");
-    HAS(t, "the detail of 3 cases of the service, net and pad families (or of no family edenprobe names) and 1 net "
-           "note, which can name the player");
+    HAS(t, "the detail of 3 cases of the service, net, pad and libc families (or of no family edenprobe names) and 1 "
+           "net note, which can name the player");
     HAS(t, "main 1234abc");
     free(t);
     tr_message_free(&m);
@@ -3889,7 +3902,7 @@ static void test_probe_reports(void) {
     attach(&m, "edenprobe.log", "https://cdn.discordapp.com/21/edenprobe.log", 10);
     t = answer_text(respond(&m));
     HAS(t, "edenprobe 0.9.0 on radv, Mesa 26.1.8 (Linux): 3 passed, 2 failed");
-    HAS(t, "the detail of 3 cases of the service, net and pad families");
+    HAS(t, "the detail of 3 cases of the service, net, pad and libc families");
     free(t);
     tr_message_free(&m);
     tracer.take = NULL;

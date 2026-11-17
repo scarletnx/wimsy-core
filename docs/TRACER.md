@@ -148,13 +148,14 @@ starting`; of several in one file (the Share Log's `summary.txt`
 holds a run's output and its log), the last whole one is read, one with its summary, else the last one. Kept of it:
 the machine (the system and its family, the GPU, the driver's VkDriverId, name and version as its vendor numbers it,
 which are ScarletNX's ban table's), the emulator and its build, the program's name as that note gives it and its
-version, the words its mode note says ran
-(`cpu graphics net notime`), and each case's suite, name, tier, result, reason, detail (its first 300 bytes) and time,
-10000 cases at most.
+version, the words its mode note says ran (`cpu graphics net notime`), and each case's suite, name, tier, result,
+reason, detail (its first 300 bytes) and time, 10000 cases at most. Each case's family is its suite's in Amberlith
+1.0.0's table (judge, cpu, pad, graphics, nvn, fs, kernel, display, video, audio, service, net, game, libc, demo,
+music, pace), which has every suite edenprobe's had.
 
-The detail of the cases of Amberlith's service, net and pad families, and of a suite its table does not have, is left
-out, and so is the text of the net family's notes: the account cases name a user's id and nickname, the network ones
-the addresses and sessions the net file names. They are taken out of every log a report keeps, wherever such a line
+The detail of the cases of Amberlith's service, net, pad and libc families, and of a suite its table does not have, is
+left out, and so is the text of the net family's notes: the account cases name a user's id and nickname, the network
+ones the addresses and sessions the net file names, libc's system and socket suites the machine and its network. They are taken out of every log a report keeps, wherever such a line
 is, before anything reads it, so neither the database nor the site has them.
 
 The reply gives the counts and the suites that failed most, `Amberlith 1.0.0 on radv, Mesa 26.1.8 (Linux): 1034

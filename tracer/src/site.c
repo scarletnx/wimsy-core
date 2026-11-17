@@ -513,9 +513,9 @@ static void probe_section(Buf* b, const Probe* p) {
     field(b, "Optional extensions on", p->extensions);
     if (!p->whole) field(b, "Summary", "none: the run stopped before its end");
     if (p->cut_cases || p->cut_notes) {
-        char* left = rei_format("the detail of %d %s of the service, net and pad families (or of no family edenprobe "
+        char* left = rei_format("the detail of %d %s of the service, net, pad and libc families (or of no family %s "
                                 "names) and %d net %s, which can name the player",
-                                p->cut_cases, p->cut_cases == 1 ? "case" : "cases", p->cut_notes,
+                                p->cut_cases, p->cut_cases == 1 ? "case" : "cases", probe_program(p), p->cut_notes,
                                 p->cut_notes == 1 ? "note" : "notes");
         field(b, "Left out", left);
         free(left);

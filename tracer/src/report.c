@@ -239,8 +239,8 @@ static cJSON* help(void) {
         "game it is: when it does not, write the game's name in the message.\n\n"
         "A run of Amberlith (edenprobe before its 1.0.0) is a report of its own, apart from the games: "
         "ScarletNX's log of the run (alone, or in the Share Log zip), Eden's log of it, or its report.jsonl (the "
-        "console's, as it names no machine). The detail of its service, net and pad cases is left out, as it can "
-        "name you.\n\n"
+        "console's, as it names no machine). The detail of its service, net, pad and libc cases is left out, as it "
+        "can name you.\n\n"
         "Home folders in a log are shown as ~, and so are the folders of a path outside them (a disk's, a "
         "drive's): its file's name stays. Screenshots lose their metadata. The site does not show who sent a "
         "report.\n\n"
@@ -866,7 +866,7 @@ static cJSON* probe_made(Tracer* t, const StReport* r, const Taken* k) {
     files = kept(k, "");
     add_field(e, "Kept", files);
     if (p->cut_cases || p->cut_notes) {
-        char* left = rei_format("the detail of %d %s of the service, net and pad families (or of no family %s "
+        char* left = rei_format("the detail of %d %s of the service, net, pad and libc families (or of no family %s "
                                 "names) and %d net %s, which can name the player",
                                 p->cut_cases, p->cut_cases == 1 ? "case" : "cases", probe_program(p), p->cut_notes,
                                 p->cut_notes == 1 ? "note" : "notes");

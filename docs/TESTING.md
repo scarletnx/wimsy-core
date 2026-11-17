@@ -91,7 +91,8 @@ temporary folder:
   tool's filters, limits and errors, and a query's 16 words at most;
 - runs of Amberlith (edenprobe before its 1.0.0): its families and which lose their detail, the drivers by the ban
   table's names and by their own, each driver's version numbering both ways, the system's family; the cut of a log
-  (the service, net, pad and unknown suites' details and the net notes, every other byte as it was); ScarletNX's log,
+  (the service, net, pad, libc and unknown suites' details and the net notes, every other byte as it was), Amberlith
+  1.0.0's new suites in their families; ScarletNX's log,
   Eden's, rEden's and a report.jsonl read, a run that Amberlith 1.0.0's note opens and a name that only begins like
   it, two copies of a run, a run cut short, a launch that went on after a crash, lines Amberlith does not write; a run
   through JSON and the answers refused (another emulator, another program or none, a detail the cut takes out, a case
@@ -118,8 +119,9 @@ tests to fail on each: `tracer/src/rules.c` (a threshold one off, a comparison t
 out: 19 mutants, `test_tracer --rules`); what a report keeps of its files, in `files.c`, `report.c` and `issues.c` (a
 zip's screenshots, a picture never read as a log, the paths outside a home, the limits said with their values: 30
 mutants, `test_tracer --files`); what a log holds of a run, in `probe.c` (Amberlith's starting note, a name that only
-begins like it, a worker's answer naming another program: 3 mutants, `test_tracer --probe`); and the worker's locale
-for a zip's names, made before it shuts itself in (1 mutant, the whole suite). A mutant they pass, or one whose text its file no longer has once, fails it. About 30 s.
+begins like it, libc's detail kept, a worker's answer naming another program: 4 mutants, `test_tracer --probe`); and
+the worker's locale for a zip's names, made before it shuts itself in (1 mutant, the whole suite). A mutant they pass,
+or one whose text its file no longer has once, fails it. About 30 s.
 
 `make -C tracer bench [RUNS=1000] [FOLDER=/tmp/tracer-bench]` (`tracer/tests/bench_probe.c`, built by `make test`,
 run by hand) keeps RUNS runs like edenprobe 0.9.0's graphics run (1069 cases) on fifteen machines in a new database in

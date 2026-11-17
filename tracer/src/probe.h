@@ -21,7 +21,7 @@
 #define PROBE_DETAIL 300     /* the bytes of a case's detail kept */
 #define PROBE_KEY    "probe" /* the reports' key (store.h's game) of a report that is a run of edenprobe */
 
-/* edenprobe's families, as its ui.c groups the suites (FAMILIES, edenprobe 86e1d11) */
+/* Amberlith's families, as its ui.c groups the suites (FAMILIES, Amberlith 1.0.0) */
 typedef enum {
     PROBE_JUDGE,
     PROBE_CPU,
@@ -35,14 +35,20 @@ typedef enum {
     PROBE_SERVICE,
     PROBE_NET,
     PROBE_GAME,
+    PROBE_NVN,
+    PROBE_LIBC,
+    PROBE_DEMO,
+    PROBE_MUSIC,
+    PROBE_PACE,
     PROBE_OTHER
 } ProbeFamily;
 ProbeFamily probe_family(const char* suite);
 /* the family's name: "judge", "graphics", ... "other" */
 const char* probe_family_name(ProbeFamily f);
 /* whether a case of suite keeps its detail: the families whose cases name nothing of the player (the judge, cpu,
-   graphics, fs, kernel, display, video, audio, game). service, net and pad lose it, and so does a suite edenprobe's
-   table does not have, as nothing says what it holds */
+   graphics, nvn, fs, kernel, display, video, audio, game, demo, music, pace). service, net, pad and libc (its system
+   and socket suites can name the machine and its network) lose it, and so does a suite Amberlith's table does not
+   have, as nothing says what it holds */
 int probe_keeps_detail(const char* suite);
 
 /* the ban table's name of a VkDriverId ("radv", "nvidia"), NULL for one it has none for; its label ("RADV", "NVIDIA's

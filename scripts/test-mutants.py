@@ -282,6 +282,12 @@ PROBE = (
         'if (!strncmp(t, PROGRAMS[i], strlen(PROGRAMS[i]))) return i;',
     ),
     (
+        "libc's cases keep their detail, which can name the machine and its network",
+        'probe.c',
+        ' && f != PROBE_LIBC && f != PROBE_OTHER;',
+        ' && f != PROBE_OTHER;',
+    ),
+    (
         "a worker's answer names any program",
         'probe.c',
         '    if (program_named(jstr(o, "program")) < 0) {',

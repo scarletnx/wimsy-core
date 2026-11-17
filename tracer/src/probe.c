@@ -10,9 +10,10 @@
 
 #include "files.h"
 
-/* ---- edenprobe's families ---- */
+/* ---- Amberlith's families ---- */
 
-/* which family each suite is of, by the name its lines carry: edenprobe's ui.c, FAMILIES (edenprobe 86e1d11) */
+/* which family each suite is of, by the name its lines carry: Amberlith's ui.c, FAMILIES (Amberlith 1.0.0, 3c94c33),
+   which has every suite edenprobe's had */
 static const struct {
     const char* suite;
     ProbeFamily family;
@@ -30,11 +31,20 @@ static const struct {
     {"blend", PROBE_GRAPHICS},
     {"depth", PROBE_GRAPHICS},
     {"fixed", PROBE_GRAPHICS},
+    {"stencil", PROBE_GRAPHICS},
+    {"lod", PROBE_GRAPHICS},
+    {"sampling", PROBE_GRAPHICS},
+    {"coverage", PROBE_GRAPHICS},
+    {"msaa", PROBE_GRAPHICS},
     {"texture", PROBE_GRAPHICS},
     {"coherence", PROBE_GRAPHICS},
     {"fmath", PROBE_GRAPHICS},
     {"order", PROBE_GRAPHICS},
+    {"queue", PROBE_GRAPHICS},
+    {"storage", PROBE_GRAPHICS},
     {"index", PROBE_GRAPHICS},
+    {"topology", PROBE_GRAPHICS},
+    {"vertex", PROBE_GRAPHICS},
     {"instance", PROBE_GRAPHICS},
     {"bindless", PROBE_GRAPHICS},
     {"astc", PROBE_GRAPHICS},
@@ -42,6 +52,7 @@ static const struct {
     {"eac", PROBE_GRAPHICS},
     {"etc2", PROBE_GRAPHICS},
     {"bcn", PROBE_GRAPHICS},
+    {"bcnimage", PROBE_GRAPHICS},
     {"zeta", PROBE_GRAPHICS},
     {"swizzle", PROBE_GRAPHICS},
     {"texel", PROBE_GRAPHICS},
@@ -51,12 +62,21 @@ static const struct {
     {"occlusion", PROBE_GRAPHICS},
     {"drawtex", PROBE_GRAPHICS},
     {"geometry", PROBE_GRAPHICS},
+    {"xfb", PROBE_GRAPHICS},
     {"query", PROBE_GRAPHICS},
     {"dma", PROBE_GRAPHICS},
     {"blit2d", PROBE_GRAPHICS},
+    {"copy", PROBE_GRAPHICS},
     {"tex8k", PROBE_GRAPHICS},
     {"fs", PROBE_FS},
     {"sched", PROBE_KERNEL},
+    {"svc", PROBE_KERNEL},
+    {"pace-cpu", PROBE_PACE},
+    {"pace-mem", PROBE_PACE},
+    {"pace-thread", PROBE_PACE},
+    {"pace-timer", PROBE_PACE},
+    {"pace-fs", PROBE_PACE},
+    {"pace-gpu", PROBE_PACE},
     {"binder", PROBE_DISPLAY},
     {"vic", PROBE_VIDEO},
     {"nvdec", PROBE_VIDEO},
@@ -96,15 +116,28 @@ static const struct {
     {"time-zone", PROBE_SERVICE},
     {"time-perm", PROBE_SERVICE},
     {"audout", PROBE_SERVICE},
+    {"audin", PROBE_SERVICE},
+    {"pctl", PROBE_SERVICE},
     {"fs-file", PROBE_SERVICE},
     {"acc-app", PROBE_SERVICE},
+    {"sdk", PROBE_SERVICE},
     {"nifm", PROBE_NET},
     {"dns", PROBE_NET},
     {"bsd", PROBE_NET},
     {"ssl", PROBE_NET},
     {"acc", PROBE_NET},
     {"friend", PROBE_NET},
+    {"libc", PROBE_LIBC},
+    {"system", PROBE_LIBC},
+    {"socket", PROBE_LIBC},
     {"game", PROBE_GAME},
+    {"wimsy", PROBE_GAME},
+    {"mandelbrot", PROBE_DEMO},
+    {"julia", PROBE_DEMO},
+    {"fluid", PROBE_DEMO},
+    {"fluid-alias", PROBE_DEMO},
+    {"music", PROBE_MUSIC},
+    {"nvn", PROBE_NVN},
 };
 
 ProbeFamily probe_family(const char* suite) {
@@ -115,14 +148,15 @@ ProbeFamily probe_family(const char* suite) {
 }
 
 const char* probe_family_name(ProbeFamily f) {
-    static const char* const names[] = {"judge", "cpu",   "pad",     "graphics", "fs",   "kernel", "display",
-                                        "video", "audio", "service", "net",      "game", "other"};
+    static const char* const names[] = {"judge",   "cpu",   "pad",   "graphics", "fs",   "kernel",
+                                        "display", "video", "audio", "service",  "net",  "game",
+                                        "nvn",     "libc",  "demo",  "music",    "pace", "other"};
     return f >= PROBE_JUDGE && f <= PROBE_OTHER ? names[f] : "other";
 }
 
 int probe_keeps_detail(const char* suite) {
     ProbeFamily f = probe_family(suite);
-    return f != PROBE_SERVICE && f != PROBE_NET && f != PROBE_PAD && f != PROBE_OTHER;
+    return f != PROBE_SERVICE && f != PROBE_NET && f != PROBE_PAD && f != PROBE_LIBC && f != PROBE_OTHER;
 }
 
 /* ---- the drivers: ScarletNX's ban table's names and numbering (src/nx/gpu/vk/extension_bans.c, #1390) ---- */
