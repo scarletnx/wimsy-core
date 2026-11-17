@@ -2788,6 +2788,16 @@ static void test_upstream_text(void) {
     t = tr_upstream_text("0100A6301214E000", 5);
     SAME(t, "<game");
     free(t);
+    { /* the title: no "#", which GitHub would link to the repository's issue */
+        StReport r;
+        memset(&r, 0, sizeof r);
+        r.id = 12;
+        r.signature = "fatal see #1008 in 0100A6301214E000";
+        r.console = "Switch";
+        t = tr_issue_title(&r);
+        SAME(t, "Tracer report 12: fatal see  1008 in <game> (Switch)");
+        free(t);
+    }
 }
 
 static void test_issues(void) {

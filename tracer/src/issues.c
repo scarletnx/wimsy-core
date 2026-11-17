@@ -161,8 +161,10 @@ char* tr_issue_title(const StReport* r) {
                     ? rei_format("Tracer report %ld: %s (%s)", r->id, r->signature, r->console ? r->console : "a game")
                     : rei_format("Tracer report %ld: %s (%s)", r->id, r->outcome ? r->outcome : "no failure logged",
                                  r->console ? r->console : "a game"),
-         *t = tr_upstream_text(raw, TITLE_MAX);
+         *t = tr_upstream_text(raw, TITLE_MAX), *p;
     free(raw);
+    for (p = t; *p; ++p) /* a log's own "#12" too */
+        if (*p == '#') *p = ' ';
     return t;
 }
 
