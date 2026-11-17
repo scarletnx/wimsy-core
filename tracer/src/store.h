@@ -25,6 +25,13 @@ typedef struct {
     char* issue_url; /* owned: that issue's page, NULL for none */
     char* age; /* owned: how far its build was behind main when it came, or that it is not a published one (age.h's
                   line), NULL for none */
+    /* its issue as GitHub said it last (follow.h), NULL each before it was asked: */
+    char* issue_state;  /* owned: "open", "closed", or "merged" for a pull request */
+    char* issue_reason; /* owned: why an issue closed, as GitHub says it ("COMPLETED", "NOT_PLANNED"), NULL for none */
+    long fix_pr;       /* the pull request that fixed it (the issue's closer, or the pull request itself), 0 for none */
+    char* fix_commit;  /* owned: that pull request's merge commit, NULL for none */
+    char* fix_nightly; /* owned: the first nightly's tag that has it, NULL before one does */
+    double told;       /* when the one who sent it was told it is fixed, 0 for not */
 } StReport;
 
 /* what GitHub said of a commit (age.h), kept by the commit */
@@ -94,8 +101,16 @@ int st_set_bytes(Store* s, long report, int n, double bytes);
 /* report's issue taken for one being opened (issue -1): 1 when it was, 0 when the report has one or one is being opened
    already, -1 for an error */
 int st_claim_issue(Store* s, long report);
-/* report's issue: its number and page, or (number 0, url NULL) none again after a failure. 0, or -1 */
+/* report's issue: its number and page, or (number 0, url NULL) none again after a failure; what was followed of the
+   one before forgotten. 0, or -1 */
 int st_set_issue(Store* s, long report, long number, const char* url);
+/* report's issue as GitHub says it now (r's issue_state, issue_reason, fix_pr, fix_commit and fix_nightly): 0, or -1 */
+int st_set_followed(Store* s, const StReport* r);
+/* when report's sender was told it is fixed: 0, or -1 */
+int st_set_told(Store* s, long report, double when);
+/* the reports with an issue, but those whose fix is in a nightly already and whose sender was told (or is not, as
+   telling is 0), the oldest first; *n of them, owned (st_reports_free) */
+int st_followed(Store* s, int telling, StReport** reports, int* n);
 int st_set_facts(Store* s, const StReport* r);
 /* report id's game named again, as a later log names it: 0, or -1 */
 int st_set_game(Store* s, long id, const char* key, const char* title, const char* title_id, int named);

@@ -20,7 +20,7 @@
 #define TR_KEYS                                                                                                        \
     "TRACER_TOKEN", "TRACER_URL", "TRACER_CHANNELS", "TRACER_ADMINS", "TRACER_DB", "TRACER_SITE", "TRACER_ASSETS",     \
         "TRACER_TITLES", "TRACER_ISSUES_REPO", "TRACER_ISSUES_TOKEN", "TRACER_ISSUES_EMOJI", "TRACER_ISSUES_LABELS",   \
-        "TRACER_UPSTREAM_REPO", "TRACER_MIN_FREE"
+        "TRACER_UPSTREAM_REPO", "TRACER_MIN_FREE", "TRACER_NOTIFY"
 #define TR_MIN_FREE 1024 /* the MiB the site's file system keeps free when TRACER_MIN_FREE does not say */
 
 /* a download: url's body into out (cleared first), max bytes at most. 0, or -1 with why (owned) */

@@ -14,6 +14,7 @@
   * [Summarized and named again](#summarized-and-named-again)
 * [Commands](#commands)
 * [Issues](#issues)
+  * [Followed, and the sender told](#followed-and-the-sender-told)
 * [How old a build is](#how-old-a-build-is)
 * [What the runs say together](#what-the-runs-say-together)
 * [What it keeps of people](#what-it-keeps-of-people)
@@ -235,6 +236,25 @@ no issue for, and a comment GitHub refuses, are said with its status and message
 comment. A report linked to another issue says which it replaced; `@Tracer unlink 12` takes the link out, the comment
 on GitHub staying. A report with an issue opens no other at an approval.
 
+### Followed, and the sender told
+
+With `TRACER_ISSUES_TOKEN`, every 10 minutes Tracer asks GitHub (one GraphQL query for 50 issues at a time, from the
+bot's own process) how each report's issue or pull request stands, and the report's page and JSON say it
+(`issue_state`, `issue_reason`): open, closed and why (`COMPLETED`, `NOT_PLANNED`...), merged. A pull request linked
+that merged, or the one whose merge closed the issue as completed (a commit that closed it too), is the report's fix
+(`fix_pr`, `fix_commit`); then the newest nightly of `TRACER_UPSTREAM_REPO`'s owner is compared with that commit
+(`GET repos/<upstream>/compare/<fix>...<nightly's commit>`), and the first that has it is kept (`fix_nightly`). An
+issue reopened loses its fix.
+
+With `TRACER_NOTIFY=reply` or `ping`, once a report's fix is in a nightly, Tracer replies to the message that sent the
+report, once (`ping` pings its author, as a reply does; `reply` does not):
+
+    Report #74: fixed
+    Fixed by pull request #1479 (abc1234), in nightly 2026-11-10 (def5678). Try it, and send a new log if it still fails.
+
+A report whose fix is in a nightly, its sender told (or no one, with `TRACER_NOTIFY=off`), is asked no more. A report
+linked to another issue starts over. What GitHub refuses is said in the log, and asked again in the next round.
+
 ## How old a build is
 
 How old a new report's build is goes into the reply and onto the report's page and its JSON (`build_age`), as it was
@@ -335,9 +355,10 @@ fill in; an empty value stops the service):
 | `TRACER_ASSETS` | `/usr/local/share/tracer` | where `style.css`, `site.js` and `tracer.svg` are |
 | `TRACER_TITLES` | none: no list | the games' names by title ID, made by `scripts/make-titles.py --out FILE`; without it a game its logs don't name keeps its title ID |
 | `TRACER_ISSUES_REPO` | none: no issue is filed | `OWNER/NAME`: the repository an approved report becomes an issue of; the start's log line says it, or that it is not set |
-| `TRACER_ISSUES_TOKEN` | none: needed with the repository | a fine-grained token of that repository alone, with Issues read and write and nothing else; never in the log |
+| `TRACER_ISSUES_TOKEN` | none: needed with the repository | a fine-grained token of that repository alone, with Issues read and write, Pull requests and Contents read (the issues followed, a fix compared with the nightlies) and nothing else; never in the log |
 | `TRACER_ISSUES_EMOJI` | the check mark (U+2705) | the approval's emoji: its character, or a server emoji's name |
 | `TRACER_ISSUES_LABELS` | none | `label,label`: the labels each issue gets |
+| `TRACER_NOTIFY` | `off` | `reply` or `ping`: a report's sender is told by a reply, which pings them with `ping`, once its fix is in a nightly ([Followed, and the sender told](#followed-and-the-sender-told)); needs `TRACER_ISSUES_REPO`; any other word stops it, naming the value |
 | `TRACER_MIN_FREE` | `1024` | the MiB the site's file system keeps free: a report whose files would go under it is refused ([above](#deleting-and-the-hourly-limit)); `0` for no floor; a value that is no whole number from 0 to 1048576 stops it, naming the value |
 | `TRACER_UPSTREAM_REPO` | `scarletnx/ScarletNX` | `OWNER/NAME`: the repository whose main a report's build is compared with, its owner's `nightly` the nightlies'; asked with `TRACER_ISSUES_TOKEN`, not at all without it |
 

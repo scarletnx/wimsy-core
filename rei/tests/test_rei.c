@@ -445,6 +445,11 @@ static void rest_tests(void) {
     CHECK(dc_post(&d, 7, e, 99) == 1234567890123456789ULL);
     HAS(posted_body, "\"message_reference\":{\"message_id\":\"99\"");
     HAS(posted_body, "\"allowed_mentions\":{\"parse\":[],\"replied_user\":false}");
+    /* a reply told to ping: its author alone */
+    CHECK(dc_reply(&d, 7, e, 98, 1) == 1234567890123456789ULL);
+    HAS(posted_body, "\"message_reference\":{\"message_id\":\"98\"");
+    HAS(posted_body, "\"allowed_mentions\":{\"parse\":[],\"replied_user\":true}");
+    CHECK(dc_reply(&d, 7, e, 97, 0) && strstr(posted_body, "\"replied_user\":false"));
     answer("PATCH", DC_API "channels/7/messages/70", 404, "{\"code\":10008}");
     CHECK(dc_edit(&d, 7, 70, e) == 404);
     answer("PATCH", DC_API "channels/7/messages/71", 429, "{\"retry_after\":0.25}");

@@ -56,8 +56,9 @@ static void said_wrong(const char* what, const char* path, const RgAnswer* a) {
             : a->body ? a->body
                       : "nothing");
 }
-/* the body of a message carrying embed: no pings, a reply to reply_to when not 0; owned */
-static char* message_of(const cJSON* embed, u64 reply_to) {
+/* the body of a message carrying embed: a reply to reply_to when not 0, which pings its author when ping is 1, and
+   no other ping; owned */
+static char* message_of(const cJSON* embed, u64 reply_to, int ping) {
     cJSON *m = cJSON_CreateObject(), *embeds = cJSON_AddArrayToObject(m, "embeds"),
           *mentions = cJSON_AddObjectToObject(m, "allowed_mentions");
     char* text;
@@ -69,7 +70,7 @@ static char* message_of(const cJSON* embed, u64 reply_to) {
         snprintf(id, sizeof id, "%llu", (unsigned long long)reply_to);
         cJSON_AddStringToObject(ref, "message_id", id);
         cJSON_AddBoolToObject(ref, "fail_if_not_exists", 0);
-        cJSON_AddBoolToObject(mentions, "replied_user", 0);
+        cJSON_AddBoolToObject(mentions, "replied_user", ping);
     }
     text = cJSON_PrintUnformatted(m);
     cJSON_Delete(m);
@@ -105,8 +106,10 @@ cJSON* dc_emojis(Dc* d) {
     free(path);
     return items;
 }
-u64 dc_post(Dc* d, u64 channel, const cJSON* embed, u64 reply_to) {
-    char *path = rei_format("channels/%llu/messages", (unsigned long long)channel), *body = message_of(embed, reply_to);
+u64 dc_post(Dc* d, u64 channel, const cJSON* embed, u64 reply_to) { return dc_reply(d, channel, embed, reply_to, 0); }
+u64 dc_reply(Dc* d, u64 channel, const cJSON* embed, u64 reply_to, int ping) {
+    char *path = rei_format("channels/%llu/messages", (unsigned long long)channel),
+         *body = message_of(embed, reply_to, ping);
     RgAnswer a = {0};
     u64 id = 0;
     if (ask(d, "POST", path, body, &a) == 200) {
@@ -136,7 +139,7 @@ static int done_or_gone(const char* what, const char* path, RgAnswer* a, int sta
 }
 int dc_edit(Dc* d, u64 channel, u64 message, const cJSON* embed) {
     char *path = rei_format("channels/%llu/messages/%llu", (unsigned long long)channel, (unsigned long long)message),
-         *body = message_of(embed, 0);
+         *body = message_of(embed, 0, 0);
     RgAnswer a = {0};
     int said = done_or_gone("PATCH", path, &a, ask(d, "PATCH", path, body, &a));
     free(body);

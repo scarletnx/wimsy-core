@@ -637,7 +637,40 @@ char* site_report_html(const StReport* r, const StFile* files, int nfiles, const
     if (r->issue > 0 && r->issue_url && !strncmp(r->issue_url, "https://github.com/", 19)) {
         buf_add(&b, "<dt>Issue</dt><dd><a href=\"");
         esc(&b, r->issue_url);
-        buf_printf(&b, "\">#%ld</a></dd>\n", r->issue);
+        buf_printf(&b, "\">#%ld</a>", r->issue);
+        if (r->issue_state) { /* as GitHub said it last (follow.h) */
+            buf_add(&b, " ");
+            esc(&b, r->issue_state);
+            if (r->issue_reason) {
+                buf_add(&b, " (");
+                esc(&b, r->issue_reason);
+                buf_add(&b, ")");
+            }
+        }
+        if (r->fix_commit && hex(r->fix_commit)) { /* in the issue's repository: https://github.com/OWNER/NAME */
+            const char* at = r->issue_url + 19;
+            int base = 19, slashes = 0;
+            char* repo;
+            for (; *at && slashes < 2; ++at, ++base) slashes += *at == '/';
+            if (slashes == 2) --base;
+            repo = rei_format("%.*s", base, r->issue_url);
+            buf_add(&b, "<br>fixed by ");
+            if (r->fix_pr) {
+                buf_add(&b, "<a href=\"");
+                esc(&b, repo);
+                buf_printf(&b, "/pull/%ld\">pull request #%ld</a>, ", r->fix_pr, r->fix_pr);
+            }
+            buf_add(&b, "<a href=\"");
+            esc(&b, repo);
+            buf_printf(&b, "/commit/%s\">%.7s</a>", r->fix_commit, r->fix_commit);
+            free(repo);
+            if (r->fix_nightly) {
+                buf_add(&b, ", in ");
+                esc(&b, r->fix_nightly);
+            } else
+                buf_add(&b, ", in no nightly yet");
+        }
+        buf_add(&b, "</dd>\n");
     }
     buf_add(&b, "</dl>\n");
     if (probe) probe_section(&b, probe);
@@ -713,6 +746,11 @@ static cJSON* report_object(const StReport* r) {
     if (r->issue > 0 && r->issue_url) {
         cJSON_AddNumberToObject(o, "issue", (double)r->issue);
         jset(o, "issue_url", r->issue_url);
+        jset(o, "issue_state", r->issue_state);
+        jset(o, "issue_reason", r->issue_reason);
+        if (r->fix_pr) cJSON_AddNumberToObject(o, "fix_pr", (double)r->fix_pr);
+        jset(o, "fix_commit", r->fix_commit);
+        jset(o, "fix_nightly", r->fix_nightly);
     }
     return o;
 }

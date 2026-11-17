@@ -314,8 +314,20 @@ PROBE = (
 )
 
 # what only the whole suite holds: the worker, a process of its own shut in its folder (test_worker); who links a
-# report to an issue (test_links)
+# report to an issue (test_links); when a report's sender is told its fix is out (test_follow)
 WORKER = (
+    (
+        "a sender is told before a nightly has the fix",
+        'follow.c',
+        '            if (t->notify != TR_NOTIFY_OFF && now.fix_nightly && !r[i].told) {',
+        '            if (t->notify != TR_NOTIFY_OFF && now.fix_commit && !r[i].told) {',
+    ),
+    (
+        "a nightly behind the fix has it",
+        'follow.c',
+        '        has = !strcmp(status, "ahead") || !strcmp(status, "identical");',
+        '        has = 1;',
+    ),
     (
         'anyone links a report to an issue',
         'report.c',

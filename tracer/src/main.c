@@ -30,6 +30,7 @@ sends the text and the attachments of a message that mentions it */
 #include "age.h"
 #include "channels.h"
 #include "fetch.h"
+#include "follow.h"
 #include "issues.h"
 #include "http.h"
 #include "report.h"
@@ -45,6 +46,7 @@ sends the text and the attachments of a message that mentions it */
 static struct {
     const char *token, *url, *db, *site, *assets, *titles;
     double min_free; /* bytes */
+    TrNotify notify;
     u64 channels[LISTED], admins[LISTED];
     int nchannels, nadmins;
 } env;
@@ -105,7 +107,7 @@ static void read_env(void) {
             known |= !strncmp(*e, KNOWN[k], strlen(KNOWN[k])) && (*e)[strlen(KNOWN[k])] == '=';
         if (!known)
             stop("%s: no such setting (TRACER_TOKEN, _URL, _CHANNELS, _ADMINS, _DB, _SITE, _ASSETS, _TITLES, "
-                 "_ISSUES_REPO, _ISSUES_TOKEN, _ISSUES_EMOJI, _ISSUES_LABELS, _UPSTREAM_REPO, _MIN_FREE)",
+                 "_ISSUES_REPO, _ISSUES_TOKEN, _ISSUES_EMOJI, _ISSUES_LABELS, _UPSTREAM_REPO, _MIN_FREE, _NOTIFY)",
                  *e);
     }
     env.token = setting("TRACER_TOKEN", NULL);
@@ -144,6 +146,8 @@ static void read_env(void) {
         issues.ctx = &github_auth;
         /* a build's age: asked with the same token, once a commit */
         if (tr_age_settings(&age, environment, &why)) stop("%s", why);
+        /* a report's sender told its fix is out */
+        if (tr_notify_of(getenv("TRACER_NOTIFY"), issues.repo != NULL, &env.notify, &why)) stop("%s", why);
         age.fetch = token ? rh_fetch : NULL;
         age.ctx = &github_auth;
     }
@@ -151,7 +155,7 @@ static void read_env(void) {
 
 /* ---- the events waiting for the thread ---- */
 
-enum { EV_CREATE, EV_DELETE, EV_REACTION };
+enum { EV_CREATE, EV_DELETE, EV_REACTION, EV_FOLLOW };
 static struct {
     int kind[WAITING];
     char* json[WAITING]; /* owned: a MESSAGE_CREATE's or MESSAGE_REACTION_ADD's data, or NULL with id for a deletion */
@@ -318,11 +322,29 @@ static void* handle(void* unused) {
                 cJSON_Delete(e);
                 tr_reaction_free(&r);
             }
-        } else
+        } else if (kind == EV_FOLLOW)
+            tr_follow(&tracer);
+        else
             tr_forget(&tracer, id);
         free(json);
     }
     return NULL;
+}
+
+/* a round of the issues' following (follow.h) every TR_FOLLOW seconds, on the thread of the events, which alone holds
+   the database */
+static void* follow_rounds(void* unused) {
+    (void)unused;
+    for (;;) {
+        sleep(TR_FOLLOW);
+        push(EV_FOLLOW, NULL, 0, 0);
+    }
+    return NULL;
+}
+/* a reply that tells a report's sender its fix is out */
+static u64 tell(void* ctx, u64 channel, u64 message, const cJSON* embed, int ping) {
+    (void)ctx;
+    return dc_reply(&dc, channel, embed, message, ping);
 }
 
 /* ---- the gateway ---- */
@@ -342,6 +364,11 @@ static void ready(const char* json, size_t size) {
         int code = pthread_create(&thread, NULL, handle, NULL);
         if (code) stop("the thread of the reports did not start: %s", strerror(code));
         pthread_detach(thread);
+        if (issues.repo && age.fetch) { /* the issues followed: with their repository and the token */
+            if ((code = pthread_create(&thread, NULL, follow_rounds, NULL)))
+                stop("the thread of the issues' rounds did not start: %s", strerror(code));
+            pthread_detach(thread);
+        }
         started = 1;
     }
 }
@@ -435,6 +462,8 @@ int main(int argc, char** argv) {
     tracer.message = message_got;
     tracer.content_intent = content_intent;
     tracer.min_free = env.min_free;
+    tracer.notify = env.notify;
+    tracer.tell = tell;
     { /* the disk the reports land on, said once */
         char* why;
         double now = tr_free_bytes(env.site, &why);
@@ -466,6 +495,10 @@ int main(int argc, char** argv) {
         rei_log("%s", said);
         free(said);
         said = tr_age_said(&age);
+        rei_log("%s", said);
+        free(said);
+        said = age.fetch || !issues.repo ? tr_follow_said(&tracer)
+                                         : rei_strdup("follow: no issue followed, as TRACER_ISSUES_TOKEN is not set");
         rei_log("%s", said);
         free(said);
     }

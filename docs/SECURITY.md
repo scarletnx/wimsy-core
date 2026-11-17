@@ -29,7 +29,7 @@ environment (`GIT_CONFIG_*`), and `push.sh` gives curl the push token from its h
 | Token | Of | What it may do |
 |---|---|---|
 | ReiWimsy's `GITHUB_TOKEN` | GitHub, fine-grained | public repositories, read-only |
-| Tracer's `TRACER_ISSUES_TOKEN` | GitHub, fine-grained | the issues' repository alone: Issues, read and write |
+| Tracer's `TRACER_ISSUES_TOKEN` | GitHub, fine-grained | the issues' repository alone: Issues, read and write; Pull requests and Contents, read |
 | AccordWimsy's `GITHUB_TOKEN` | GitHub, fine-grained, of the organization | read-only: Contents, Issues, Pull requests, Metadata |
 | AccordWimsy's `ACCORDWIMSY_FORGEJO_TOKEN` | the forge, its own user | `write:repository`, `write:issue`, `write:organization`, `read:user` |
 | ReiWimsy's Discord invite | the server | View Channels, Send Messages, Send Messages in Threads, Embed Links, Read Message History, Manage Messages (its first round deletes the webhooks' cards) |

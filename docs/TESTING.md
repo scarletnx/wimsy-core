@@ -84,6 +84,11 @@ temporary folder:
 - a report linked to an issue that exists (`link`, `unlink`), through a fake GitHub: by an administrator only, in a
   reply or by number, the comment that links back, a pull request, an issue that is none, a refused comment said, the
   approval opening none for a linked report;
+- the issues followed (`TRACER_NOTIFY` and its refusals), through a fake GitHub: an issue and a pull request open,
+  then closed by a merged pull request whose commit no nightly has yet and merged with it in one (the sender told
+  once, pinged, by a reply to the report's message), the next nightly having the first, GitHub failing, a reopened
+  issue losing its fix, one fixed with no one told asked no more, a report linked to another issue forgetting the
+  first's;
 - the issues an approval files, through a fake GitHub: an administrator's reaction files one, a second files none,
   anyone else's reaction or another emoji nothing, a refusal said and tried again, the settings and their refusals;
 - how old a report's build is, through a fake GitHub: behind main, the plurals, a commit asked once an hour, `-dirty`
@@ -127,8 +132,8 @@ out: 19 mutants, `test_tracer --rules`); what a report keeps of its files, in `f
 zip's screenshots, a picture never read as a log, the paths outside a home, the limits said with their values, what
 an issue may hold of the game: 33 mutants, `test_tracer --files`); what a log holds of a run, in `probe.c` (Amberlith's starting note, a name that only
 begins like it, libc's detail kept, a worker's answer naming another program: 4 mutants, `test_tracer --probe`); and
-the worker's locale for a zip's names, made before it shuts itself in, and who links a report to an issue (2 mutants,
-the whole suite). A mutant they pass,
+the worker's locale for a zip's names, made before it shuts itself in, who links a report to an issue, and when a
+report's sender is told its fix is out (4 mutants, the whole suite). A mutant they pass,
 or one whose text its file no longer has once, fails it. About 30 s.
 
 `make -C tracer bench [RUNS=1000] [FOLDER=/tmp/tracer-bench]` (`tracer/tests/bench_probe.c`, built by `make test`,
