@@ -155,8 +155,9 @@ music, pace), which has every suite edenprobe's had.
 
 The detail of the cases of Amberlith's service, net, pad and libc families, and of a suite its table does not have, is
 left out, and so is the text of the net family's notes: the account cases name a user's id and nickname, the network
-ones the addresses and sessions the net file names, libc's system and socket suites the machine and its network. They are taken out of every log a report keeps, wherever such a line
-is, before anything reads it, so neither the database nor the site has them.
+ones the addresses and sessions the net file names, libc's system and socket suites the machine and its network. They
+are taken out of every log a report keeps, wherever such a line is, before anything reads it, so neither the database
+nor the site has them.
 
 The reply gives the counts and the suites that failed most, `Amberlith 1.0.0 on radv, Mesa 26.1.8 (Linux): 1034
 passed, 26 failed (astc 15, astcimage 9, tex8k 2), 6 skipped, 3 crashed`, and what the run lacks: no summary line, a
