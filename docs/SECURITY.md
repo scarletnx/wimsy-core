@@ -53,7 +53,8 @@ learned ([Forge](./FORGE.md#the-guard)).
 Tracer reads the files strangers send. Each message's files are read by a worker, the bot run again as `tracer
 --report` ([Tracer](./TRACER.md#the-worker)):
 
-- its environment without the bot's settings and tokens (every `TRACER_` key taken out);
+- its environment without the settings and tokens of either bot the program runs (every `TRACER_`, `REIWIMSY_` and
+  `GITHUB_` key, and any name that holds `TOKEN`, `KEY` or `SECRET`, taken out);
 - within 1 GiB of memory, 120 s of processor, 600 s in all and 128 MiB a file, with no core file (a crash's core
   would hold what a stranger sent), and every descriptor it inherited but the standard three closed (the bot's
   gateway, its database);

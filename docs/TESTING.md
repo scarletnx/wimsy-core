@@ -95,12 +95,12 @@ temporary folder:
   anyone else's reaction or another emoji nothing, a refusal said and tried again, the settings and their refusals;
 - how old a report's build is, through a fake GitHub: behind main, the plurals, a commit asked once an hour, `-dirty`
   and a commit the repository lacks, no line at main or the newest nightly, GitHub silent or refusing, no token, no git;
-- the worker, the test program run as one: a report through it, its environment without the token, one that crashes,
-  one that never answers, one gone before it reads, one that names a host file, one shut in its folder that tries the
-  site, the database and /etc/passwd, one that answers without having shut itself in, one that reads the bot's
-  environment before the bot keeps it from its user's debuggers and not after, the bot's descriptors closed in it, no
-  worker for a message without files, a Share Log zip whose names are flagged UTF-8 and have accents, read once shut
-  in;
+- the worker, the test program run as one: a report through it, its environment without either bot's settings and
+  tokens, one that crashes, one that never answers, one gone before it reads, one that names a host file, one shut in
+  its folder that tries the site, the database and /etc/passwd, one that answers without having shut itself in, one that
+  reads the bot's environment before the bot keeps it from its user's debuggers and not after, the bot's descriptors
+  closed in it, no worker for a message without files, a Share Log zip whose names are flagged UTF-8 and have accents,
+  read once shut in;
 - the MCP server over that site: its handshake and protocol versions, notifications, broken and unknown requests, each
   tool's filters, limits and errors, and a query's 16 words at most;
 - runs of Amberlith (edenprobe before its 1.0.0): its families and which lose their detail, the drivers by the ban
@@ -135,7 +135,8 @@ zip's screenshots, a picture never read as a log, the paths outside a home, the 
 an issue may hold of the game: 33 mutants, `test_tracer --files`); what a log holds of a run, in `probe.c` (Amberlith's starting note, a name that only
 begins like it, libc's detail kept, a worker's answer naming another program: 4 mutants, `test_tracer --probe`); and
 the worker's locale for a zip's names, made before it shuts itself in, who links a report to an issue, and when a
-report's sender is told its fix is out, and an approval of a failure an issue has (5 mutants, the whole suite). A mutant they pass,
+report's sender is told its fix is out, an approval of a failure an issue has, and a worker's environment (7
+mutants, the whole suite). A mutant they pass,
 or one whose text its file no longer has once, fails it. About 30 s.
 
 `make -C tracer bench [RUNS=1000] [FOLDER=/tmp/tracer-bench]` (`tracer/tests/bench_probe.c`, built by `make test`,

@@ -16,8 +16,8 @@
 #define WK_MEMORY  (1u << 30) /* its address space at most, but under AddressSanitizer, which maps far more */
 #define WK_ANSWER  (64 << 20) /* the bytes of its answer at most: the logs' summaries */
 
-/* the environment a worker gets: environ without the bot's settings and its token (TRACER_*); owned, its strings
-   environ's */
+/* the environment a worker gets: environ without the settings and tokens of any bot the program runs (TRACER_*,
+   REIWIMSY_*, GITHUB_*, and any name that holds TOKEN, KEY or SECRET); owned, its strings environ's */
 char** wk_env(char* const* environ_now);
 /* m's files taken into k (its dir made, its base and counts set) by the worker argv names (argv[0] the program, run
    without a shell), which may take seconds at most: 0, or -1 with why (owned): it could not start, it stopped on a

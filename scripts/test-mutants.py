@@ -313,7 +313,8 @@ PROBE = (
     ),
 )
 
-# what only the whole suite holds: the worker, a process of its own shut in its folder (test_worker); who links a
+# what only the whole suite holds: the worker, a process of its own shut in its folder, and its environment
+# (test_worker); who links a
 # report to an issue (test_links); when a report's sender is told its fix is out (test_follow); an approval of a
 # failure an issue has (test_same_failure)
 WORKER = (
@@ -322,6 +323,18 @@ WORKER = (
         'report.c',
         '        if (i < n) {\n            e = same_linked(',
         '        if (0 && i < n) {\n            e = same_linked(',
+    ),
+    (
+        "a worker's environment keeps ReiWimsy's settings",
+        'worker.c',
+        'static const char* const prefixes[] = {"TRACER_", "REIWIMSY_", "GITHUB_"};',
+        'static const char* const prefixes[] = {"TRACER_", "TRACER_", "GITHUB_"};',
+    ),
+    (
+        "a worker's environment keeps a name that holds a secret",
+        'worker.c',
+        '    for (k = 0; k < sizeof words / sizeof *words; ++k)',
+        '    for (k = 0; k < 0; ++k)',
     ),
     (
         "a sender is told before a nightly has the fix",
