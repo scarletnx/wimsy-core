@@ -208,17 +208,21 @@ Each is a message that mentions Tracer, in a channel it answers in:
 A report becomes a GitHub issue once a server's administrator approves it: with `TRACER_ISSUES_REPO`, the owner or an
 administrator of the server it was sent in (or one of `TRACER_ADMINS`) reacts to one of its messages (the one that sent
 it, an update, Tracer's answer) with the approval's emoji, `TRACER_ISSUES_EMOJI`, the check mark by default. Tracer
-opens the issue in that repository with what the site shows of the report: its facts and its first log's summary (home
-folders and the folders of paths outside them as `~`, addresses as `[ip]` and `[email]`, no dumps), each of a log's or
-a player's words in a code block, where GitHub links no `@name` and no `#number`, the report's page, and its
-screenshots, each the site's picture 320 pixels wide linked to it and named by its number in the report (a file's
-name is a player's words). GitHub's API takes no file for an issue: its image proxy fetches each picture from the site,
-so the site must answer it. The issue's number goes into the database, onto
-the report's page and its JSON, and into a short reply on Discord. A report is filed once: a second approval opens no
-other issue, and one GitHub refused (its status and message in the reply) is tried again by the next approval. Anyone
-else's reaction, and another emoji, are left as they are. GitHub is asked from the bot's own process, with a 30 s
-timeout; the worker that reads the files never holds this token either. The gateway asks for the reactions only when
-`TRACER_ISSUES_REPO` is set.
+opens the issue in that repository, titled `Tracer report 12: <its failure's signature> (<console>)`, with what the site
+shows of the failure: its facts (console, game version, build, system, GPU, driver, outcome, signature, what the runtime
+missed) and its first log's fatal and frames (home folders and the folders of paths outside them as `~`, addresses as
+`[ip]` and `[email]`, no dumps), each of a log's words in a code block, where GitHub links no `@name` and no `#number`,
+the report's page, and its screenshots, each the site's picture 320 pixels wide linked to it and named by its number in
+the report (a file's name is a player's words). GitHub's API takes no file for an issue: its image proxy fetches each
+picture from the site, so the site must answer it. An issue names no game, as the repository's issues never do: no
+title, no title ID (one in a value is written `<game>`), no player's note and no last lines (where a game's name may
+be), and a value that names a game's file (a dump's, an update's, a mod's: `.nsp`, `.xci`, `.3ds`, `.pchtxt`...) is cut
+whole, as the name before it may hold spaces; the report's page, which the issue links, has them all. The issue's number
+goes into the database, onto the report's page and its JSON, and into a short reply on Discord. A report is filed once:
+a second approval opens no other issue, and one GitHub refused (its status and message in the reply) is tried again by
+the next approval. Anyone else's reaction, and another emoji, are left as they are. GitHub is asked from the bot's own
+process, with a 30 s timeout; the worker that reads the files never holds this token either. The gateway asks for the
+reactions only when `TRACER_ISSUES_REPO` is set.
 
 ## How old a build is
 

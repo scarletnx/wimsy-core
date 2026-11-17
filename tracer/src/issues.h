@@ -28,10 +28,15 @@ void tr_issues_free(TrIssues* is);
 /* the start's line saying them, every value but the token's; owned */
 char* tr_issues_said(const TrIssues* is);
 
-/* report r's issue: its title, and its body of what the site shows (files' summaries, its page at url, its screenshots
-   as the site's images linked to them), each of a log's or a player's words in a code block, where GitHub links no
-   @name and no #number, and no "#" before the report's own number; owned */
+/* report r's issue: its title, and its body of what the site shows of the failure (its facts, the first log's fatal
+   and frames, its page at url, its screenshots as the site's images linked to them), each of a log's words in a code
+   block, where GitHub links no @name and no #number, and no "#" before the report's own number; owned. Neither names
+   the game: no title, no title ID (a value holding one has it as <game>), no game file's name (a value with one is
+   cut), no player's note and no last lines, which may; the report's page has them */
 char* tr_issue_title(const StReport* r);
+/* text as an issue may hold it, on one line, cut to max bytes: each title ID (16 hex digits) as <game>, and the whole
+   text cut when a word of it names a game's file (.nsp, .xci, .3ds...), as the name before it may have spaces; owned */
+char* tr_upstream_text(const char* text, size_t max);
 char* tr_issue_body(const StReport* r, const StFile* files, int nfiles, const char* url);
 /* the issue opened: 0 with *number and *url (owned, its page on GitHub), or -1 with why (owned): GitHub's status and
    message, or no answer */

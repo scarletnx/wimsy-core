@@ -2763,6 +2763,32 @@ static TrReaction reaction(u64 user, u64 guild, u64 message, const char* emoji) 
     r.emoji = rei_strdup(emoji);
     return r;
 }
+/* what an issue may hold of a log's or a report's text: no title ID, no game's file */
+static void test_upstream_text(void) {
+    char* t;
+    t = tr_upstream_text("svcBreak in 0100A6301214E000 sdk+1470d8", 200);
+    SAME(t, "svcBreak in <game> sdk+1470d8");
+    free(t);
+    t = tr_upstream_text("at [0100a6301214e000][v0], then 0004000000055d00.", 200);
+    SAME(t, "at [<game>][v0], then <game>.");
+    free(t);
+    t = tr_upstream_text("commit 0123456789abcdef0123456789abcdef01234567 and a1b2c3d4e5f60718a", 200);
+    SAME(t, "commit 0123456789abcdef0123456789abcdef01234567 and a1b2c3d4e5f60718a"); /* not 16 digits */
+    free(t);
+    t = tr_upstream_text("could not open ~/Some Game [0100A6301214E000][v0].nsp, so it stopped", 200);
+    SAME(t, "<cut: it names a game's file>");
+    free(t);
+    t = tr_upstream_text("loading ~/mods/Patch.PCHTXT", 200);
+    SAME(t, "<cut: it names a game's file>");
+    free(t);
+    t = tr_upstream_text("an .nsp is a dump; libnsp.so, x.nspx and nsp stay\na line", 200);
+    SAME(t, "an .nsp is a dump; libnsp.so, x.nspx and nsp stay a line"); /* ".nsp" alone names no file */
+    free(t);
+    t = tr_upstream_text("0100A6301214E000", 5);
+    SAME(t, "<game");
+    free(t);
+}
+
 static void test_issues(void) {
     TrIssues is;
     TrReaction r;
@@ -2844,14 +2870,21 @@ static void test_issues(void) {
     HAS(gh_body, "\"labels\":[\"game report\",\"needs triage\"]");
     HAS(gh_body, "approved on Discord by a server's administrator");
     { /* no "#" outside the code block, where GitHub would link an issue */
-        const char* fence = strstr(gh_body, "````text");
+        const char* fence = strstr(gh_body, "```text");
         CHECK(fence && !memchr(gh_body, '#', (size_t)(fence - gh_body)));
     }
     HAS(gh_body, "https://reports.example/r/");
-    HAS(gh_body, "````text"); /* a fence longer than the note's backticks: what it says is code, no @ or # link */
-    HAS(gh_body, "@everyone #12 ```ticks```");
+    HAS(gh_body, "```text"); /* what the log says is code: no @ or # link */
     HAS(gh_body, "svcBreak");
+    HAS(gh_body, "\"title\":\"Tracer report ");
     LACKS(gh_body, "140"); /* no Discord id */
+    /* no game: its name, its title ID, the player's note and the last lines are the report page's alone */
+    LACKS(gh_body, "Some Game");
+    LACKS(gh_body, "0100aaaabbbb0000");
+    LACKS(gh_body, "0100AAAABBBB0000");
+    LACKS(gh_body, "@everyone");
+    LACKS(gh_body, "Last lines");
+    LACKS(gh_body, "save.bin");
     CHECK(st_get(tracer.store, id, &rep, NULL, NULL) == 1 && rep.issue == 345);
     SAME(rep.issue_url, "https://github.com/o/r/issues/345");
     st_report_free(&rep);
@@ -4525,6 +4558,7 @@ static void every_test(const char* self_path) {
     test_probe_parts();
     test_probe_lines();
     test_probe_zip();
+    test_upstream_text();
     test_rules();
     if (tracer.store) {
         test_reports();
@@ -4588,6 +4622,7 @@ int main(int argc, char** argv) {
         test_unpack();
         test_zip_images();
         test_public_log();
+        test_upstream_text();
         if (tracer.store) test_zip_reports();
     } else
         every_test(argv[0]);

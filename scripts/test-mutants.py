@@ -260,6 +260,24 @@ FILES = (
         '    free(shown);',
     ),
     (
+        "the issue keeps a title ID",
+        'issues.c',
+        '        if (run == 16 && (at + 1 == n || !hex(s[at + 1]))) {',
+        '        if (run == 17 && (at + 1 == n || !hex(s[at + 1]))) {',
+    ),
+    (
+        "the issue keeps a line that names a game's file",
+        'issues.c',
+        '        if (game_file(s, end)) {',
+        '        if (0 && game_file(s, end)) {',
+    ),
+    (
+        "a word that is an extension alone is a game's file",
+        'issues.c',
+        '    if (i <= 1 || i == n) return 0;',
+        '    if (!i || i == n) return 0;',
+    ),
+    (
         'the issue has no screenshots',
         'issues.c',
         '    shots(&b, r->id, files, nfiles, url);',
