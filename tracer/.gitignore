@@ -3,3 +3,4 @@
 /tests/test_tracer
 /tests/bench_probe
 /tracer-mcp
+/libtracer.a

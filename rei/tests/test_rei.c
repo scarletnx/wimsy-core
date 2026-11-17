@@ -1413,6 +1413,16 @@ static void event_tests(void) {
     SAME(m.content, "he said \"#160\" \\ caf\xc3\xa9 \xf0\x9f\x98\x80\n");
     ev_message_free(&m);
     CHECK(!m.content && !m.id);
+    /* whom it mentions: the users its mentions list, not a name in its text nor a role */
+    {
+        static const char mention[] =
+            "{\"id\":\"7\",\"channel_id\":\"8\",\"content\":\"<@200> delete #12 <@&300>\",\"author\":{\"id\":\"1\"},"
+            "\"mentions\":[{\"id\":\"200\",\"username\":\"Tracer\",\"bot\":true}],\"mention_roles\":[\"300\"]}";
+        CHECK(ev_mentions(mention, strlen(mention), 200));
+        CHECK(!ev_mentions(mention, strlen(mention), 300) && !ev_mentions(mention, strlen(mention), 1));
+        CHECK(!ev_mentions(mention, strlen(mention), 0));
+        CHECK(!ev_mentions("{\"id\":\"7\",\"content\":\"<@200>\"}", 29, 200)); /* no list: none */
+    }
     /* a reply: its own author counts, not the one it answers */
     CHECK(message(
         "{\"id\":\"2\",\"channel_id\":\"3\",\"content\":\"#5\",\"author\":{\"id\":\"1\"},\"referenced_message\":"

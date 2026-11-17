@@ -3,6 +3,8 @@
 #
 #   make [CONCORD=prefix]  tracer, linked with Concord v3.0.1 as make install PREFIX=prefix put it, libcurl, SQLite
 #                          and libarchive; and tracer-mcp, its MCP server, with libmicrohttpd
+#   make libtracer.a [CONCORD=prefix]
+#                          the bot alone, without ReiWimsy's pieces, which reiwimsy links to run it beside its own
 #   make test              the tests: no Discord, no network, no Concord, no libcurl
 #   make bench [RUNS=1000] [FOLDER=/tmp/tracer-bench]
 #                          what RUNS runs of edenprobe cost: the database's size, the Probe pages', and the time they
@@ -40,9 +42,17 @@ LOGIC = src/message.o src/files.o src/probe.o src/rules.o src/store.o src/site.o
 
 all: tracer tracer-mcp
 
-tracer: $(LOGIC) src/rei_http.o src/rei_rest.o src/rei_watch.o src/fetch.o src/main.o
-	$(CC) $(CFLAGS) -o $@ $(LOGIC) src/rei_http.o src/rei_rest.o src/rei_watch.o src/fetch.o src/main.o \
+tracer: $(LOGIC) src/rei_http.o src/rei_rest.o src/rei_watch.o src/fetch.o src/bot.o src/main.o
+	$(CC) $(CFLAGS) -o $@ $(LOGIC) src/rei_http.o src/rei_rest.o src/rei_watch.o src/fetch.o src/bot.o src/main.o \
 		$(CONCORD)/lib/libdiscord.a $(CURL_LIBS) $(LIBS)
+
+# the bot without ReiWimsy's pieces and cJSON, for reiwimsy, which runs it beside its own (../rei/Makefile)
+TRACER_OBJS = src/message.o src/files.o src/probe.o src/rules.o src/store.o src/site.o src/report.o src/titles.o \
+	src/channels.o src/worker.o src/issues.o src/age.o src/follow.o src/fetch.o src/bot.o third_party/logscan.o \
+	third_party/demangle.o
+libtracer.a: $(TRACER_OBJS)
+	rm -f $@
+	ar rcs $@ $(TRACER_OBJS)
 
 tracer-mcp: src/mcp.o src/mcp_main.o src/rei_util.o third_party/cjson.o
 	$(CC) $(CFLAGS) -o $@ src/mcp.o src/mcp_main.o src/rei_util.o third_party/cjson.o $(MHD_LIBS) -lm
@@ -102,8 +112,10 @@ src/mcp_main.o: src/mcp_main.c src/mcp.h src/tracer.h
 src/fetch.o: src/fetch.c src/fetch.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) $(CURL_CFLAGS) -c -o $@ src/fetch.c
 # Concord's headers are not ours: their warnings are theirs
-src/main.o: src/main.c $(LOGSCAN_FILES) src/age.h src/channels.h src/follow.h src/issues.h src/worker.h src/fetch.h \
-		src/report.h src/site.h src/store.h src/probe.h src/message.h src/tracer.h $(REI)/src/watch.h
+src/bot.o: src/bot.c src/bot.h $(LOGSCAN_FILES) src/age.h src/channels.h src/follow.h src/issues.h src/worker.h \
+		src/fetch.h src/report.h src/site.h src/store.h src/probe.h src/message.h src/tracer.h $(REI)/src/watch.h
+	$(CC) $(CFLAGS) $(OURS) $(CURL_CFLAGS) -isystem $(CONCORD)/include/concord -c -o $@ src/bot.c
+src/main.o: src/main.c src/bot.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) $(CURL_CFLAGS) -isystem $(CONCORD)/include/concord -c -o $@ src/main.c
 src/rei_util.o: $(REI)/src/util.c $(REI)/src/rei.h
 	$(CC) $(CFLAGS) $(OURS) -c -o $@ $(REI)/src/util.c
@@ -122,7 +134,7 @@ third_party/demangle.o: third_party/logscan/common/utilities/demangle.c
 	$(CC) $(CFLAGS) -std=c99 -Ithird_party/logscan -c -o $@ third_party/logscan/common/utilities/demangle.c
 
 clean:
-	rm -f $(LOGIC) src/rei_http.o src/rei_rest.o src/rei_watch.o src/fetch.o src/main.o src/mcp_main.o tracer tracer-mcp \
-		tests/test_tracer tests/bench_probe
+	rm -f $(LOGIC) src/rei_http.o src/rei_rest.o src/rei_watch.o src/fetch.o src/bot.o src/main.o src/mcp_main.o \
+		tracer tracer-mcp libtracer.a tests/test_tracer tests/bench_probe
 
 .PHONY: all test bench test-gateway clean
