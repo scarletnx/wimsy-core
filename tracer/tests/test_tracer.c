@@ -1836,6 +1836,76 @@ static int counted_take(void* ctx, Tracer* t, const TrMessage* m, Taken* k, char
     tr_take(t, k, m);
     return 0;
 }
+/* the site's disk as the tests set it: its free bytes, -1 for one that cannot be read */
+static double disk_now;
+static double disk_free(const char* path, char** why) {
+    (void)path;
+    *why = disk_now < 0 ? rei_strdup("statvfs: a fake failure") : NULL;
+    return disk_now;
+}
+
+/* the floor of the site's disk: a message whose files would go under it refused before any download, with the values;
+   one that fits taken; an update the same; no floor with 0 */
+static void test_disk(void) {
+    TrMessage m;
+    char* t;
+    long id;
+    tracer.free_bytes = disk_free;
+    tracer.min_free = 1024.0 * 1048576;
+    now_is += 3601; /* a new hour for the person's limit */
+    disk_now = 1030.0 * 1048576;
+    downloads = 0;
+    m = message(2700, 82, "<@99> it crashes");
+    attach(&m, "game.log", "https://cdn.discordapp.com/1/game.log", 10.0 * 1048576);
+    t = answer_text(respond(&m));
+    HAS(t, "Nothing was kept: the site's disk has 1030 MiB free, and Tracer keeps 1024 MiB of it free; these files "
+           "(10.0 MiB) would go under that.");
+    free(t);
+    CHECK(downloads == 0 && !st_by_message(tracer.store, 2700));
+    tr_message_free(&m);
+    disk_now = 2048.0 * 1048576; /* room again: taken */
+    m = message(2701, 82, "<@99> it crashes");
+    attach(&m, "game.log", "https://cdn.discordapp.com/1/game.log", 10.0 * 1048576);
+    t = answer_text(respond(&m));
+    HAS(t, "Report #");
+    free(t);
+    tr_message_free(&m);
+    id = st_by_message(tracer.store, 2701);
+    CHECK(id > 0 && downloads == 1);
+    disk_now = 1025.0 * 1048576; /* an update of 2 MiB: refused too */
+    m = message(2702, 82, "<@99> a screenshot");
+    m.reply_to = 2701;
+    attach(&m, "shot.png", "https://cdn.discordapp.com/1/shot.png", 2.0 * 1048576);
+    t = answer_text(respond(&m));
+    HAS(t, "these files (2.0 MiB) would go under that");
+    free(t);
+    tr_message_free(&m);
+    CHECK(!st_report_of(tracer.store, 2702));
+    disk_now = -1; /* a disk that cannot be read refuses, saying why */
+    m = message(2703, 82, "<@99>");
+    attach(&m, "game.log", "https://cdn.discordapp.com/1/game.log", 10);
+    t = answer_text(respond(&m));
+    HAS(t, "the free space of the site's disk could not be read (statvfs: a fake failure)");
+    free(t);
+    tr_message_free(&m);
+    tracer.min_free = 0; /* no floor: no question */
+    m = message(2704, 82, "<@99> again");
+    attach(&m, "game.log", "https://cdn.discordapp.com/1/game.log", 10);
+    t = answer_text(respond(&m));
+    HAS(t, "Report #");
+    free(t);
+    tr_message_free(&m);
+    CHECK(tr_forget(&tracer, 2701) && tr_forget(&tracer, 2704));
+    tracer.free_bytes = NULL;
+    { /* the real one: this machine's disk, read */
+        char* why;
+        CHECK(tr_free_bytes(site, &why) > 0 && !why);
+        CHECK(tr_free_bytes("/nonesuch/folder", &why) < 0);
+        HAS(why, "statvfs /nonesuch/folder: ");
+        free(why);
+    }
+}
+
 static void test_limits(void) {
     TrMessage m;
     char* t;
@@ -4465,6 +4535,7 @@ static void every_test(const char* self_path) {
         test_names();
         test_missed();
         test_limits();
+        test_disk();
         test_other_guild();
         test_replies();
         test_mcp_grep();

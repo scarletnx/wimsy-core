@@ -175,6 +175,12 @@ it is deleted, as replies link to it.
 Ten reports and updates an hour from one person at most, counted as they are asked for: one whose files were no log
 counts, and so does one deleted since (its files were downloaded); a message with no file and no note does not.
 
+A report or an update whose files (their sizes as Discord gives them) would leave the site's file system with less
+free than `TRACER_MIN_FREE` (1024 MiB by default) is refused before anything is downloaded, and counts in no limit:
+the reply and the log say the MiB free, the floor and the files' size (`the site's disk has 1030 MiB free, and Tracer
+keeps 1024 MiB of it free; these files (10.0 MiB) would go under that`). A disk shared with other services never fills
+with reports; the start's log line says how much is free.
+
 ### Summarized and named again
 
 When the log summary or the list of names changes (`scripts/sync-logscan.sh`, `scripts/make-titles.py`), or what a
@@ -316,6 +322,7 @@ fill in; an empty value stops the service):
 | `TRACER_ISSUES_TOKEN` | none: needed with the repository | a fine-grained token of that repository alone, with Issues read and write and nothing else; never in the log |
 | `TRACER_ISSUES_EMOJI` | the check mark (U+2705) | the approval's emoji: its character, or a server emoji's name |
 | `TRACER_ISSUES_LABELS` | none | `label,label`: the labels each issue gets |
+| `TRACER_MIN_FREE` | `1024` | the MiB the site's file system keeps free: a report whose files would go under it is refused ([above](#deleting-and-the-hourly-limit)); `0` for no floor; a value that is no whole number from 0 to 1048576 stops it, naming the value |
 | `TRACER_UPSTREAM_REPO` | `scarletnx/ScarletNX` | `OWNER/NAME`: the repository whose main a report's build is compared with, its owner's `nightly` the nightlies'; asked with `TRACER_ISSUES_TOKEN`, not at all without it |
 
 A `TRACER_` key it does not know stops it, naming the key; so does an id that is not one, an address that is not

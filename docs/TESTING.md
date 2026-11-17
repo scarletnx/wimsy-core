@@ -76,7 +76,9 @@ temporary folder:
   brings screenshots to a report full of logs, one too large said with its size, one whose bytes fail the zip's check;
   the issue's screenshots as the site's pictures;
 - a database of the first schema upgraded, a deleted message, a report's number never reused, the hourly limit, the
-  JSON with no Discord id, the channels it answers in (a list, `all`, none, and other words refused);
+  site's disk kept free (a report and an update refused under `TRACER_MIN_FREE` before any download, with the MiB
+  said, one that fits taken, a disk that cannot be read, no floor), the JSON with no Discord id, the channels it
+  answers in (a list, `all`, none, and other words refused);
 - the issues an approval files, through a fake GitHub: an administrator's reaction files one, a second files none,
   anyone else's reaction or another emoji nothing, a refusal said and tried again, the settings and their refusals;
 - how old a report's build is, through a fake GitHub: behind main, the plurals, a commit asked once an hour, `-dirty`

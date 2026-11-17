@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/statvfs.h>
 #include <unistd.h>
 
 #include "common/utilities/demangle.h"
@@ -798,6 +799,50 @@ static cJSON* limited(Tracer* t, const TrMessage* m) {
     return e;
 }
 
+double tr_free_bytes(const char* path, char** why) {
+    struct statvfs v;
+    *why = NULL;
+    if (statvfs(path, &v)) {
+        *why = rei_format("statvfs %s: %s", path, strerror(errno));
+        return -1;
+    }
+    return (double)v.f_bavail * (double)v.f_frsize;
+}
+
+/* the answer when m's files (their sizes as Discord gives them) would leave the site's file system under
+   t->min_free, or NULL: said before anything is downloaded, so the site's disk, which the host's other services may
+   share, never fills */
+static cJSON* disk_full(Tracer* t, const TrMessage* m) {
+    double need = 0, now;
+    char *why = NULL, *text;
+    cJSON* e;
+    int i;
+    if (t->min_free <= 0 || !m->nfiles) return NULL;
+    for (i = 0; i < m->nfiles; ++i) need += m->files[i].size > 0 ? m->files[i].size : 0;
+    now = t->free_bytes ? t->free_bytes(t->root, &why) : tr_free_bytes(t->root, &why);
+    if (now < 0) {
+        rei_log("message %llu refused: the free space of the site's file system could not be read: %s",
+                (unsigned long long)m->id, why ? why : "no reason given");
+        text = rei_format("Nothing was kept: the free space of the site's disk could not be read (%s). Tell an "
+                          "administrator, please.",
+                          why ? why : "no reason given");
+    } else if (now - need >= t->min_free) {
+        free(why);
+        return NULL;
+    } else {
+        rei_log("message %llu refused: the site's file system has %.0f MiB free, its files are %.1f MiB, and "
+                "TRACER_MIN_FREE keeps %.0f MiB free",
+                (unsigned long long)m->id, now / 1048576, need / 1048576, t->min_free / 1048576);
+        text = rei_format("Nothing was kept: the site's disk has %.0f MiB free, and Tracer keeps %.0f MiB of it free; "
+                          "these files (%.1f MiB) would go under that. Tell an administrator, please.",
+                          now / 1048576, t->min_free / 1048576, need / 1048576);
+    }
+    free(why);
+    e = said(text);
+    free(text);
+    return e;
+}
+
 /* the files of k moved into report id's folder: 0, or -1 with those moved deleted */
 static int written(Tracer* t, long id, Taken* k) {
     int i, failed = 0;
@@ -969,6 +1014,7 @@ static cJSON* reported(Tracer* t, const TrMessage* asker, const TrMessage* m, co
     cJSON* e;
     char* text;
     if (st_by_message(t->store, m->id)) return NULL; /* the gateway's event again, after a resume */
+    if ((e = disk_full(t, m))) return e;
     if (m->nfiles && (e = limited(t, asker))) return e;
     memset(&k, 0, sizeof k);
     if (fetched(t, m, &k)) return unread(&k);
@@ -1097,7 +1143,7 @@ static cJSON* updated(Tracer* t, const TrMessage* m, long id, const char* note, 
         st_report_free(&r);
         return said("Nothing to add: attach logs or screenshots, or write a note.");
     }
-    if ((e = limited(t, m))) {
+    if ((e = disk_full(t, m)) || (e = limited(t, m))) {
         st_report_free(&r);
         return e;
     }

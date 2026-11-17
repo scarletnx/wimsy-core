@@ -56,7 +56,16 @@ struct Tracer {
        0, or -1 with why (owned) when Discord did not say */
     int (*content_intent)(void* ctx, char** why);
     void* discord_ctx;
+    /* the bytes the site's file system keeps free: a report or an update whose files would go under it is refused
+       before anything is downloaded; 0 for no floor */
+    double min_free;
+    /* the bytes free on the file system of path (statvfs's for an unprivileged user), -1 with why (owned) when it
+       cannot be read; NULL for tr_free_bytes */
+    double (*free_bytes)(const char* path, char** why);
 };
+
+/* the bytes free on the file system of path for an unprivileged user (statvfs), or -1 with why (owned) */
+double tr_free_bytes(const char* path, char** why);
 
 /* m's attachments downloaded through t's get and read: the logs unpacked (a .zip's screenshots taken beside its log),
    their home folders and the folders of paths outside them as ~, their dumps and addresses left out and summarized,
