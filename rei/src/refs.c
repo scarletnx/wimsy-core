@@ -5,6 +5,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 /* a letter, a digit or _; any byte of a UTF-8 letter counts, as Python's \w takes the letter */
 static int word(unsigned char c) { return isalnum(c) || c == '_' || c >= 0x80; }
@@ -54,6 +55,18 @@ static char* prose(const char* text) {
     return s;
 }
 
+/* whether the word that ends at s[at - 1] (spaces before at passed over) is one that names Tracer's numbers: "report",
+   "reports" or "tracer", in any case */
+static int tracer_word_before(const char* s, size_t at) {
+    static const char* const words[] = {"report", "reports", "tracer"};
+    size_t end = at, start, k;
+    while (end && space((unsigned char)s[end - 1])) --end;
+    for (start = end; start && word((unsigned char)s[start - 1]); --start);
+    for (k = 0; k < sizeof words / sizeof *words; ++k)
+        if (end - start == strlen(words[k]) && !strncasecmp(s + start, words[k], end - start)) return 1;
+    return 0;
+}
+
 int rei_references(const char* text, int numbers[REI_MOST]) {
     char* s = prose(text ? text : "");
     int found = 0;
@@ -64,7 +77,7 @@ int rei_references(const char* text, int numbers[REI_MOST]) {
         unsigned char before = i ? (unsigned char)s[i - 1] : ' ';
         if (s[i] != '#' || word(before) || before == '/' || before == '#' || before == '&') continue;
         while (isdigit((unsigned char)s[k]) && k - i <= 7) number = number * 10 + (s[k++] - '0');
-        if (k == i + 1 || k - i > 7 || word((unsigned char)s[k]) || !number) continue;
+        if (k == i + 1 || k - i > 7 || word((unsigned char)s[k]) || !number || tracer_word_before(s, i)) continue;
         for (seen = 0, j = 0; j < found; ++j) seen |= numbers[j] == number;
         if (!seen) numbers[found++] = number;
     }

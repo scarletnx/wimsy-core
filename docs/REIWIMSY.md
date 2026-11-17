@@ -21,10 +21,11 @@ request, each open issue and each push to main, edited as GitHub changes. Instal
 ## Replies
 
 A message that names `#160` (`issue #160`, `PR #160` too; a bare number is talk) gets one reply: each linked, with its
-title, issue or PR, its state and labels, in GitHub's colours; 5 numbers a message at most. `!nightly` links the newest
-nightly and its downloads, `!release` the newest version (the nightly while there is none), `!release #355` a pull
-request's builds. With a GitHub token it edits a reply of the last week when what it links changes, looking every 10
-minutes.
+title, issue or PR, its state and labels, in GitHub's colours; 5 numbers a message at most. A number after `report`,
+`reports` or `Tracer` is a Tracer report's (`Tracer report #74`, `Tracer #12`), not an issue, and gets none. `!nightly`
+links the newest nightly and its downloads, `!release` the newest version (the nightly while there is none), `!release
+#355` a pull request's builds. With a GitHub token it edits a reply of the last week when what it links changes, looking
+every 10 minutes.
 
 It reads the text of messages only to find those numbers, and sends GitHub's API only the numbers. It keeps no message
 and logs nothing said, and pings no one.

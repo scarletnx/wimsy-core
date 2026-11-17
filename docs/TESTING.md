@@ -26,12 +26,12 @@ On FreeBSD, `make -C tracer test CXXRT=-lc++` ([Build](./BUILD.md#tracer)). The 
 
 ## ReiWimsy
 
-`rei/tests/test_rei.c`, no Concord: the parsing, the gateway's events (read from their JSON: Concord decodes none of
-them, as its decoder crashes on messages of 2 to 3 KB) and the messages waiting for an answer, the replies and their
-edits, GitHub's ETags and pages, Discord's waits and answers, and the state file. The cards: drawn, posted, edited,
-moved to the end at their activity, deleted a day after they close, posted again when deleted by hand, a nightly's for
-each push, the newest kept; and the fix of the cards left saying "Building" (a dry run, then each kind of card, then a
-run with nothing to do).
+`rei/tests/test_rei.c`, no Concord: the parsing (a Tracer report's number no issue), the gateway's events (read from
+their JSON: Concord decodes none of them, as its decoder crashes on messages of 2 to 3 KB) and the messages waiting for
+an answer, the replies and their edits, GitHub's ETags and pages, Discord's waits and answers, and the state file. The
+cards: drawn, posted, edited, moved to the end at their activity, deleted a day after they close, posted again when
+deleted by hand, a nightly's for each push, the newest kept; and the fix of the cards left saying "Building" (a dry run,
+then each kind of card, then a run with nothing to do).
 
 ## AccordWimsy
 
