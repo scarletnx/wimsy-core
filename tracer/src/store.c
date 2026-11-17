@@ -67,7 +67,10 @@ static const char* const UPGRADES[] = {
     " NOT NULL REFERENCES probe_names(id), result INTEGER NOT NULL, tier TEXT, reason TEXT, detail TEXT, us REAL,"
     " PRIMARY KEY(report, name)) WITHOUT ROWID;"
     /* by case, with the result, so the rules and a case's page read the results from the index alone */
-    "CREATE INDEX probe_cases_name ON probe_cases(name, report, result);"};
+    "CREATE INDEX probe_cases_name ON probe_cases(name, report, result);",
+    /* 9, the program a run's starting note names: Amberlith, or edenprobe, the name before its 1.0.0 (NULL: a run kept
+       before this, all edenprobe's) */
+    "ALTER TABLE probe_runs ADD COLUMN program TEXT;"};
 
 /* a report's columns, in the order row_report reads them */
 #define REPORT_COLUMNS                                                                                                 \
@@ -773,7 +776,7 @@ void st_reports_free(StReport* r, int n) {
     free(r);
 }
 
-/* ---- the runs of edenprobe ---- */
+/* ---- the runs of Amberlith (edenprobe before its 1.0.0) ---- */
 
 /* name's id in probe_names, found, else added: the id, or 0 said in the log */
 static long name_id(Store* s, sqlite3_stmt* add, sqlite3_stmt* find, const char* suite, const char* name) {
@@ -826,8 +829,8 @@ int st_probe_set(Store* s, long report, const Probe* p, const char* digest) {
                       "INSERT INTO probe_runs(report, emulator, emulator_version, commit_id, built, version,"
                       " describe, words, system, os, gpu, device, driver_name, driver_info, driver_id, inferred,"
                       " driver_version, vulkan, extensions, passed, failed, skipped, crashed, whole, cut_cases,"
-                      " cut_notes, unread, over, digest) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,"
-                      "?,?)")
+                      " cut_notes, unread, over, digest, program) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,"
+                      "?,?,?,?,?,?,?)")
            : NULL;
     ok = q != NULL;
     if (ok) {
@@ -860,6 +863,7 @@ int st_probe_set(Store* s, long report, const Probe* p, const char* digest) {
         sqlite3_bind_int(q, 27, p->unread);
         sqlite3_bind_int(q, 28, p->over);
         text_at(q, 29, digest);
+        text_at(q, 30, probe_program(p));
         ok = sqlite3_step(q) == SQLITE_DONE;
         if (!ok) said(s, "a run added");
     }
@@ -903,7 +907,7 @@ int st_probe_set(Store* s, long report, const Probe* p, const char* digest) {
     "r.report, r.emulator, r.emulator_version, r.commit_id, r.built, r.version, r.describe, r.words, r.system, r.os, " \
     "r.gpu, r.device, r.driver_name, r.driver_info, r.driver_id, r.inferred, r.driver_version, r.vulkan, "             \
     "r.extensions, r.passed, r.failed, r.skipped, r.crashed, r.whole, r.cut_cases, r.cut_notes, r.unread, r.over, "    \
-    "p.poster, p.created"
+    "p.poster, p.created, r.program"
 static void row_run(sqlite3_stmt* q, void* to) {
     StProbeRun* r = to;
     Probe* p = &r->p;
@@ -938,6 +942,8 @@ static void row_run(sqlite3_stmt* q, void* to) {
     p->over = sqlite3_column_int(q, 27);
     r->poster = (u64)sqlite3_column_int64(q, 28);
     r->when = sqlite3_column_double(q, 29);
+    p->program = text_of(q, 30);
+    if (!p->program) p->program = rei_strdup("edenprobe"); /* a run kept before the program's name was: edenprobe's */
     if (p->driver_id && p->driver_version) {
         probe_version_text(p->driver_id, p->driver_version, text, sizeof text);
         p->driver_text = rei_strdup(text);

@@ -89,15 +89,17 @@ temporary folder:
   in;
 - the MCP server over that site: its handshake and protocol versions, notifications, broken and unknown requests, each
   tool's filters, limits and errors, and a query's 16 words at most;
-- runs of edenprobe: edenprobe's families and which lose their detail, the drivers by the ban table's names and by
-  their own, each driver's version numbering both ways, the system's family; the cut of a log (the service, net, pad
-  and unknown suites' details and the net notes, every other byte as it was); ScarletNX's log, Eden's, rEden's and a
-  report.jsonl read, two copies of a run, a run cut short, a launch that went on after a crash, lines edenprobe does
-  not write; a run through JSON and the answers refused (another emulator, a detail the cut takes out, a case that is
-  none); the run in a Share Log zip, a run begun, none; whole runs as reports (the reply's counts and what was left
-  out, the database and the kept log without the player, no game's list, the same run again from one person and from
-  another, Eden's and the console's, deleted with their message, a resumed launch kept as a log, one through the
-  worker), and a report kept before made the run's at the next start;
+- runs of Amberlith (edenprobe before its 1.0.0): its families and which lose their detail, the drivers by the ban
+  table's names and by their own, each driver's version numbering both ways, the system's family; the cut of a log
+  (the service, net, pad and unknown suites' details and the net notes, every other byte as it was); ScarletNX's log,
+  Eden's, rEden's and a report.jsonl read, a run that Amberlith 1.0.0's note opens and a name that only begins like
+  it, two copies of a run, a run cut short, a launch that went on after a crash, lines Amberlith does not write; a run
+  through JSON and the answers refused (another emulator, another program or none, a detail the cut takes out, a case
+  that is none); the run in a Share Log zip, a run begun, none; whole runs as reports (the reply's counts and what was
+  left out, the database and the kept log without the player, no game's list, the same run again from one person and
+  from another, Eden's and the console's, deleted with their message, a resumed launch kept as a log, a run of
+  Amberlith named so in the reply, the title and the page, one kept before the database knew the program's name read
+  as edenprobe's, one through the worker), and a report kept before made the run's at the next start;
 - the rules over the runs ([What the runs say together](./TRACER.md#what-the-runs-say-together)), on fixtures that sit
   on each threshold: a candidate and its draft line, and none with one person, two failing reports, one other driver,
   two passing reports, a passing build eight days before or after (seven count), a failure Eden's or of another mode;
@@ -115,8 +117,9 @@ temporary folder:
 tests to fail on each: `tracer/src/rules.c` (a threshold one off, a comparison that lets one more in, a condition left
 out: 19 mutants, `test_tracer --rules`); what a report keeps of its files, in `files.c`, `report.c` and `issues.c` (a
 zip's screenshots, a picture never read as a log, the paths outside a home, the limits said with their values: 30
-mutants, `test_tracer --files`); and the worker's locale for a zip's names, made before it shuts itself in (1 mutant,
-the whole suite). A mutant they pass, or one whose text its file no longer has once, fails it. About 30 s.
+mutants, `test_tracer --files`); what a log holds of a run, in `probe.c` (Amberlith's starting note, a name that only
+begins like it, a worker's answer naming another program: 3 mutants, `test_tracer --probe`); and the worker's locale
+for a zip's names, made before it shuts itself in (1 mutant, the whole suite). A mutant they pass, or one whose text its file no longer has once, fails it. About 30 s.
 
 `make -C tracer bench [RUNS=1000] [FOLDER=/tmp/tracer-bench]` (`tracer/tests/bench_probe.c`, built by `make test`,
 run by hand) keeps RUNS runs like edenprobe 0.9.0's graphics run (1069 cases) on fifteen machines in a new database in

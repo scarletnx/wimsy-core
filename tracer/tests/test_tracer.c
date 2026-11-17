@@ -3372,6 +3372,14 @@ static const char PROBE_JSONL[] =
     "\"detail\":\"\"}\n"
     "{\"type\":\"summary\",\"passed\":1,\"failed\":0,\"skipped\":0,\"crashed\":0}\n";
 
+/* text with each "edenprobe 0.9.0 (v0.9.0) starting" as Amberlith 1.0.0 writes its own; owned */
+static char* amberlith_of(const char* text) {
+    static const char old[] = "edenprobe 0.9.0 (v0.9.0) starting", now[] = "Amberlith 1.0.0 (v1.0.0) starting";
+    char *out = rei_strdup(text), *at;
+    for (at = strstr(out, old); at; at = strstr(at, old)) memcpy(at, now, sizeof now - 1); /* the same length */
+    return out;
+}
+
 static void test_probe_parts(void) {
     char text[64];
     unsigned long v = 0;
@@ -3456,6 +3464,7 @@ static void test_probe_lines(void) {
     SAME(p.emulator_version, "main 1234abc");
     SAME(p.commit, "1234abc");
     CHECK(p.built == 1793491200.0);
+    SAME(p.program, "edenprobe");
     SAME(p.version, "0.9.0");
     SAME(p.describe, "v0.9.0");
     SAME(p.words, "cpu graphics net notime");
@@ -3505,7 +3514,7 @@ static void test_probe_lines(void) {
     cJSON_ReplaceItemInObjectCaseSensitive(cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(o, "cases"), 2),
                                            "detail", cJSON_CreateString(""));
     CHECK(probe_of_json(o, &q, &why) == -1);
-    HAS(why, "case 7 is not one edenprobe writes");
+    HAS(why, "case 7 is not one Amberlith writes");
     free(why);
     cJSON_Delete(o);
     /* another result is another mark */
@@ -3515,6 +3524,39 @@ static void test_probe_lines(void) {
     CHECK(strcmp(digest, other) != 0);
     probe_free(&p);
     free(cut);
+    /* Amberlith, edenprobe's name since its 1.0.0: its starting note opens a run as the old one did */
+    {
+        char* amber = amberlith_of(PROBE_LOG);
+        CHECK(probe_marks(amber, strlen(amber)) == 2);
+        cut = probe_cut(amber, strlen(amber), &n, &cases, &notes);
+        CHECK(probe_parse(cut, n, &p, &why) == 1 && !why);
+        SAME(p.program, "Amberlith");
+        SAME(p.version, "1.0.0");
+        SAME(p.describe, "v1.0.0");
+        CHECK(p.ncases == 6 && p.whole && p.driver_id == 3);
+        /* through JSON: the program kept; one it may not name, or none, refused */
+        o = probe_json(&p);
+        SAME(jstr(o, "program"), "Amberlith");
+        CHECK(!probe_of_json(o, &q, &why) && !why);
+        SAME(probe_program(&q), "Amberlith");
+        probe_free(&q);
+        cJSON_ReplaceItemInObjectCaseSensitive(o, "program", cJSON_CreateString("Amberlith2"));
+        CHECK(probe_of_json(o, &q, &why) == -1);
+        HAS(why, "names no program it may (Amberlith2)");
+        free(why);
+        cJSON_DeleteItemFromObjectCaseSensitive(o, "program");
+        CHECK(probe_of_json(o, &q, &why) == -1);
+        HAS(why, "names no program it may (none)");
+        free(why);
+        cJSON_Delete(o);
+        probe_free(&p);
+        free(cut);
+        /* a name that only begins like it opens nothing */
+        memcpy(strstr(amber, "Amberlith 1.0.0"), "Amberlithe", 10);
+        CHECK(probe_marks(amber, strlen(amber)) == 0);
+        CHECK(probe_parse(amber, strlen(amber), &p, &why) == 0 && !why);
+        free(amber);
+    }
     /* Eden's log: its driver ID read from the driver's name, its version as NVIDIA numbers it */
     CHECK(probe_parse(EDEN_LOG, strlen(EDEN_LOG), &p, &why) == 1);
     SAME(p.emulator, "Eden");
@@ -3786,13 +3828,58 @@ static void test_probe_reports(void) {
         attach(&m, "resumed.log", "https://cdn.discordapp.com/20/resumed.log", 10);
         t = answer_text(respond(&m));
         HAS(t, "Report #");
-        HAS(t, "Not a run of edenprobe");
-        HAS(t, "resumed.log: its edenprobe lines are a launch that went on with a run after a crash");
+        HAS(t, "Not a run of Amberlith");
+        HAS(t, "resumed.log: its Amberlith lines are a launch that went on with a run after a crash");
         free(t);
         tr_message_free(&m);
         CHECK(st_get(tracer.store, st_by_message(tracer.store, 9605), &r, NULL, NULL) == 1);
         SAME(r.key, "0100AAAABBBB0000");
         st_report_free(&r);
+    }
+    /* a run of Amberlith: its name in the reply, the title, the run kept and the report's page; one kept before the
+       database knew the program's name (version 8) is edenprobe's */
+    {
+        char* amber = amberlith_of(PROBE_LOG);
+        long amber_id;
+        sqlite3* db;
+        char* path = rei_format("%s/tracer.db", site);
+        serve("https://cdn.discordapp.com/20/amberlith.log", amber, strlen(amber));
+        m = message(9607, 966, "<@99> the new one");
+        attach(&m, "amberlith.log", "https://cdn.discordapp.com/20/amberlith.log", (double)strlen(amber));
+        t = answer_text(respond(&m));
+        HAS(t, "Amberlith 1.0.0 on radv, Mesa 26.1.8 (Linux): 3 passed, 2 failed (astc 1, newsuite 1), 0 skipped, 1 "
+               "crashed");
+        HAS(t, ": Amberlith 1.0.0 on ScarletNX");
+        HAS(t, "(or of no family Amberlith names)");
+        LACKS(t, "edenprobe");
+        free(t);
+        tr_message_free(&m);
+        amber_id = st_by_message(tracer.store, 9607);
+        CHECK(st_get(tracer.store, amber_id, &r, NULL, NULL) == 1);
+        SAME(r.key, PROBE_KEY);
+        SAME(r.title, "Amberlith 1.0.0 on ScarletNX");
+        st_report_free(&r);
+        CHECK(st_probe_get(tracer.store, amber_id, &run, 0) == 1);
+        SAME(probe_program(&run), "Amberlith");
+        probe_free(&run);
+        rel = rei_format("r/%ld/index.html", amber_id);
+        p = page(rel);
+        HAS(p, "<h2>Amberlith <small>");
+        HAS(p, "<dt>Amberlith</dt><dd>1.0.0 (v1.0.0)</dd>");
+        free(p);
+        free(rel);
+        CHECK(sqlite3_open(path, &db) == SQLITE_OK);
+        CHECK(sqlite3_exec(db,
+                           "UPDATE probe_runs SET program = NULL WHERE report IN (SELECT id FROM reports WHERE"
+                           " message = 9607)",
+                           NULL, NULL, NULL) == SQLITE_OK);
+        sqlite3_close(db);
+        CHECK(st_probe_get(tracer.store, amber_id, &run, 0) == 1);
+        SAME(probe_program(&run), "edenprobe");
+        probe_free(&run);
+        CHECK(tr_forget(&tracer, 9607)); /* the runs the pages below count are the ones above */
+        free(path);
+        free(amber);
     }
     /* through a worker: the run in its answer, checked, the same as one read here */
     serve_file("https://cdn.discordapp.com/21/edenprobe.log", PROBE_LOG, strlen(PROBE_LOG));
@@ -3860,7 +3947,7 @@ static void test_probe_site(void) {
     mcp.url = "https://reports.example";
     /* the runs so far: the matrix, a case, a driver, the report's own page and JSON */
     p = page("probe/index.html");
-    HAS(p, "<h1>Runs of edenprobe</h1>");
+    HAS(p, "<h1>Runs of Amberlith</h1>");
     HAS(p, "<th>ScarletNX<br>radv 26.1.8<br>Linux</th>");
     HAS(p, "<th>Eden<br>nvidia 580.95.05*<br>Windows</th>");
     rel = rei_format("<a href=\"c/%s.html\">a 4x4 block decodes</a></td><td><span class=\"badge bad\">", key);
@@ -4333,6 +4420,13 @@ static int rules_only(void) {
     fprintf(stderr, "tracer rules: %d of %d checks passed\n", checks - failures, checks);
     return failures != 0;
 }
+/* what a log holds of a run (probe.h), alone: scripts/test-mutants.py's */
+static int probe_only(void) {
+    test_probe_parts();
+    test_probe_lines();
+    fprintf(stderr, "tracer probe: %d of %d checks passed\n", checks - failures, checks);
+    return failures != 0;
+}
 
 /* every test, the database's and the site's with them; self_path the test's own program, for its workers */
 static void every_test(const char* self_path) {
@@ -4378,6 +4472,7 @@ int main(int argc, char** argv) {
     char *db, *command;
     int files_only = argc == 2 && !strcmp(argv[1], "--files"); /* scripts/test-mutants.py's, as --rules */
     if (argc == 2 && !strcmp(argv[1], "--rules")) return rules_only();
+    if (argc == 2 && !strcmp(argv[1], "--probe")) return probe_only();
     if (argc == 2 && !files_only) return as_worker(argv[1]);
     rei_now = clock_now;
     strcpy(site, "/tmp/tracer-test-XXXXXX");

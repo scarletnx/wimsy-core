@@ -317,17 +317,42 @@ static cJSON* report_line(const char* s, size_t n) {
     return o;
 }
 
-/* the note that begins a run: "edenprobe 0.9.0 (v0.9.0) starting", its version and describe owned when wanted */
-static int starting(const cJSON* o, char** version, char** describe) {
-    const char *t = jstr(o, "text"), *open, *close;
+/* the names a run's starting note opens with: the program's since its 1.0.0, and the one before */
+static const char* const PROGRAMS[] = {"Amberlith", "edenprobe"};
+
+/* the program whose name t opens with, then a space: its index in PROGRAMS, or -1 */
+static int program_at(const char* t) {
+    int i;
+    for (i = 0; t && i < (int)(sizeof PROGRAMS / sizeof *PROGRAMS); ++i)
+        if (!strncmp(t, PROGRAMS[i], strlen(PROGRAMS[i])) && t[strlen(PROGRAMS[i])] == ' ') return i;
+    return -1;
+}
+
+/* name's index in PROGRAMS, or -1 */
+static int program_named(const char* name) {
+    int i;
+    for (i = 0; name && i < (int)(sizeof PROGRAMS / sizeof *PROGRAMS); ++i)
+        if (!strcmp(name, PROGRAMS[i])) return i;
+    return -1;
+}
+
+const char* probe_program(const Probe* p) { return p && p->program ? p->program : "edenprobe"; }
+
+/* the note that begins a run: "Amberlith 1.0.0 (v1.0.0) starting", or "edenprobe 0.9.0 (v0.9.0) starting" of the
+   versions before; its program, version and describe owned when wanted */
+static int starting(const cJSON* o, char** program, char** version, char** describe) {
+    const char *t = jstr(o, "text"), *open, *close, *at;
     size_t n;
-    if (!t || strcmp(jstr(o, "type"), "note") || strncmp(t, "edenprobe ", 10)) return 0;
+    int which = t && !strcmp(jstr(o, "type"), "note") ? program_at(t) : -1;
+    if (which < 0) return 0;
+    at = t + strlen(PROGRAMS[which]) + 1;
     n = strlen(t);
-    if (n < 21 || strcmp(t + n - 10, ") starting")) return 0;
-    open = strstr(t + 10, " (");
+    if (n < (size_t)(at - t) + 11 || strcmp(t + n - 10, ") starting")) return 0;
+    open = strstr(at, " (");
     close = t + n - 10;
-    if (!open || open > close || open == t + 10) return 0;
-    if (version) *version = rei_format("%.*s", (int)(open - (t + 10)), t + 10);
+    if (!open || open > close || open == at) return 0;
+    if (program) *program = rei_strdup(PROGRAMS[which]);
+    if (version) *version = rei_format("%.*s", (int)(open - at), at);
     if (describe) *describe = rei_format("%.*s", (int)(close - (open + 2)), open + 2);
     return 1;
 }
@@ -380,9 +405,9 @@ int probe_marks(const char* text, size_t n) {
         if (j >= 0 && len - (size_t)j > 30) {
             const char* s = text + at + j;
             size_t k = len - (size_t)j;
-            if (k > 35 && !memcmp(s, "{\"type\":\"note\",\"text\":\"edenprobe ", 33)) {
+            if (k > 35 && !memcmp(s, "{\"type\":\"note\",\"text\":\"", 23) && program_at(s + 23) >= 0) {
                 cJSON* o = report_line(s, k);
-                if (o && starting(o, NULL, NULL)) marks = 1;
+                if (o && starting(o, NULL, NULL, NULL)) marks = 1;
                 cJSON_Delete(o);
             } else if (marks && !memcmp(s, "{\"type\":\"summary\"", 17))
                 marks = 2;
@@ -399,6 +424,7 @@ void probe_free(Probe* p) {
     free(p->emulator);
     free(p->emulator_version);
     free(p->commit);
+    free(p->program);
     free(p->version);
     free(p->describe);
     free(p->words);
@@ -649,7 +675,7 @@ int probe_parse(const char* text, size_t n, Probe* p, char** why) {
         if (o) {
             const char* type = jstr(o, "type");
             ++lines;
-            if (starting(o, NULL, NULL)) {
+            if (starting(o, NULL, NULL, NULL)) {
                 if (open_run && (open_whole || !chosen_whole)) {
                     run_start = start;
                     run_end = at;
@@ -678,7 +704,7 @@ int probe_parse(const char* text, size_t n, Probe* p, char** why) {
     }
     if (!runs) {
         if (lines && resumed) {
-            *why = rei_strdup("its edenprobe lines are a launch that went on with a run after a crash (its first note "
+            *why = rei_strdup("its Amberlith lines are a launch that went on with a run after a crash (its first note "
                               "says \"journal: launch\"), without the run's start: send the run's report.jsonl, or the "
                               "log of the run's first launch");
             return -1;
@@ -715,7 +741,7 @@ int probe_parse(const char* text, size_t n, Probe* p, char** why) {
         cJSON* o = j >= 0 ? report_line(text + at + j, len - (size_t)j) : NULL;
         const char* type = o ? jstr(o, "type") : NULL;
         if (!o) continue;
-        if (starting(o, &p->version, &p->describe))
+        if (starting(o, &p->program, &p->version, &p->describe))
             ;
         else if (!strcmp(type, "case")) {
             if (add_case(p, o, &cap)) ++p->unread;
@@ -746,6 +772,7 @@ cJSON* probe_json(const Probe* p) {
     jset(o, "emulator_version", p->emulator_version);
     jset(o, "commit", p->commit);
     put_number(o, "built", p->built);
+    jset(o, "program", probe_program(p));
     jset(o, "version", p->version);
     jset(o, "describe", p->describe);
     jset(o, "words", p->words);
@@ -812,10 +839,16 @@ int probe_of_json(const cJSON* o, Probe* p, char** why) {
     }
     if (!jstr(o, "version") || !*jstr(o, "version") || strlen(jstr(o, "version")) > 40 || !jstr(o, "words") ||
         !cJSON_IsArray(list) || id < 0 || id >= DRIVERS || version < 0 || version > 4294967295.0) {
-        *why = rei_strdup("its probe has no edenprobe version, mode or cases, or a driver that is none");
+        *why = rei_strdup("its probe has no version, mode or cases, or a driver that is none");
+        return -1;
+    }
+    if (program_named(jstr(o, "program")) < 0) {
+        *why =
+            rei_format("its probe names no program it may (%.40s)", jstr(o, "program") ? jstr(o, "program") : "none");
         return -1;
     }
     p->emulator = rei_strdup(emulator);
+    p->program = rei_strdup(PROGRAMS[program_named(jstr(o, "program"))]);
     p->emulator_version = field(o, "emulator_version", 200);
     p->commit = field(o, "commit", 64);
     p->built = jnum(o, "built") > 0 ? jnum(o, "built") : 0;
@@ -849,7 +882,7 @@ int probe_of_json(const cJSON* o, Probe* p, char** why) {
     p->over = (int)(count_of(o, "over") > 0 ? count_of(o, "over") : 0);
     cJSON_ArrayForEach(e, list) {
         if (add_case(p, e, &cap)) {
-            *why = rei_format("its probe's case %d is not one edenprobe writes", p->ncases + 1);
+            *why = rei_format("its probe's case %d is not one Amberlith writes", p->ncases + 1);
             probe_free(p);
             return -1;
         }

@@ -34,8 +34,9 @@
 #define RULE_GENERAL_DRIVERS 3
 
 typedef struct {
-    int name;                    /* the case, StProbeName's id */
-    const char *version, *words; /* edenprobe's version and the words that ran, the runs' */
+    int name;                              /* the case, StProbeName's id */
+    const char *program, *version, *words; /* the program (Amberlith, edenprobe), its version and the words that ran,
+                                              the runs' */
     int driver_id;
     const char* os;          /* the system's family, the runs' */
     unsigned long low, high; /* the range: from low, up to high, which it leaves out; high 0 for no end */
@@ -53,7 +54,7 @@ typedef struct {
 
 typedef struct {
     int name;
-    const char *version, *words;
+    const char *program, *version, *words;
     int* drivers; /* owned: the drivers it fails on */
     int ndrivers, seen;
     long* reports; /* owned: ScarletNX's reports that fail it, the oldest first */
@@ -63,7 +64,7 @@ typedef struct {
 
 typedef struct {
     int name;
-    const char *version, *words;
+    const char *program, *version, *words;
     int driver_id;
     unsigned long driver_version;
     const char* os;

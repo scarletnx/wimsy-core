@@ -9,7 +9,7 @@
   * [What a report keeps](#what-a-report-keeps)
   * [Adding to a report](#adding-to-a-report)
   * [A log sent without the mention](#a-log-sent-without-the-mention)
-  * [A run of edenprobe](#a-run-of-edenprobe)
+  * [A run of Amberlith](#a-run-of-amberlith)
   * [Deleting, and the hourly limit](#deleting-and-the-hourly-limit)
   * [Summarized and named again](#summarized-and-named-again)
 * [Commands](#commands)
@@ -57,8 +57,8 @@ for it). The worker's answer is checked before any of its files moves from the w
   IPv4 address but the loopback's written as `[ip]` and each e-mail address as `[email]` (a network game's log names the
   player's address and the other players'), and summarized: the game, its title ID and version, the build, the system
   and GPU, how the run ended and where, the service commands and what else the runtime missed, the last lines. A file
-  that is no ScarletNX log, nor a run of edenprobe, is named in the reply and not kept. Of a `.zip`, the log is the
-  entry [a run of edenprobe](#a-run-of-edenprobe) is in, else its first `.log`, `.txt` or `.jsonl`, else its first
+  that is no ScarletNX log, nor a run of Amberlith, is named in the reply and not kept. Of a `.zip`, the log is the
+  entry [a run of Amberlith](#a-run-of-amberlith) is in, else its first `.log`, `.txt` or `.jsonl`, else its first
   file that is no picture or video; never one of its pictures, nor a Mac's `__MACOSX/` fork. A zip's names are read as
   UTF-8 whatever the worker's locale (ScarletNX's Share Log flags each name so), in a locale it makes before it shuts
   itself in; an entry whose name it cannot read is passed by, and the walk goes on.
@@ -127,9 +127,10 @@ log line says which. A reply that brings files makes a report of those, as any m
 is part of a report already gets that report's link; a message of another channel or server, a bot's or a webhook's,
 one that is gone and one with no log are refused, each with why.
 
-### A run of edenprobe
+### A run of Amberlith
 
-[edenprobe](https://github.com/scarletnx/edenprobe) checks an emulator against the console, case by case. A report
+[Amberlith](https://github.com/scarletnx/amberlith) (named edenprobe before its 1.0.0) checks an emulator against the
+console, case by case. A report
 whose first log holds a run of it is the run's, kept apart from the games: in no game's list, nor `all.html` and
 `api/reports.json`, but on the site's Probe pages ([The site](#the-site)), by machine: the emulator, the driver and its
 version, the system. A run comes in three forms:
@@ -142,23 +143,25 @@ version, the system. A run comes in three forms:
   lines as `Debug.Emulated` ones. Eden logs no driver ID: it is read from the driver's name, and the reply says so;
 - the report itself, `report.jsonl`, which names no machine: it is kept as the console's reference.
 
-A run begins at its note `edenprobe 0.9.0 (v0.9.0) starting`; of several in one file (the Share Log's `summary.txt`
+A run begins at its note `Amberlith 1.0.0 (v1.0.0) starting`, or an older version's `edenprobe 0.9.0 (v0.9.0)
+starting`; of several in one file (the Share Log's `summary.txt`
 holds a run's output and its log), the last whole one is read, one with its summary, else the last one. Kept of it:
 the machine (the system and its family, the GPU, the driver's VkDriverId, name and version as its vendor numbers it,
-which are ScarletNX's ban table's), the emulator and its build, edenprobe's version, the words its mode note says ran
+which are ScarletNX's ban table's), the emulator and its build, the program's name as that note gives it and its
+version, the words its mode note says ran
 (`cpu graphics net notime`), and each case's suite, name, tier, result, reason, detail (its first 300 bytes) and time,
 10000 cases at most.
 
-The detail of the cases of edenprobe's service, net and pad families, and of a suite its table does not have, is left
+The detail of the cases of Amberlith's service, net and pad families, and of a suite its table does not have, is left
 out, and so is the text of the net family's notes: the account cases name a user's id and nickname, the network ones
 the addresses and sessions the net file names. They are taken out of every log a report keeps, wherever such a line
 is, before anything reads it, so neither the database nor the site has them.
 
-The reply gives the counts and the suites that failed most, `edenprobe 0.9.0 on radv, Mesa 26.1.8 (Linux): 1034
+The reply gives the counts and the suites that failed most, `Amberlith 1.0.0 on radv, Mesa 26.1.8 (Linux): 1034
 passed, 26 failed (astc 15, astcimage 9, tex8k 2), 6 skipped, 3 crashed`, and what the run lacks: no summary line, a
 summary that counts more cases than the file has (a launch that went on after a crash logs its own cases alone), lines
-edenprobe does not write, a report.jsonl's machine. The same run sent again by the same person, line for line, is
-answered with the first report's link and kept no more. A log whose lines of edenprobe have no run's start, a launch
+Amberlith does not write, a report.jsonl's machine. The same run sent again by the same person, line for line, is
+answered with the first report's link and kept no more. A log whose lines of Amberlith have no run's start, a launch
 that went on after a crash, is kept as the game's log, and the reply says why it is no run.
 
 ### Deleting, and the hourly limit
@@ -176,7 +179,7 @@ counts, and so does one deleted since (its files were downloaded); a message wit
 When the log summary or the list of names changes (`scripts/sync-logscan.sh`, `scripts/make-titles.py`), or what a
 report keeps of its logs (`TR_FACTS`), the next start summarizes each kept log again, draws each report's facts again
 from its first log, files a report whose first log now names another game under that game, names one its logs don't
-name from the list, makes a report whose first log holds a run of edenprobe the run's, and takes out of each kept log
+name from the list, makes a report whose first log holds a run of Amberlith the run's, and takes out of each kept log
 what a run's lines would say of the player and the paths outside a home. A report keeps no zip, only its log and
 screenshots: a zip's screenshots sent before Tracer read them are not found again, and are added by a reply with them.
 
@@ -228,7 +231,7 @@ Without the token nothing is asked, and only a `-dirty` build is said.
 
 ## What the runs say together
 
-Fixed rules over the runs of edenprobe (`tracer/src/rules.c`), each comparing one case of one edenprobe version run
+Fixed rules over the runs of Amberlith (`tracer/src/rules.c`), each comparing one case of one version of it run
 with the same words, and counting ScarletNX's runs; Eden's are shown beside them, as a second emulator failing a case
 on the same driver points at the driver. A case fails where its result is `fail`; a skip, a crash among them, says
 nothing. Nothing here is applied: a person reads it and decides.
@@ -248,7 +251,7 @@ nothing. Nothing here is applied: a person reads it and decides.
   the ban table's format (ScarletNX's `src/nx/gpu/vk/extension_bans.txt`), its key `<key>` for a person to choose, as
   the runs cannot say which extension or feature breaks:
 
-      <key> | off | radv | >= 26.1.0 < 26.2.0 | linux | * | fails edenprobe's astc case "..." | Tracer #12, #15, #18; edenprobe 0.9.0 "..." | edenprobe:astc: ... | 2026-11-07 broken on 26.1.8 | -
+      <key> | off | radv | >= 26.1.0 < 26.2.0 | linux | * | fails edenprobe's astc case "..." | Tracer #12, #15, #18; Amberlith 1.0.0 "..." | edenprobe:astc: ... | 2026-11-07 broken on 26.1.8 | -
 
 - **ScarletNX's own failure**: a case that fails on 3 drivers or more, or on every driver seen when two or more are; a
   driver counts as failing when its runs fail the case and none passes it. Such a case is no ban candidate. Eden's
@@ -280,11 +283,11 @@ Static files, drawn again where a report changes them, and all of them at each s
 | `all.html` | every report, the newest first |
 | `g/<key>.html` | a game's reports: `<key>` its title ID, or `n-` and its name's letters for a game known by name |
 | `r/<id>/` | a report: its facts, its screenshots (each shown small, and opened whole by a click), and each log with its summary, to read or download (a log sent in a `.zip` or a `.gz` is kept as its text and downloads as one: `logs.zip` as `logs.log`, `game.log.gz` as `game.log`); a run of edenprobe's has its counts and each case that did not pass |
-| `probe/index.html` | the runs of edenprobe: the machines (an emulator, a driver and its version, a system), each case that fails somewhere with its results on each machine, each suite's, and each run |
-| `probe/c/<key>.html` | a case of edenprobe: `<key>` 16 hex digits of its suite and name; its results on each machine, what the rules say of it, and its newest 200 failures and skips with their detail |
+| `probe/index.html` | the runs of Amberlith: the machines (an emulator, a driver and its version, a system), each case that fails somewhere with its results on each machine, each suite's, and each run |
+| `probe/c/<key>.html` | a case of Amberlith: `<key>` 16 hex digits of its suite and name; its results on each machine, what the rules say of it, and its newest 200 failures and skips with their detail |
 | `probe/d/<driver>.html` | a driver, by the ban table's name (`radv`, `nvidia`; `unknown` for the console's reports): its machines, the cases that fail on it, its ban candidates, its runs |
 | `probe/candidates.html` | [what the runs say together](#what-the-runs-say-together): ban candidates with their draft lines, ScarletNX's own failures, regressions |
-| `api/` | the same as JSON: `games.json`, `reports.json`, `r/<id>.json` (a report with its logs' summaries and the notes added later, a run of edenprobe's with its run); `probe/matrix.json`, `probe/c/<key>.json`, `probe/d/<driver>.json`, `probe/candidates.json`; no Discord id |
+| `api/` | the same as JSON: `games.json`, `reports.json`, `r/<id>.json` (a report with its logs' summaries and the notes added later, a run of Amberlith's with its run, its `program` the name its starting note gives); `probe/matrix.json`, `probe/c/<key>.json`, `probe/d/<driver>.json`, `probe/candidates.json`; no Discord id |
 | `style.css`, `site.js`, `tracer.svg` | copied from `TRACER_ASSETS` at each start |
 
 The lists filter in the browser (`site.js`: by words, outcome, branch, GPU; kept in the address's `#`) and work
