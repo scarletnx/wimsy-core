@@ -293,3 +293,60 @@ int tr_issue_open(const TrIssues* is, const char* title, const char* body, long*
     free(path);
     return *url ? 0 : -1;
 }
+
+/* GitHub's answer as why: its status and message, or why none came; owned */
+static char* refused(const RgAnswer* a, const cJSON* got, const char* method, const char* path) {
+    return a->status ? rei_format("GitHub answered %d to %s %s: %s", a->status, method, path,
+                                  jstr(got, "message") ? jstr(got, "message") : "no message")
+                     : rei_format("GitHub did not answer %s %s: %s", method, path, a->error ? a->error : "no reason");
+}
+
+int tr_issue_get(const TrIssues* is, long number, char** url, int* pull, char** state, char** why) {
+    char *path = rei_format("repos/%s/issues/%ld", is->repo, number), *full = rei_format(GITHUB_API "%s", path);
+    RgAnswer a;
+    cJSON* got;
+    *url = *state = *why = NULL;
+    *pull = 0;
+    memset(&a, 0, sizeof a);
+    is->fetch(is->ctx, "GET", full, NULL, NULL, &a);
+    got = a.body ? cJSON_Parse(a.body) : NULL;
+    if (a.status == 200 && (long)jnum(got, "number") == number && jstr(got, "html_url") &&
+        !strncmp(jstr(got, "html_url"), "https://github.com/", 19)) {
+        *url = rei_strdup(jstr(got, "html_url"));
+        *pull = cJSON_IsObject(cJSON_GetObjectItemCaseSensitive(got, "pull_request"));
+        *state = rei_strdup(jstr(got, "state") ? jstr(got, "state") : "open");
+    } else
+        *why = refused(&a, got, "GET", path);
+    cJSON_Delete(got);
+    free(a.body);
+    free(a.etag);
+    free(a.error);
+    free(full);
+    free(path);
+    return *url ? 0 : -1;
+}
+
+int tr_issue_comment(const TrIssues* is, long number, const char* body, char** why) {
+    char *path = rei_format("repos/%s/issues/%ld/comments", is->repo, number),
+         *full = rei_format(GITHUB_API "%s", path), *request;
+    cJSON *ask = cJSON_CreateObject(), *got;
+    RgAnswer a;
+    int ok;
+    *why = NULL;
+    jset(ask, "body", body);
+    request = cJSON_PrintUnformatted(ask);
+    cJSON_Delete(ask);
+    memset(&a, 0, sizeof a);
+    is->fetch(is->ctx, "POST", full, request, NULL, &a);
+    got = a.body ? cJSON_Parse(a.body) : NULL;
+    ok = a.status == 201;
+    if (!ok) *why = refused(&a, got, "POST", path);
+    cJSON_Delete(got);
+    free(a.body);
+    free(a.etag);
+    free(a.error);
+    free(request);
+    free(full);
+    free(path);
+    return ok ? 0 : -1;
+}

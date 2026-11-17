@@ -313,8 +313,15 @@ PROBE = (
     ),
 )
 
-# what only the whole suite holds: the worker, a process of its own shut in its folder (test_worker)
+# what only the whole suite holds: the worker, a process of its own shut in its folder (test_worker); who links a
+# report to an issue (test_links)
 WORKER = (
+    (
+        'anyone links a report to an issue',
+        'report.c',
+        '    if (!admin(t, m, r.guild)) {\n        st_report_free(&r);\n        return said("Only the server',
+        '    if (0) {\n        st_report_free(&r);\n        return said("Only the server',
+    ),
     (
         "the worker makes a zip's locale once shut in, where its files do not open",
         'worker.c',

@@ -202,6 +202,8 @@ Each is a message that mentions Tracer, in a channel it answers in:
 | `@Tracer add 12`, and words; or a reply to one of report 12's messages | adds the message's files and words to report 12 | the one who sent it, the server's owner and administrators, `TRACER_ADMINS` |
 | a reply with no file, to a message with a log | a report of that message | anyone |
 | `@Tracer delete 12`, or `@Tracer delete` in a reply | deletes report 12 | the one who sent it, the server's owner and administrators, `TRACER_ADMINS` |
+| `@Tracer link 12 1234`, or `@Tracer link 1234` in a reply | links report 12 to issue or pull request 1234 of `TRACER_ISSUES_REPO` ([Issues](#issues)) | the server's owner and administrators, `TRACER_ADMINS` |
+| `@Tracer unlink 12`, or `@Tracer unlink` in a reply | takes report 12's link to an issue out | the same |
 
 ## Issues
 
@@ -223,6 +225,15 @@ a second approval opens no other issue, and one GitHub refused (its status and m
 the next approval. Anyone else's reaction, and another emoji, are left as they are. GitHub is asked from the bot's own
 process, with a 30 s timeout; the worker that reads the files never holds this token either. The gateway asks for the
 reactions only when `TRACER_ISSUES_REPO` is set.
+
+A report also links to an issue or a pull request that exists, in the same repository: `@Tracer link 12 1234` (`#12`
+and `#1234` too), or a reply to one of its messages with `@Tracer link 1234`, from those who approve. Tracer asks
+GitHub for it (`GET repos/<repo>/issues/1234`, which answers pull requests too), keeps its number and page as an
+approval's, draws the report's page again and comments on the issue with the report's page, `Tracer report 12 is
+linked to this issue, by a server's administrator on Discord: <page>`, so each links to the other. A number GitHub has
+no issue for, and a comment GitHub refuses, are said with its status and message; the link stays without its
+comment. A report linked to another issue says which it replaced; `@Tracer unlink 12` takes the link out, the comment
+on GitHub staying. A report with an issue opens no other at an approval.
 
 ## How old a build is
 

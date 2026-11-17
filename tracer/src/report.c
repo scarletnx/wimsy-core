@@ -249,7 +249,9 @@ static cJSON* help(void) {
         "`@Tracer add 12` with them. For a log someone sent without mentioning me, reply to their message and "
         "mention me: I make a report of it.\n\n"
         "`@Tracer delete 12`, or a reply with `@Tracer delete`, deletes a report (yours, or any for an "
-        "administrator). Deleting your message deletes what it sent: the report, or what it added.",
+        "administrator). Deleting your message deletes what it sent: the report, or what it added.\n\n"
+        "An administrator links a report to a GitHub issue or pull request with `@Tracer link 12 1234` (or a reply "
+        "to it with `@Tracer link 1234`), and takes the link out with `@Tracer unlink 12`.",
         TONE_SAID);
 }
 
@@ -1328,11 +1330,89 @@ static cJSON* from_reply(Tracer* t, const TrMessage* m, const char* note, long* 
     return e;
 }
 
+/* report id linked to issue (an issue or a pull request of TRACER_ISSUES_REPO), or to none (issue 0), by m's author,
+   who approves reports: the link kept, the site drawn again, a comment on the issue that links back to the report */
+static cJSON* linked(Tracer* t, const TrMessage* m, long id, long issue, int unlink) {
+    StReport r;
+    char *text, *url = NULL, *state = NULL, *why = NULL;
+    int pull = 0;
+    cJSON* e;
+    if (!t->issues || !t->issues->repo)
+        return said("No repository is set for the issues (TRACER_ISSUES_REPO), so a report links to none.");
+    if (!id)
+        return said(unlink ? "Which report? `@Tracer unlink 12`, or a reply to the report with `@Tracer unlink`."
+                           : "Which report? `@Tracer link 12 1234` links report 12 to issue 1234, or a reply to the "
+                             "report with `@Tracer link 1234`.");
+    if (st_get(t->store, id, &r, NULL, NULL) != 1) {
+        text = rei_format("There is no report #%ld.", id);
+        e = said(text);
+        free(text);
+        return e;
+    }
+    if (!admin(t, m, r.guild)) {
+        st_report_free(&r);
+        return said("Only the server's owner and administrators link a report to an issue, as they approve one.");
+    }
+    if (r.issue < 0) {
+        text = rei_format("Report #%ld's issue is being opened: try again in a moment, please.", id);
+    } else if (unlink) {
+        if (!r.issue)
+            text = rei_format("Report #%ld is linked to no issue.", id);
+        else if (st_set_issue(t->store, id, 0, NULL))
+            text = rei_strdup("The link could not be taken out: try again later, please.");
+        else {
+            site_update(t->store, t->root, id, r.key);
+            rei_log("report #%ld is linked to no issue, by %llu: it was #%ld", id, (unsigned long long)m->author,
+                    r.issue);
+            text = rei_format("Report #%ld is linked to no issue now: it was #%ld, whose comment that links to the "
+                              "report stays.",
+                              id, r.issue);
+        }
+    } else if (r.issue == issue)
+        text = rei_format("Report #%ld is linked to #%ld already.", id, issue);
+    else if (tr_issue_get(t->issues, issue, &url, &pull, &state, &why))
+        text = rei_format("Report #%ld was not linked to #%ld: %s", id, issue, why);
+    else if (st_set_issue(t->store, id, issue, url))
+        text = rei_strdup("The link could not be kept: try again later, please.");
+    else {
+        char *page = rei_format("%s/r/%ld/", t->url, id),
+             *body = rei_format("Tracer report %ld is linked to this %s, by a server's administrator on Discord: %s",
+                                id, pull ? "pull request" : "issue", page),
+             *refusal = NULL;
+        site_update(t->store, t->root, id, r.key);
+        if (tr_issue_comment(t->issues, issue, body, &refusal))
+            rei_log("report #%ld linked to #%ld, and the comment that links back was refused: %s", id, issue, refusal);
+        rei_log("report #%ld is linked to #%ld (%s), by %llu", id, issue, url, (unsigned long long)m->author);
+        char* instead = r.issue > 0 ? rei_format(", in place of #%ld", r.issue) : rei_strdup("");
+        text = rei_format(
+            "Report #%ld is linked to %s #%ld (%s) now%s.%s%s", id, pull ? "pull request" : "issue", issue, state,
+            instead, refusal ? " Its comment that links back to the report was refused: " : "", refusal ? refusal : "");
+        free(instead);
+        free(refusal);
+        free(body);
+        free(page);
+    }
+    e = said(text);
+    if (url) jset(e, "url", url);
+    free(text);
+    free(url);
+    free(state);
+    free(why);
+    st_report_free(&r);
+    return e;
+}
+
 cJSON* tr_answer(Tracer* t, const TrMessage* m, long* report) {
     char* note;
-    long number, target;
+    long number, target, issue;
     cJSON* e = NULL;
-    TrVerb verb = tr_command(m->content, &note, &number);
+    TrVerb verb = tr_link(m->content, &number, &issue);
+    if (verb != TR_REPORT) { /* link or unlink: the report named, else the one the message replies to */
+        target = number ? number : m->reply_to ? st_report_of(t->store, m->reply_to) : m->reply_report;
+        *report = 0;
+        return linked(t, m, target, issue, verb == TR_UNLINK);
+    }
+    verb = tr_command(m->content, &note, &number);
     *report = 0;
     target = number ? number : m->reply_to ? st_report_of(t->store, m->reply_to) : 0;
     if (!target && m->reply_report) { /* an answer of the bot's that was not kept: its embed's link names the report */
@@ -1350,6 +1430,8 @@ cJSON* tr_answer(Tracer* t, const TrMessage* m, long* report) {
                        : said("Which report? `@Tracer delete 12`, or a reply to the report with `@Tracer delete`.");
             break;
         case TR_ADD: e = updated(t, m, target, note, report); break;
+        case TR_LINK:
+        case TR_UNLINK: break; /* tr_link's, above */
         case TR_REPORT: /* a reply to a report adds to it; a reply alone to another message makes a report of it */
             if (target)
                 e = m->nfiles || *note ? updated(t, m, target, note, report) : known(t, m, target);

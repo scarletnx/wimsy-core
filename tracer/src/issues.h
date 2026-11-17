@@ -41,4 +41,10 @@ char* tr_issue_body(const StReport* r, const StFile* files, int nfiles, const ch
 /* the issue opened: 0 with *number and *url (owned, its page on GitHub), or -1 with why (owned): GitHub's status and
    message, or no answer */
 int tr_issue_open(const TrIssues* is, const char* title, const char* body, long* number, char** url, char** why);
+/* issue number of is->repo as GitHub has it (an issue or a pull request, which GitHub numbers alike): 0 with *url
+   (owned, its page), *pull (1 for a pull request) and *state (owned: "open", "closed"), or -1 with why (owned):
+   GitHub's status and message, or no answer */
+int tr_issue_get(const TrIssues* is, long number, char** url, int* pull, char** state, char** why);
+/* body as a comment on issue number: 0, or -1 with why (owned) */
+int tr_issue_comment(const TrIssues* is, long number, const char* body, char** why);
 #endif

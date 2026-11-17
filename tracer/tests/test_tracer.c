@@ -2928,6 +2928,181 @@ static void test_issues(void) {
     gh_body = NULL;
 }
 
+/* GitHub for the links: issue 1234 open, pull request 77 closed, 5 none; a comment answered comment_status */
+static int comment_status = 201, link_asks;
+static char *comment_body, comment_url[256];
+static void fake_links(void* ctx, const char* method, const char* url, const char* body, const char* etag,
+                       RgAnswer* out) {
+    (void)ctx;
+    (void)etag;
+    memset(out, 0, sizeof *out);
+    ++link_asks;
+    if (!strcmp(method, "POST") && strstr(url, "/comments")) {
+        snprintf(comment_url, sizeof comment_url, "%s %s", method, url);
+        free(comment_body);
+        comment_body = rei_strdup(body ? body : "");
+        out->status = comment_status;
+        out->body = rei_strdup(comment_status == 201 ? "{\"id\":1}" : "{\"message\":\"Must have admin rights\"}");
+    } else if (!strcmp(url, "https://api.github.com/repos/o/r/issues/1234")) {
+        out->status = 200;
+        out->body = rei_strdup("{\"number\":1234,\"html_url\":\"https://github.com/o/r/issues/1234\","
+                               "\"state\":\"open\"}");
+    } else if (!strcmp(url, "https://api.github.com/repos/o/r/issues/77")) {
+        out->status = 200;
+        out->body = rei_strdup("{\"number\":77,\"html_url\":\"https://github.com/o/r/pull/77\",\"state\":"
+                               "\"closed\",\"pull_request\":{\"url\":\"x\"}}");
+    } else {
+        out->status = 404;
+        out->body = rei_strdup("{\"message\":\"Not Found\"}");
+    }
+}
+
+/* a report linked to an issue that exists, by an administrator: the link both ways (the database, the page, a comment
+   on the issue), a pull request, an issue that is none, a refused comment, unlinked; no one else links */
+static void test_links(void) {
+    TrIssues is;
+    TrMessage m;
+    StReport rep;
+    long id, n, issue;
+    char *t, *p, *rel;
+    /* the commands */
+    CHECK(tr_link("<@99> link 12 1234", &n, &issue) == TR_LINK && n == 12 && issue == 1234);
+    CHECK(tr_link("<@99> LINK #12 #1234", &n, &issue) == TR_LINK && n == 12 && issue == 1234);
+    CHECK(tr_link("<@99> link #1234", &n, &issue) == TR_LINK && n == 0 && issue == 1234);
+    CHECK(tr_link("<@99> unlink 12", &n, &issue) == TR_UNLINK && n == 12);
+    CHECK(tr_link("<@99> unlink", &n, &issue) == TR_UNLINK && n == 0);
+    CHECK(tr_link("<@99> link 12 1234 please", &n, &issue) == TR_REPORT);
+    CHECK(tr_link("<@99> link it", &n, &issue) == TR_REPORT && tr_link("<@99> linked 12", &n, &issue) == TR_REPORT);
+    CHECK(tr_link("<@99> unlink 12 x", &n, &issue) == TR_REPORT && tr_link("<@99> help", &n, &issue) == TR_REPORT);
+    /* no repository: said */
+    tracer.issues = NULL;
+    m = message(8200, 150, "<@99> link 1 1234");
+    t = answer_text(respond(&m));
+    HAS(t, "No repository is set for the issues (TRACER_ISSUES_REPO), so a report links to none.");
+    free(t);
+    tr_message_free(&m);
+    memset(&is, 0, sizeof is);
+    is.repo = "o/r";
+    is.emoji = "\xe2\x9c\x85";
+    is.fetch = fake_links;
+    tracer.issues = &is;
+    m = message(8201, 150, "<@99> it crashes");
+    attach(&m, "game.log", "https://cdn.discordapp.com/1/game.log", 10);
+    free(answer_text(respond(&m)));
+    tr_message_free(&m);
+    id = st_report_of(tracer.store, 8201);
+    CHECK(id > 0);
+    /* its sender, no administrator: refused, GitHub not asked */
+    link_asks = 0;
+    m = message(8202, 150, "");
+    free(m.content);
+    m.content = rei_format("<@99> link %ld 1234", id);
+    t = answer_text(respond(&m));
+    HAS(t, "Only the server's owner and administrators link a report to an issue");
+    free(t);
+    tr_message_free(&m);
+    CHECK(link_asks == 0);
+    /* an administrator, in a reply to the report: linked, a comment on the issue */
+    m = message(8203, 88, "<@99> link #1234");
+    m.roles[m.nroles++] = 5;
+    m.reply_to = 8201;
+    t = answer_text(respond(&m));
+    rel = rei_format("Report #%ld is linked to issue #1234 (open) now.", id);
+    HAS(t, rel);
+    free(rel);
+    free(t);
+    tr_message_free(&m);
+    SAME(comment_url, "POST https://api.github.com/repos/o/r/issues/1234/comments");
+    rel = rei_format("Tracer report %ld is linked to this issue, by a server's administrator on Discord: "
+                     "https://reports.example/r/%ld/",
+                     id, id);
+    HAS(comment_body, rel);
+    free(rel);
+    CHECK(st_get(tracer.store, id, &rep, NULL, NULL) == 1 && rep.issue == 1234);
+    SAME(rep.issue_url, "https://github.com/o/r/issues/1234");
+    st_report_free(&rep);
+    rel = rei_format("r/%ld/index.html", id);
+    p = page(rel);
+    HAS(p, "<dt>Issue</dt><dd><a href=\"https://github.com/o/r/issues/1234\">#1234</a></dd>");
+    free(p);
+    free(rel);
+    /* the same again: nothing asked */
+    link_asks = 0;
+    m = message(8204, 88, "");
+    free(m.content);
+    m.content = rei_format("<@99> link %ld 1234", id);
+    m.roles[m.nroles++] = 5;
+    t = answer_text(respond(&m));
+    HAS(t, "is linked to #1234 already.");
+    free(t);
+    tr_message_free(&m);
+    CHECK(link_asks == 0);
+    /* an issue that is none: said with GitHub's answer, the link as it was */
+    m = message(8205, 88, "");
+    free(m.content);
+    m.content = rei_format("<@99> link %ld 5", id);
+    m.roles[m.nroles++] = 5;
+    t = answer_text(respond(&m));
+    HAS(t, "was not linked to #5: GitHub answered 404 to GET repos/o/r/issues/5: Not Found");
+    free(t);
+    tr_message_free(&m);
+    /* a pull request, its comment refused: linked all the same, the refusal said */
+    comment_status = 403;
+    m = message(8206, 88, "");
+    free(m.content);
+    m.content = rei_format("<@99> link %ld 77", id);
+    m.roles[m.nroles++] = 5;
+    t = answer_text(respond(&m));
+    rel = rei_format("Report #%ld is linked to pull request #77 (closed) now, in place of #1234. Its comment that "
+                     "links back to the report was refused: GitHub answered 403 to POST repos/o/r/issues/77/comments: "
+                     "Must have admin rights",
+                     id);
+    HAS(t, rel);
+    free(rel);
+    free(t);
+    tr_message_free(&m);
+    comment_status = 201;
+    CHECK(st_get(tracer.store, id, &rep, NULL, NULL) == 1 && rep.issue == 77);
+    st_report_free(&rep);
+    /* the approval opens none for a linked report */
+    {
+        TrReaction r = reaction(88, 33, 8201, "\xe2\x9c\x85");
+        r.roles[r.nroles++] = 5;
+        link_asks = 0;
+        CHECK(!tr_approved(&tracer, &r) && link_asks == 0);
+        tr_reaction_free(&r);
+    }
+    /* unlinked: none, and unlinked again said so */
+    m = message(8207, 88, "");
+    free(m.content);
+    m.content = rei_format("<@99> unlink %ld", id);
+    m.roles[m.nroles++] = 5;
+    t = answer_text(respond(&m));
+    HAS(t, "is linked to no issue now: it was #77, whose comment that links to the report stays.");
+    free(t);
+    tr_message_free(&m);
+    m = message(8208, 88, "<@99> unlink");
+    m.roles[m.nroles++] = 5;
+    m.reply_to = 8201;
+    t = answer_text(respond(&m));
+    HAS(t, "is linked to no issue.");
+    free(t);
+    tr_message_free(&m);
+    CHECK(st_get(tracer.store, id, &rep, NULL, NULL) == 1 && rep.issue == 0 && !rep.issue_url);
+    st_report_free(&rep);
+    /* no report named, none replied to */
+    m = message(8209, 88, "<@99> link 1234");
+    m.roles[m.nroles++] = 5;
+    t = answer_text(respond(&m));
+    HAS(t, "Which report? `@Tracer link 12 1234` links report 12 to issue 1234");
+    free(t);
+    tr_message_free(&m);
+    CHECK(tr_forget(&tracer, 8201));
+    tracer.issues = NULL;
+    free(comment_body);
+    comment_body = NULL;
+}
+
 /* ---- the build's age ---- */
 static int gql_asks, gql_status = 200;
 static char *gql_answer, *gql_body;
@@ -4577,6 +4752,7 @@ static void every_test(const char* self_path) {
         test_worker(self_path);
         test_untraceable(self_path);
         test_issues();
+        test_links();
         test_age();
         test_archive_download();
         test_zip_reports();

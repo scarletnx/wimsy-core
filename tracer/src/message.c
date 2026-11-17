@@ -185,6 +185,45 @@ static char* cut_note(char* t) {
 
 char* tr_words(const char* content) { return cut_note(plain_words(content ? content : "")); }
 
+/* a number at *at, with or without a "#" before it, then a space or the end: its value, *at past it; 0 for none */
+static long number_at(const char** at) {
+    const char* s = *at + (**at == '#');
+    char* end;
+    long v = isdigit((unsigned char)*s) ? strtol(s, &end, 10) : 0;
+    if (v <= 0 || (*end && *end != ' ')) return 0;
+    *at = end + (*end == ' ');
+    return v;
+}
+
+TrVerb tr_link(const char* content, long* report, long* issue) {
+    char* t = plain_words(content);
+    const char* at;
+    TrVerb verb = TR_REPORT;
+    long first, second;
+    *report = *issue = 0;
+    if (!strncasecmp(t, "link ", 5)) {
+        at = t + 5;
+        first = number_at(&at);
+        second = first && *at ? number_at(&at) : 0;
+        if (first && !*at) {
+            verb = TR_LINK;
+            *report = second ? first : 0;
+            *issue = second ? second : first;
+        }
+    } else if (!strcasecmp(t, "unlink"))
+        verb = TR_UNLINK;
+    else if (!strncasecmp(t, "unlink ", 7)) {
+        at = t + 7;
+        first = number_at(&at);
+        if (first && !*at) {
+            verb = TR_UNLINK;
+            *report = first;
+        }
+    }
+    free(t);
+    return verb;
+}
+
 TrVerb tr_command(const char* content, char** note, long* number) {
     char *t = plain_words(content), *end;
     TrVerb verb = TR_REPORT;
