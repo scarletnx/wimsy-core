@@ -111,6 +111,9 @@ src/mcp_main.o: src/mcp_main.c src/mcp.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) $(MHD_CFLAGS) -c -o $@ src/mcp_main.c
 src/fetch.o: src/fetch.c src/fetch.h src/tracer.h
 	$(CC) $(CFLAGS) $(OURS) $(CURL_CFLAGS) -c -o $@ src/fetch.c
+# every object of Tracer's reads ReiWimsy's rei.h, through tracer.h or itself: a change there (rei_log is a macro) has
+# them built again
+$(LOGIC) src/rei_http.o src/rei_rest.o src/rei_watch.o src/fetch.o src/bot.o src/main.o src/mcp_main.o: $(REI)/src/rei.h
 # Concord's headers are not ours: their warnings are theirs
 src/bot.o: src/bot.c src/bot.h $(LOGSCAN_FILES) src/age.h src/channels.h src/follow.h src/issues.h src/worker.h \
 		src/fetch.h src/report.h src/site.h src/store.h src/probe.h src/message.h src/tracer.h $(REI)/src/watch.h
