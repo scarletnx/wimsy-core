@@ -102,14 +102,17 @@ void jset(cJSON* o, const char* key, const char* s) {
     if (s) cJSON_AddStringToObject(o, key, s);
 }
 
-void rei_log(const char* fmt, ...) {
+void rei_log_as(const char* name, const char* fmt, ...) {
     va_list ap;
-    fputs(REI_NAME ": ", stderr);
+    flockfile(stderr); /* another thread's line never lands inside this one */
+    fputs(name, stderr);
+    fputs(": ", stderr);
     va_start(ap, fmt);
     vfprintf(stderr, fmt, ap);
     va_end(ap);
     fputc('\n', stderr);
     fflush(stderr);
+    funlockfile(stderr);
 }
 
 static double wall(void) { return (double)time(NULL); }

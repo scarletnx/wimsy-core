@@ -41,8 +41,11 @@ const cJSON* jpath(const cJSON* o, const char* path);
 /* a string member added to an object, or skipped when s is NULL */
 void jset(cJSON* o, const char* key, const char* s);
 
-/* a line in the log (stderr, which daemon(8) sends to syslog): "reiwimsy: ..." (REI_NAME) */
-void rei_log(const char* fmt, ...);
+/* a line in the log (stderr, which daemon(8) sends to syslog), whole whatever the threads: "name: ..."; rei_log names
+   the program its file is built for (REI_NAME: "reiwimsy", "tracer"), so that one program that runs both bots says
+   whose each line is */
+void rei_log_as(const char* name, const char* fmt, ...);
+#define rei_log(...) rei_log_as(REI_NAME, __VA_ARGS__)
 
 /* seconds since the epoch, settable for the tests */
 extern double (*rei_now)(void);

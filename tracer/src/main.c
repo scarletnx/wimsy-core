@@ -527,7 +527,7 @@ int main(int argc, char** argv) {
     discord_add_intents(client, DISCORD_GATEWAY_GUILDS | DISCORD_GATEWAY_GUILD_MESSAGES |
                                     (issues.repo ? DISCORD_GATEWAY_GUILD_MESSAGE_REACTIONS : 0));
     discord_set_event_scheduler(client, scheduler);
-    wd_start(client, end);
+    wd_start(client, REI_NAME, end);
     code = discord_run(client);
     if (code == CCORD_DISCORD_BAD_AUTH) { /* what Concord's discord_run returns for any failure of GET gateway/bot */
         char* now = dc_said(&dc, "gateway/bot");
