@@ -18,7 +18,7 @@ off its jails but a read of their files and processes from the host.
 | Discord invite | 30 min | Discord's API knows the invite the site links to |
 | ReiWimsy | pushed | `reiwimsy_enable` is YES in `discordbots` and `/usr/local/libexec/reiwimsy` has run a minute or more |
 | AccordWimsy | pushed | `noirjail.sh jail fresh` passes: each mirror had a good pass within its time |
-| Tracer | pushed | `tracer_enable` is YES in `tracer` and `/usr/local/libexec/tracer` has run a minute or more |
+| Tracer | pushed | ReiWimsy's env file in `discordbots` holds `TRACER_TOKEN` (Tracer runs inside ReiWimsy) and ReiWimsy is up |
 | git.scarletnx.dev | pushed | `forgejo_enable` is YES in `gitscarlet` and its `forgejo web` has run a minute or more, read from the host |
 | issues.scarletnx.dev | pushed | the web jail's nginx gives Tracer's first page (`jexec tracerweb fetch`) |
 
