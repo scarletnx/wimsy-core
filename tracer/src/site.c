@@ -471,10 +471,13 @@ static void probe_section(Buf* b, const Probe* p) {
     char* counts = probe_counts(p);
     char key[17];
     int i, k;
-    buf_add(b, "<section class=\"probe\">\n<h2>edenprobe <small>");
+    buf_add(b, "<section class=\"probe\">\n<h2>");
+    esc(b, probe_program(p));
+    buf_add(b, " <small>");
     esc(b, counts);
-    buf_add(b, "</small></h2>\n<dl class=\"facts\">\n");
-    buf_add(b, "<dt>edenprobe</dt><dd>");
+    buf_add(b, "</small></h2>\n<dl class=\"facts\">\n<dt>");
+    esc(b, probe_program(p));
+    buf_add(b, "</dt><dd>");
     esc(b, p->version);
     if (p->describe) {
         buf_add(b, " (");
@@ -510,15 +513,15 @@ static void probe_section(Buf* b, const Probe* p) {
     field(b, "Optional extensions on", p->extensions);
     if (!p->whole) field(b, "Summary", "none: the run stopped before its end");
     if (p->cut_cases || p->cut_notes) {
-        char* left = rei_format("the detail of %d %s of the service, net and pad families (or of no family edenprobe "
+        char* left = rei_format("the detail of %d %s of the service, net, pad and libc families (or of no family %s "
                                 "names) and %d net %s, which can name the player",
-                                p->cut_cases, p->cut_cases == 1 ? "case" : "cases", p->cut_notes,
+                                p->cut_cases, p->cut_cases == 1 ? "case" : "cases", probe_program(p), p->cut_notes,
                                 p->cut_notes == 1 ? "note" : "notes");
         field(b, "Left out", left);
         free(left);
     }
     if (p->unread) {
-        char* odd = rei_format("%d lines that are none edenprobe writes", p->unread);
+        char* odd = rei_format("%d lines that are none %s writes", p->unread, probe_program(p));
         field(b, "Not read", odd);
         free(odd);
     }
@@ -584,7 +587,7 @@ char* site_report_html(const StReport* r, const StFile* files, int nfiles, const
     int i, images = 0, videos = 0;
     buf_printf(&title, "Report #%ld: %s", r->id, r->title);
     head(&b, "../../", title.text,
-         probe ? "A run of edenprobe sent to Tracer." : "A ScarletNX game report sent to Tracer.");
+         probe ? "A run of Amberlith sent to Tracer." : "A ScarletNX game report sent to Tracer.");
     buf_free(&title);
     if (probe)
         buf_add(&b, "<section class=\"hero\">\n<p class=\"crumbs\"><a href=\"../../probe/index.html\">Probe</a> / ");
@@ -1163,13 +1166,15 @@ static void run_counts(Buf* b, const Probe* p) {
 static void runs_table(Buf* b, const char* root, const Runs* r, const int* which, int n) {
     int i;
     buf_add(b,
-            "<div class=\"scroll\"><table class=\"reports\">\n<thead><tr><th>Report</th><th>Sent</th><th>edenprobe</th>"
+            "<div class=\"scroll\"><table class=\"reports\">\n<thead><tr><th>Report</th><th>Sent</th><th>Program</th>"
             "<th>What ran</th><th>Machine</th><th>Counts</th></tr></thead>\n<tbody>\n");
     for (i = 0; i < n; ++i) {
         const StProbeRun* run = &r->runs[which ? which[i] : i];
         buf_printf(b, "<tr><td><a href=\"%sr/%ld/\">#%ld</a></td><td>", root, run->report, run->report);
         when(b, run->when);
         buf_add(b, "</td><td class=\"mono\">");
+        esc(b, probe_program(&run->p));
+        buf_add(b, " ");
         esc(b, run->p.version);
         buf_add(b, "</td><td class=\"mono\">");
         esc(b, run->p.words);
@@ -1214,12 +1219,13 @@ static int probe_index(const char* root, const Runs* r) {
     int i, m, failing = 0, done;
     char* suites_seen = NULL;
     for (i = 0; i < r->nnames; ++i) failing += fails_somewhere(r, i);
-    head(&b, "../", "Tracer: runs of edenprobe",
-         "Runs of edenprobe sent to Tracer: each case on each emulator and driver.");
-    buf_add(&b, "<section class=\"hero\">\n<h1>Runs of edenprobe</h1>\n<p>Runs of <a "
-                "href=\"https://github.com/scarletnx/edenprobe\">edenprobe</a> that players sent to Tracer on Discord: "
-                "which of its cases pass on each emulator, driver and system. Every version and mode of edenprobe is "
-                "counted together here; a case's page tells them apart. What the runs say together, by fixed rules: "
+    head(&b, "../", "Tracer: runs of Amberlith",
+         "Runs of Amberlith sent to Tracer: each case on each emulator and driver.");
+    buf_add(&b, "<section class=\"hero\">\n<h1>Runs of Amberlith</h1>\n<p>Runs of <a "
+                "href=\"https://github.com/scarletnx/amberlith\">Amberlith</a> (edenprobe before its 1.0.0) that "
+                "players sent to Tracer on Discord: which of its cases pass on each emulator, driver and system. Every "
+                "version and mode is counted together here; a case's page tells them apart. What the runs say "
+                "together, by fixed rules: "
                 "<a href=\"candidates.html\">ban candidates, ScarletNX's own failures and regressions</a>.</p>\n");
     buf_printf(&b,
                "<p class=\"stats\"><b>%d</b> %s on <b>%d</b> %s, <b>%d</b> %s, <b>%d</b> failing somewhere</p>\n"
@@ -1228,7 +1234,7 @@ static int probe_index(const char* root, const Runs* r) {
                r->nnames, r->nnames == 1 ? "case" : "cases", failing);
     cJSON_AddNumberToObject(o, "runs", r->nruns);
     if (!r->nruns) {
-        buf_add(&b, "<p class=\"empty\">No runs yet. Mention <code>@Tracer</code> with a log of a run of edenprobe "
+        buf_add(&b, "<p class=\"empty\">No runs yet. Mention <code>@Tracer</code> with a log of a run of Amberlith "
                     "attached to add one.</p>\n");
         foot(&b);
         done = write_page(root, "probe/index.html", buf_take(&b));
@@ -1340,9 +1346,9 @@ static void rules_of_case(Buf* b, const Runs* r, int id) {
         if (r->rules.general[i].name == id)
             buf_printf(b,
                        "%s<li><a href=\"../candidates.html#general-%d\">ScarletNX's own failure</a>, on %d drivers "
-                       "(edenprobe %s)</li>\n",
+                       "(%s %s)</li>\n",
                        any++ ? "" : "<h2>What the runs say</h2>\n<ul>\n", i + 1, r->rules.general[i].ndrivers,
-                       r->rules.general[i].version);
+                       r->rules.general[i].program, r->rules.general[i].version);
     for (i = 0; i < r->rules.nregressions; ++i)
         if (r->rules.regressions[i].name == id)
             buf_printf(b, "%s<li><a href=\"../candidates.html#regression-%d\">a regression</a> on %s</li>\n",
@@ -1362,7 +1368,7 @@ static int case_page(Store* s, const char* root, const Runs* r, int n) {
     cJSON *o = cJSON_CreateObject(), *machines = cJSON_AddArrayToObject(o, "machines"), *rows;
     st_probe_details(s, name->id, CASE_ROWS, &d, &nd);
     buf_printf(&title, "%s: %s", name->suite, name->name);
-    head(&b, "../../", title.text, "A case of edenprobe on each emulator and driver, from the runs sent to Tracer.");
+    head(&b, "../../", title.text, "A case of Amberlith on each emulator and driver, from the runs sent to Tracer.");
     buf_free(&title);
     buf_add(&b, "<section class=\"hero\">\n<p class=\"crumbs\"><a href=\"../index.html\">Probe</a></p>\n<h1>");
     esc(&b, name->name);
@@ -1397,7 +1403,7 @@ static int case_page(Store* s, const char* root, const Runs* r, int n) {
     if (nd) {
         buf_printf(&b,
                    "<h2>Failures and skips <small>the newest %d at most</small></h2>\n<div class=\"scroll\"><table "
-                   "class=\"reports\">\n<thead><tr><th>Report</th><th>Sent</th><th>Machine</th><th>edenprobe</th>"
+                   "class=\"reports\">\n<thead><tr><th>Report</th><th>Sent</th><th>Machine</th><th>Program</th>"
                    "<th>Result</th><th>Detail</th></tr></thead>\n<tbody>\n",
                    CASE_ROWS);
         for (i = 0; i < nd; ++i) {
@@ -1413,6 +1419,8 @@ static int case_page(Store* s, const char* root, const Runs* r, int n) {
             buf_printf(&b, "<tr><td><a href=\"../../r/%ld/\">#%ld</a></td><td>", x->report, x->report);
             when(&b, x->when);
             buf_printf(&b, "</td><td>%s</td><td class=\"mono\">", label.text);
+            esc(&b, probe_program(&x->p));
+            buf_add(&b, " ");
             esc(&b, x->p.version);
             buf_add(&b, " ");
             esc(&b, x->p.words);
@@ -1427,6 +1435,7 @@ static int case_page(Store* s, const char* root, const Runs* r, int n) {
             cJSON_AddNumberToObject(e, "report", (double)x->report);
             jset(e, "machine", label.text);
             jset(e, "emulator", x->p.emulator);
+            jset(e, "program", probe_program(&x->p));
             jset(e, "edenprobe", x->p.version);
             jset(e, "words", x->p.words);
             jset(e, "result", result_name(d[i].result));
@@ -1464,7 +1473,9 @@ static void candidate_block(Buf* b, const char* root, const Runs* r, int i) {
     buf_add(b, "<dt>Versions</dt><dd class=\"mono\">");
     esc(b, c->versions);
     if (c->mixed) buf_add(b, " (it both passes and fails on the version that ends it)");
-    buf_add(b, "</dd>\n<dt>edenprobe</dt><dd class=\"mono\">");
+    buf_add(b, "</dd>\n<dt>");
+    esc(b, c->program);
+    buf_add(b, "</dt><dd class=\"mono\">");
     esc(b, c->version);
     buf_add(b, " ");
     esc(b, c->words);
@@ -1500,6 +1511,7 @@ static cJSON* candidate_object(const Runs* r, const RuleCandidate* c) {
     jset(o, "versions", c->versions);
     cJSON_AddBoolToObject(o, "mixed", c->mixed);
     jset(o, "broken", c->broken);
+    jset(o, "program", c->program);
     jset(o, "edenprobe", c->version);
     jset(o, "words", c->words);
     for (k = 0; k < c->nfailing; ++k) cJSON_AddItemToArray(fail, cJSON_CreateNumber((double)c->failing[k]));
@@ -1521,8 +1533,8 @@ static int candidates_page(const char* root, const Runs* r) {
     cJSON *o = cJSON_CreateObject(), *list = cJSON_AddArrayToObject(o, "candidates"),
           *general = cJSON_AddArrayToObject(o, "general"), *regressions = cJSON_AddArrayToObject(o, "regressions");
     int i, k, done;
-    head(&b, "../", "Tracer: what the runs of edenprobe say",
-         "Ban candidates, ScarletNX's own failures and regressions, from the runs of edenprobe sent to Tracer.");
+    head(&b, "../", "Tracer: what the runs of Amberlith say",
+         "Ban candidates, ScarletNX's own failures and regressions, from the runs of Amberlith sent to Tracer.");
     buf_printf(
         &b,
         "<section class=\"hero\">\n<p class=\"crumbs\"><a href=\"index.html\">Probe</a></p>\n<h1>What the runs "
@@ -1582,6 +1594,7 @@ static int candidates_page(const char* root, const Runs* r) {
         jset(e, "case", r->names[n].key);
         jset(e, "suite", r->names[n].suite);
         jset(e, "name", r->names[n].name);
+        jset(e, "program", g->program);
         jset(e, "edenprobe", g->version);
         jset(e, "words", g->words);
         cJSON_AddNumberToObject(e, "seen", g->seen);
@@ -1624,6 +1637,7 @@ static int candidates_page(const char* root, const Runs* r) {
         jset(e, "case", r->names[n].key);
         jset(e, "suite", r->names[n].suite);
         jset(e, "name", r->names[n].name);
+        jset(e, "program", g->program);
         jset(e, "edenprobe", g->version);
         jset(e, "words", g->words);
         jset(e, "driver", probe_driver_name(g->driver_id));
@@ -1657,9 +1671,9 @@ static int driver_page(const char* root, const Runs* r, int id) {
             mine[nmine++] = i;
             cJSON_AddItemToArray(reports, cJSON_CreateNumber((double)r->runs[i].report));
         }
-    buf_printf(&title, "%s: runs of edenprobe", label);
+    buf_printf(&title, "%s: runs of Amberlith", label);
     head(&b, "../../", title.text,
-         "A driver's runs of edenprobe sent to Tracer: its versions and the cases that fail.");
+         "A driver's runs of Amberlith sent to Tracer: its versions and the cases that fail.");
     buf_free(&title);
     buf_add(&b, "<section class=\"hero\">\n<p class=\"crumbs\"><a href=\"../index.html\">Probe</a></p>\n<h1>");
     esc(&b, label);

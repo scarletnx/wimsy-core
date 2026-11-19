@@ -67,8 +67,8 @@ enum {
 };
 /* where a crash report put the host pc */
 enum { SNX_PLACE_NONE, SNX_PLACE_GAME, SNX_PLACE_BLOCK, SNX_PLACE_RUNTIME, SNX_PLACE_LIBRARY };
-/* the console the game is of, by its runtime's header: the Switch's, the 3DS's and the Vita's ("Game: ..."), the
-   GBA's ("ScarletNX - <title> (GBA)") */
+/* the console the game is of, by its runtime's header: the Switch's ("ScarletNX - <title>"), the others' with
+   " (3DS)", " (Vita)" or " (GBA)" after the title (an older 3DS or Vita build's was "Game: ...") */
 enum { SNX_CONSOLE_NONE, SNX_CONSOLE_SWITCH, SNX_CONSOLE_3DS, SNX_CONSOLE_VITA, SNX_CONSOLE_GBA };
 
 /* Every text is an offset into the scan's pool, 0 for none (the pool's first byte is an empty string) */
@@ -104,6 +104,9 @@ typedef struct SnxLogScan {
        after the scan, from the log's file as the run left it (the launcher's Share Log does), 0 for unknown. Less the
        last line's time, the run began then: the markdown says how many days the build's commit is older */
     long long written;
+    /* when the run began, in seconds since 1970 (UTC), from the log's own line "run: started <YYYY-MM-DD> <HH:MM:SS>
+       UTC" (snx_run_log_line); 0 in a log without one. Where it is, the days are counted from it and not from written */
+    long long started;
     int outcome;
     unsigned signature;
     /* the failure, when outcome isn't SNX_LOG_NONE: the marker's fields, then its report's */

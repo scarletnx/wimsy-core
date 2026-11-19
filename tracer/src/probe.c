@@ -10,9 +10,10 @@
 
 #include "files.h"
 
-/* ---- edenprobe's families ---- */
+/* ---- Amberlith's families ---- */
 
-/* which family each suite is of, by the name its lines carry: edenprobe's ui.c, FAMILIES (edenprobe 86e1d11) */
+/* which family each suite is of, by the name its lines carry: Amberlith's ui.c, FAMILIES (Amberlith 1.0.0, 3c94c33),
+   which has every suite edenprobe's had */
 static const struct {
     const char* suite;
     ProbeFamily family;
@@ -30,11 +31,20 @@ static const struct {
     {"blend", PROBE_GRAPHICS},
     {"depth", PROBE_GRAPHICS},
     {"fixed", PROBE_GRAPHICS},
+    {"stencil", PROBE_GRAPHICS},
+    {"lod", PROBE_GRAPHICS},
+    {"sampling", PROBE_GRAPHICS},
+    {"coverage", PROBE_GRAPHICS},
+    {"msaa", PROBE_GRAPHICS},
     {"texture", PROBE_GRAPHICS},
     {"coherence", PROBE_GRAPHICS},
     {"fmath", PROBE_GRAPHICS},
     {"order", PROBE_GRAPHICS},
+    {"queue", PROBE_GRAPHICS},
+    {"storage", PROBE_GRAPHICS},
     {"index", PROBE_GRAPHICS},
+    {"topology", PROBE_GRAPHICS},
+    {"vertex", PROBE_GRAPHICS},
     {"instance", PROBE_GRAPHICS},
     {"bindless", PROBE_GRAPHICS},
     {"astc", PROBE_GRAPHICS},
@@ -42,6 +52,7 @@ static const struct {
     {"eac", PROBE_GRAPHICS},
     {"etc2", PROBE_GRAPHICS},
     {"bcn", PROBE_GRAPHICS},
+    {"bcnimage", PROBE_GRAPHICS},
     {"zeta", PROBE_GRAPHICS},
     {"swizzle", PROBE_GRAPHICS},
     {"texel", PROBE_GRAPHICS},
@@ -51,12 +62,21 @@ static const struct {
     {"occlusion", PROBE_GRAPHICS},
     {"drawtex", PROBE_GRAPHICS},
     {"geometry", PROBE_GRAPHICS},
+    {"xfb", PROBE_GRAPHICS},
     {"query", PROBE_GRAPHICS},
     {"dma", PROBE_GRAPHICS},
     {"blit2d", PROBE_GRAPHICS},
+    {"copy", PROBE_GRAPHICS},
     {"tex8k", PROBE_GRAPHICS},
     {"fs", PROBE_FS},
     {"sched", PROBE_KERNEL},
+    {"svc", PROBE_KERNEL},
+    {"pace-cpu", PROBE_PACE},
+    {"pace-mem", PROBE_PACE},
+    {"pace-thread", PROBE_PACE},
+    {"pace-timer", PROBE_PACE},
+    {"pace-fs", PROBE_PACE},
+    {"pace-gpu", PROBE_PACE},
     {"binder", PROBE_DISPLAY},
     {"vic", PROBE_VIDEO},
     {"nvdec", PROBE_VIDEO},
@@ -96,15 +116,28 @@ static const struct {
     {"time-zone", PROBE_SERVICE},
     {"time-perm", PROBE_SERVICE},
     {"audout", PROBE_SERVICE},
+    {"audin", PROBE_SERVICE},
+    {"pctl", PROBE_SERVICE},
     {"fs-file", PROBE_SERVICE},
     {"acc-app", PROBE_SERVICE},
+    {"sdk", PROBE_SERVICE},
     {"nifm", PROBE_NET},
     {"dns", PROBE_NET},
     {"bsd", PROBE_NET},
     {"ssl", PROBE_NET},
     {"acc", PROBE_NET},
     {"friend", PROBE_NET},
+    {"libc", PROBE_LIBC},
+    {"system", PROBE_LIBC},
+    {"socket", PROBE_LIBC},
     {"game", PROBE_GAME},
+    {"wimsy", PROBE_GAME},
+    {"mandelbrot", PROBE_DEMO},
+    {"julia", PROBE_DEMO},
+    {"fluid", PROBE_DEMO},
+    {"fluid-alias", PROBE_DEMO},
+    {"music", PROBE_MUSIC},
+    {"nvn", PROBE_NVN},
 };
 
 ProbeFamily probe_family(const char* suite) {
@@ -115,14 +148,15 @@ ProbeFamily probe_family(const char* suite) {
 }
 
 const char* probe_family_name(ProbeFamily f) {
-    static const char* const names[] = {"judge", "cpu",   "pad",     "graphics", "fs",   "kernel", "display",
-                                        "video", "audio", "service", "net",      "game", "other"};
+    static const char* const names[] = {"judge",   "cpu",   "pad",   "graphics", "fs",   "kernel",
+                                        "display", "video", "audio", "service",  "net",  "game",
+                                        "nvn",     "libc",  "demo",  "music",    "pace", "other"};
     return f >= PROBE_JUDGE && f <= PROBE_OTHER ? names[f] : "other";
 }
 
 int probe_keeps_detail(const char* suite) {
     ProbeFamily f = probe_family(suite);
-    return f != PROBE_SERVICE && f != PROBE_NET && f != PROBE_PAD && f != PROBE_OTHER;
+    return f != PROBE_SERVICE && f != PROBE_NET && f != PROBE_PAD && f != PROBE_LIBC && f != PROBE_OTHER;
 }
 
 /* ---- the drivers: ScarletNX's ban table's names and numbering (src/nx/gpu/vk/extension_bans.c, #1390) ---- */
@@ -317,17 +351,42 @@ static cJSON* report_line(const char* s, size_t n) {
     return o;
 }
 
-/* the note that begins a run: "edenprobe 0.9.0 (v0.9.0) starting", its version and describe owned when wanted */
-static int starting(const cJSON* o, char** version, char** describe) {
-    const char *t = jstr(o, "text"), *open, *close;
+/* the names a run's starting note opens with: the program's since its 1.0.0, and the one before */
+static const char* const PROGRAMS[] = {"Amberlith", "edenprobe"};
+
+/* the program whose name t opens with, then a space: its index in PROGRAMS, or -1 */
+static int program_at(const char* t) {
+    int i;
+    for (i = 0; t && i < (int)(sizeof PROGRAMS / sizeof *PROGRAMS); ++i)
+        if (!strncmp(t, PROGRAMS[i], strlen(PROGRAMS[i])) && t[strlen(PROGRAMS[i])] == ' ') return i;
+    return -1;
+}
+
+/* name's index in PROGRAMS, or -1 */
+static int program_named(const char* name) {
+    int i;
+    for (i = 0; name && i < (int)(sizeof PROGRAMS / sizeof *PROGRAMS); ++i)
+        if (!strcmp(name, PROGRAMS[i])) return i;
+    return -1;
+}
+
+const char* probe_program(const Probe* p) { return p && p->program ? p->program : "edenprobe"; }
+
+/* the note that begins a run: "Amberlith 1.0.0 (v1.0.0) starting", or "edenprobe 0.9.0 (v0.9.0) starting" of the
+   versions before; its program, version and describe owned when wanted */
+static int starting(const cJSON* o, char** program, char** version, char** describe) {
+    const char *t = jstr(o, "text"), *open, *close, *at;
     size_t n;
-    if (!t || strcmp(jstr(o, "type"), "note") || strncmp(t, "edenprobe ", 10)) return 0;
+    int which = t && !strcmp(jstr(o, "type"), "note") ? program_at(t) : -1;
+    if (which < 0) return 0;
+    at = t + strlen(PROGRAMS[which]) + 1;
     n = strlen(t);
-    if (n < 21 || strcmp(t + n - 10, ") starting")) return 0;
-    open = strstr(t + 10, " (");
+    if (n < (size_t)(at - t) + 11 || strcmp(t + n - 10, ") starting")) return 0;
+    open = strstr(at, " (");
     close = t + n - 10;
-    if (!open || open > close || open == t + 10) return 0;
-    if (version) *version = rei_format("%.*s", (int)(open - (t + 10)), t + 10);
+    if (!open || open > close || open == at) return 0;
+    if (program) *program = rei_strdup(PROGRAMS[which]);
+    if (version) *version = rei_format("%.*s", (int)(open - at), at);
     if (describe) *describe = rei_format("%.*s", (int)(close - (open + 2)), open + 2);
     return 1;
 }
@@ -380,9 +439,9 @@ int probe_marks(const char* text, size_t n) {
         if (j >= 0 && len - (size_t)j > 30) {
             const char* s = text + at + j;
             size_t k = len - (size_t)j;
-            if (k > 35 && !memcmp(s, "{\"type\":\"note\",\"text\":\"edenprobe ", 33)) {
+            if (k > 35 && !memcmp(s, "{\"type\":\"note\",\"text\":\"", 23) && program_at(s + 23) >= 0) {
                 cJSON* o = report_line(s, k);
-                if (o && starting(o, NULL, NULL)) marks = 1;
+                if (o && starting(o, NULL, NULL, NULL)) marks = 1;
                 cJSON_Delete(o);
             } else if (marks && !memcmp(s, "{\"type\":\"summary\"", 17))
                 marks = 2;
@@ -399,6 +458,7 @@ void probe_free(Probe* p) {
     free(p->emulator);
     free(p->emulator_version);
     free(p->commit);
+    free(p->program);
     free(p->version);
     free(p->describe);
     free(p->words);
@@ -649,7 +709,7 @@ int probe_parse(const char* text, size_t n, Probe* p, char** why) {
         if (o) {
             const char* type = jstr(o, "type");
             ++lines;
-            if (starting(o, NULL, NULL)) {
+            if (starting(o, NULL, NULL, NULL)) {
                 if (open_run && (open_whole || !chosen_whole)) {
                     run_start = start;
                     run_end = at;
@@ -678,7 +738,7 @@ int probe_parse(const char* text, size_t n, Probe* p, char** why) {
     }
     if (!runs) {
         if (lines && resumed) {
-            *why = rei_strdup("its edenprobe lines are a launch that went on with a run after a crash (its first note "
+            *why = rei_strdup("its Amberlith lines are a launch that went on with a run after a crash (its first note "
                               "says \"journal: launch\"), without the run's start: send the run's report.jsonl, or the "
                               "log of the run's first launch");
             return -1;
@@ -715,7 +775,7 @@ int probe_parse(const char* text, size_t n, Probe* p, char** why) {
         cJSON* o = j >= 0 ? report_line(text + at + j, len - (size_t)j) : NULL;
         const char* type = o ? jstr(o, "type") : NULL;
         if (!o) continue;
-        if (starting(o, &p->version, &p->describe))
+        if (starting(o, &p->program, &p->version, &p->describe))
             ;
         else if (!strcmp(type, "case")) {
             if (add_case(p, o, &cap)) ++p->unread;
@@ -746,6 +806,7 @@ cJSON* probe_json(const Probe* p) {
     jset(o, "emulator_version", p->emulator_version);
     jset(o, "commit", p->commit);
     put_number(o, "built", p->built);
+    jset(o, "program", probe_program(p));
     jset(o, "version", p->version);
     jset(o, "describe", p->describe);
     jset(o, "words", p->words);
@@ -812,10 +873,16 @@ int probe_of_json(const cJSON* o, Probe* p, char** why) {
     }
     if (!jstr(o, "version") || !*jstr(o, "version") || strlen(jstr(o, "version")) > 40 || !jstr(o, "words") ||
         !cJSON_IsArray(list) || id < 0 || id >= DRIVERS || version < 0 || version > 4294967295.0) {
-        *why = rei_strdup("its probe has no edenprobe version, mode or cases, or a driver that is none");
+        *why = rei_strdup("its probe has no version, mode or cases, or a driver that is none");
+        return -1;
+    }
+    if (program_named(jstr(o, "program")) < 0) {
+        *why =
+            rei_format("its probe names no program it may (%.40s)", jstr(o, "program") ? jstr(o, "program") : "none");
         return -1;
     }
     p->emulator = rei_strdup(emulator);
+    p->program = rei_strdup(PROGRAMS[program_named(jstr(o, "program"))]);
     p->emulator_version = field(o, "emulator_version", 200);
     p->commit = field(o, "commit", 64);
     p->built = jnum(o, "built") > 0 ? jnum(o, "built") : 0;
@@ -849,7 +916,7 @@ int probe_of_json(const cJSON* o, Probe* p, char** why) {
     p->over = (int)(count_of(o, "over") > 0 ? count_of(o, "over") : 0);
     cJSON_ArrayForEach(e, list) {
         if (add_case(p, e, &cap)) {
-            *why = rei_format("its probe's case %d is not one edenprobe writes", p->ncases + 1);
+            *why = rei_format("its probe's case %d is not one Amberlith writes", p->ncases + 1);
             probe_free(p);
             return -1;
         }

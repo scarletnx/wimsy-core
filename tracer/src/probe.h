@@ -1,14 +1,15 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
    Copyright 2026 the ScarletNX contributors */
-/* A run of edenprobe (github.com/scarletnx/edenprobe, the probe program that checks an emulator against the console)
-   found in a file a report brought, in any of the three forms one comes in:
+/* A run of Amberlith (github.com/scarletnx/amberlith, the probe program that checks an emulator against the console,
+   named edenprobe before its 1.0.0) found in a file a report brought, in any of the three forms one comes in:
    - ScarletNX's log of the run: the machine in its header lines, each line of the report as "[game] {...}";
    - Eden's log (rEden's too): the machine in its "Driver:", "Device:", "Host OS:" lines, each line of the report as
      "Debug.Emulated <Info> ...: {...}" (the debug string service, svc_debug_string.cpp);
    - the report itself, report.jsonl, a JSON object a line, which names no machine: the console's reference.
-   A run begins at its note "edenprobe 0.9.0 (v0.9.0) starting" and ends at its summary. What is read of it: the
-   machine (system, GPU, the driver's VkDriverId, name and version), the emulator and its build, edenprobe's version and
-   mode, and each case's suite, name, tier, result, reason and detail.
+   A run begins at its note "Amberlith 1.0.0 (v1.0.0) starting" (an older one's, "edenprobe 0.9.0 (v0.9.0) starting")
+   and ends at its summary. What is read of it: the machine (system, GPU, the driver's VkDriverId, name and version),
+   the emulator and its build, the program's name, version and mode, and each case's suite, name, tier, result, reason
+   and detail.
    The detail of the cases of edenprobe's service, net and pad families, and the net family's notes, can name the
    player (an account's id and nickname, a network's addresses, a session); probe_cut leaves them out of the text before
    it is kept or read. The driver's names and version numbering are ScarletNX's ban table's (extension_bans.c) */
@@ -20,7 +21,7 @@
 #define PROBE_DETAIL 300     /* the bytes of a case's detail kept */
 #define PROBE_KEY    "probe" /* the reports' key (store.h's game) of a report that is a run of edenprobe */
 
-/* edenprobe's families, as its ui.c groups the suites (FAMILIES, edenprobe 86e1d11) */
+/* Amberlith's families, as its ui.c groups the suites (FAMILIES, Amberlith 1.0.0) */
 typedef enum {
     PROBE_JUDGE,
     PROBE_CPU,
@@ -34,14 +35,20 @@ typedef enum {
     PROBE_SERVICE,
     PROBE_NET,
     PROBE_GAME,
+    PROBE_NVN,
+    PROBE_LIBC,
+    PROBE_DEMO,
+    PROBE_MUSIC,
+    PROBE_PACE,
     PROBE_OTHER
 } ProbeFamily;
 ProbeFamily probe_family(const char* suite);
 /* the family's name: "judge", "graphics", ... "other" */
 const char* probe_family_name(ProbeFamily f);
 /* whether a case of suite keeps its detail: the families whose cases name nothing of the player (the judge, cpu,
-   graphics, fs, kernel, display, video, audio, game). service, net and pad lose it, and so does a suite edenprobe's
-   table does not have, as nothing says what it holds */
+   graphics, nvn, fs, kernel, display, video, audio, game, demo, music, pace). service, net, pad and libc (its system
+   and socket suites can name the machine and its network) lose it, and so does a suite Amberlith's table does not
+   have, as nothing says what it holds */
 int probe_keeps_detail(const char* suite);
 
 /* the ban table's name of a VkDriverId ("radv", "nvidia"), NULL for one it has none for; its label ("RADV", "NVIDIA's
@@ -81,7 +88,8 @@ typedef struct {
     char* emulator_version;   /* its build: "main 3e7ffeb", "Eden Development Build | master-abc"; NULL for none */
     char* commit;             /* ScarletNX's commit, NULL for none */
     double built;             /* the day that commit was made (UTC, seconds since the epoch), 0 for none */
-    char *version, *describe; /* edenprobe's: "0.9.0", "v0.9.0" */
+    char* program;            /* the name its starting note gives: "Amberlith", or "edenprobe" before 1.0.0 */
+    char *version, *describe; /* its version: "1.0.0", "v1.0.0" */
     char* words;  /* what ran, from its mode note: the families, then fatal, hang, notime, retry, stress, frames=N */
     char* system; /* the machine's system line; NULL for none */
     char* os;     /* probe_os's */
@@ -103,6 +111,9 @@ typedef struct {
     ProbeCase* cases;
     int ncases;
 } Probe;
+
+/* p's program as its starting note names it, "edenprobe" for a run kept before the name was */
+const char* probe_program(const Probe* p);
 
 /* the last whole run in the n bytes of text (else the last run begun), as probe_cut left it, into *p, with the
    machine its log names before the run begins (the last of each line). 1 for a run, 0 for none, -1 for report lines

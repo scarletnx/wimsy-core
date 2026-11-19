@@ -102,6 +102,7 @@ static int general(Rules* r, int* cap, int name, const Entry* e, int n) {
     g = &r->general[r->ngeneral++];
     memset(g, 0, sizeof *g);
     g->name = name;
+    g->program = probe_program(&g_rules[e[0].run].p);
     g->version = g_rules[e[0].run].p.version;
     g->words = g_rules[e[0].run].p.words;
     g->seen = nd;
@@ -275,6 +276,7 @@ static void candidates_on(Rules* r, int* cap, int name, const Entry* e, int n, i
         c = &r->candidates[r->ncandidates++];
         memset(c, 0, sizeof *c);
         c->name = name;
+        c->program = probe_program(&g_rules[e[0].run].p);
         c->version = g_rules[e[0].run].p.version;
         c->words = g_rules[e[0].run].p.words;
         c->driver_id = d;
@@ -401,6 +403,7 @@ static void regressions(Rules* r, int* cap, int name, const Entry* e, int n) {
             g = &r->regressions[r->nregressions++];
             memset(g, 0, sizeof *g);
             g->name = name;
+            g->program = probe_program(p);
             g->version = p->version;
             g->words = p->words;
             g->driver_id = p->driver_id;
@@ -511,7 +514,9 @@ char* rules_draft(const RuleCandidate* c, const char* suite, const char* name) {
     table_text(&b, name);
     buf_add(&b, "\" | Tracer");
     for (i = 0; i < c->nfailing; ++i) buf_printf(&b, "%s #%ld", i ? "," : "", c->failing[i]);
-    buf_add(&b, "; edenprobe ");
+    buf_add(&b, "; ");
+    table_text(&b, c->program);
+    buf_add(&b, " ");
     table_text(&b, c->version);
     buf_add(&b, " \"");
     table_text(&b, name);

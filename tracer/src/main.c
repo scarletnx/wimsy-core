@@ -44,6 +44,7 @@ sends the text and the attachments of a message that mentions it */
 
 static struct {
     const char *token, *url, *db, *site, *assets, *titles;
+    double min_free; /* bytes */
     u64 channels[LISTED], admins[LISTED];
     int nchannels, nadmins;
 } env;
@@ -104,7 +105,7 @@ static void read_env(void) {
             known |= !strncmp(*e, KNOWN[k], strlen(KNOWN[k])) && (*e)[strlen(KNOWN[k])] == '=';
         if (!known)
             stop("%s: no such setting (TRACER_TOKEN, _URL, _CHANNELS, _ADMINS, _DB, _SITE, _ASSETS, _TITLES, "
-                 "_ISSUES_REPO, _ISSUES_TOKEN, _ISSUES_EMOJI, _ISSUES_LABELS, _UPSTREAM_REPO)",
+                 "_ISSUES_REPO, _ISSUES_TOKEN, _ISSUES_EMOJI, _ISSUES_LABELS, _UPSTREAM_REPO, _MIN_FREE)",
                  *e);
     }
     env.token = setting("TRACER_TOKEN", NULL);
@@ -122,6 +123,14 @@ static void read_env(void) {
             stop("%s", why);
     }
     env.nadmins = ids("TRACER_ADMINS", env.admins);
+    { /* the MiB the site's file system keeps free */
+        const char* v = setting("TRACER_MIN_FREE", NULL);
+        char* end_of;
+        long mib = v ? strtol(v, &end_of, 10) : TR_MIN_FREE;
+        if (v && (*end_of || !isdigit((unsigned char)*v) || mib < 0 || mib > 1048576))
+            stop("TRACER_MIN_FREE=%s is not a whole number of MiB from 0 (no floor) to 1048576", v);
+        env.min_free = (double)mib * 1048576;
+    }
     n = strlen(env.url);
     while (n && env.url[n - 1] == '/') --n;
     env.url = rei_format("%.*s", (int)n, env.url);
@@ -425,6 +434,22 @@ int main(int argc, char** argv) {
     tracer.age = &age;
     tracer.message = message_got;
     tracer.content_intent = content_intent;
+    tracer.min_free = env.min_free;
+    { /* the disk the reports land on, said once */
+        char* why;
+        double now = tr_free_bytes(env.site, &why);
+        if (!env.min_free)
+            rei_log("disk: TRACER_MIN_FREE=0 keeps none of the site's file system free, so a report may fill it");
+        else if (now < 0)
+            rei_log("disk: the free space of the site's file system could not be read (%s): each report is refused "
+                    "until it can",
+                    why);
+        else
+            rei_log("disk: the site's file system has %.0f MiB free; a report that would leave less than %.0f MiB "
+                    "(TRACER_MIN_FREE) is refused%s",
+                    now / 1048576, env.min_free / 1048576, now < env.min_free ? ", as every one is now" : "");
+        free(why);
+    }
     { /* what a reply alone to a message with a log gets, said once at the start; asked again at each such reply */
         char* why;
         int sees = content_intent(NULL, &why);

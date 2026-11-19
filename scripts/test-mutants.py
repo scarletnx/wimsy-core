@@ -6,7 +6,8 @@ the runs of edenprobe (tracer/src/rules.c, tests run as test_tracer --rules: a t
 lets one more in, a condition left out), and which files a report keeps and what of them (tracer/src/files.c,
 report.c and issues.c, tests run as test_tracer --files: a zip's screenshots, a picture never read as a log, the
 paths outside a home cut, the limits said with their values; the worker's locale for a zip's names, by the whole
-suite). A mutant the tests pass is a rule nothing holds. Each runs in a copy of the tree in a temporary folder; the
+suite), and what a log holds of a run of Amberlith (tracer/src/probe.c, test_tracer --probe: its starting note, a
+worker's answer). A mutant the tests pass is a rule nothing holds. Each runs in a copy of the tree in a temporary folder; the
 checkout is never written.
 
     python3 scripts/test-mutants.py [--root DIR] [--cc CC]
@@ -266,6 +267,34 @@ FILES = (
     ),
 )
 
+# what a log holds of a run of Amberlith (tracer/src/probe.c, tests run as test_tracer --probe)
+PROBE = (
+    (
+        "Amberlith's starting note opens no run",
+        'probe.c',
+        'static const char* const PROGRAMS[] = {"Amberlith", "edenprobe"};',
+        'static const char* const PROGRAMS[] = {"edenprobe", "edenprobe"};',
+    ),
+    (
+        "a name that only begins like the program's opens a run",
+        'probe.c',
+        "if (!strncmp(t, PROGRAMS[i], strlen(PROGRAMS[i])) && t[strlen(PROGRAMS[i])] == ' ') return i;",
+        'if (!strncmp(t, PROGRAMS[i], strlen(PROGRAMS[i]))) return i;',
+    ),
+    (
+        "libc's cases keep their detail, which can name the machine and its network",
+        'probe.c',
+        ' && f != PROBE_LIBC && f != PROBE_OTHER;',
+        ' && f != PROBE_OTHER;',
+    ),
+    (
+        "a worker's answer names any program",
+        'probe.c',
+        '    if (program_named(jstr(o, "program")) < 0) {',
+        '    if (0 && program_named(jstr(o, "program")) < 0) {',
+    ),
+)
+
 # what only the whole suite holds: the worker, a process of its own shut in its folder (test_worker)
 WORKER = (
     (
@@ -280,6 +309,7 @@ WORKER = (
 GROUPS = (
     (tuple((what, 'rules.c', old, new) for what, old, new in RULES), ['--rules']),
     (FILES, ['--files']),
+    (PROBE, ['--probe']),
     (WORKER, []),
 )
 
