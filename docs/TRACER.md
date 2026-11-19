@@ -14,6 +14,7 @@
   * [Summarized and named again](#summarized-and-named-again)
 * [Commands](#commands)
 * [Issues](#issues)
+  * [Followed, and the sender told](#followed-and-the-sender-told)
 * [How old a build is](#how-old-a-build-is)
 * [What the runs say together](#what-the-runs-say-together)
 * [What it keeps of people](#what-it-keeps-of-people)
@@ -202,23 +203,63 @@ Each is a message that mentions Tracer, in a channel it answers in:
 | `@Tracer add 12`, and words; or a reply to one of report 12's messages | adds the message's files and words to report 12 | the one who sent it, the server's owner and administrators, `TRACER_ADMINS` |
 | a reply with no file, to a message with a log | a report of that message | anyone |
 | `@Tracer delete 12`, or `@Tracer delete` in a reply | deletes report 12 | the one who sent it, the server's owner and administrators, `TRACER_ADMINS` |
+| `@Tracer link 12 1234`, or `@Tracer link 1234` in a reply | links report 12 to issue or pull request 1234 of `TRACER_ISSUES_REPO` ([Issues](#issues)) | the server's owner and administrators, `TRACER_ADMINS` |
+| `@Tracer unlink 12`, or `@Tracer unlink` in a reply | takes report 12's link to an issue out | the same |
 
 ## Issues
 
 A report becomes a GitHub issue once a server's administrator approves it: with `TRACER_ISSUES_REPO`, the owner or an
 administrator of the server it was sent in (or one of `TRACER_ADMINS`) reacts to one of its messages (the one that sent
 it, an update, Tracer's answer) with the approval's emoji, `TRACER_ISSUES_EMOJI`, the check mark by default. Tracer
-opens the issue in that repository with what the site shows of the report: its facts and its first log's summary (home
-folders and the folders of paths outside them as `~`, addresses as `[ip]` and `[email]`, no dumps), each of a log's or
-a player's words in a code block, where GitHub links no `@name` and no `#number`, the report's page, and its
-screenshots, each the site's picture 320 pixels wide linked to it and named by its number in the report (a file's
-name is a player's words). GitHub's API takes no file for an issue: its image proxy fetches each picture from the site,
-so the site must answer it. The issue's number goes into the database, onto
-the report's page and its JSON, and into a short reply on Discord. A report is filed once: a second approval opens no
-other issue, and one GitHub refused (its status and message in the reply) is tried again by the next approval. Anyone
-else's reaction, and another emoji, are left as they are. GitHub is asked from the bot's own process, with a 30 s
-timeout; the worker that reads the files never holds this token either. The gateway asks for the reactions only when
-`TRACER_ISSUES_REPO` is set.
+opens the issue in that repository, titled `Tracer report 12: <its failure's signature> (<console>)`, with what the site
+shows of the failure: its facts (console, game version, build, system, GPU, driver, outcome, signature, what the runtime
+missed) and its first log's fatal and frames (home folders and the folders of paths outside them as `~`, addresses as
+`[ip]` and `[email]`, no dumps), each of a log's words in a code block, where GitHub links no `@name` and no `#number`,
+the report's page, and its screenshots, each the site's picture 320 pixels wide linked to it and named by its number in
+the report (a file's name is a player's words). GitHub's API takes no file for an issue: its image proxy fetches each
+picture from the site, so the site must answer it. An issue names no game, as the repository's issues never do: no
+title, no title ID (one in a value is written `<game>`), no player's note and no last lines (where a game's name may
+be), and a value that names a game's file (a dump's, an update's, a mod's: `.nsp`, `.xci`, `.3ds`, `.pchtxt`...) is cut
+whole, as the name before it may hold spaces; the report's page, which the issue links, has them all. The issue's number
+goes into the database, onto the report's page and its JSON, and into a short reply on Discord. A report is filed once:
+a second approval opens no other issue, and one GitHub refused (its status and message in the reply) is tried again by
+the next approval. Anyone else's reaction, and another emoji, are left as they are. GitHub is asked from the bot's own
+process, with a 30 s timeout; the worker that reads the files never holds this token either. The gateway asks for the
+reactions only when `TRACER_ISSUES_REPO` is set.
+
+A report also links to an issue or a pull request that exists, in the same repository: `@Tracer link 12 1234` (`#12`
+and `#1234` too), or a reply to one of its messages with `@Tracer link 1234`, from those who approve. Tracer asks
+GitHub for it (`GET repos/<repo>/issues/1234`, which answers pull requests too), keeps its number and page as an
+approval's, draws the report's page again and comments on the issue with the report's page, `Tracer report 12 is
+linked to this issue, by a server's administrator on Discord: <page>`, so each links to the other. A number GitHub has
+no issue for, and a comment GitHub refuses, are said with its status and message; the link stays without its
+comment. A report linked to another issue says which it replaced; `@Tracer unlink 12` takes the link out, the comment
+on GitHub staying. A report with an issue opens no other at an approval.
+
+A new report whose first log failed with a signature other reports have (the log summary's: where and how the run
+ended) names the newest five in its reply (`Same failure: #40 (issue #1234), #52`), on its page and in its JSON
+(`same_failure`), whatever their game; their pages name it too. An approval of a report whose game and signature a
+report linked to an issue has links it to that issue, with a comment on it that says so, and opens none: `Report #61
+has the failure of report #40, which is issue #1234: linked to it, and no other issue opened.`
+
+### Followed, and the sender told
+
+With `TRACER_ISSUES_TOKEN`, every 10 minutes Tracer asks GitHub (one GraphQL query for 50 issues at a time, from the
+bot's own process) how each report's issue or pull request stands, and the report's page and JSON say it
+(`issue_state`, `issue_reason`): open, closed and why (`COMPLETED`, `NOT_PLANNED`...), merged. A pull request linked
+that merged, or the one whose merge closed the issue as completed (a commit that closed it too), is the report's fix
+(`fix_pr`, `fix_commit`); then the newest nightly of `TRACER_UPSTREAM_REPO`'s owner is compared with that commit
+(`GET repos/<upstream>/compare/<fix>...<nightly's commit>`), and the first that has it is kept (`fix_nightly`). An
+issue reopened loses its fix.
+
+With `TRACER_NOTIFY=reply` or `ping`, once a report's fix is in a nightly, Tracer replies to the message that sent the
+report, once (`ping` pings its author, as a reply does; `reply` does not):
+
+    Report #74: fixed
+    Fixed by pull request #1479 (abc1234), in nightly 2026-11-10 (def5678). Try it, and send a new log if it still fails.
+
+A report whose fix is in a nightly, its sender told (or no one, with `TRACER_NOTIFY=off`), is asked no more. A report
+linked to another issue starts over. What GitHub refuses is said in the log, and asked again in the next round.
 
 ## How old a build is
 
@@ -290,7 +331,7 @@ Static files, drawn again where a report changes them, and all of them at each s
 | `index.html` | each game, its latest outcome, its reports' count; a search and a filter by outcome |
 | `all.html` | every report, the newest first |
 | `g/<key>.html` | a game's reports: `<key>` its title ID, or `n-` and its name's letters for a game known by name |
-| `r/<id>/` | a report: its facts, its screenshots (each shown small, and opened whole by a click), and each log with its summary, to read or download (a log sent in a `.zip` or a `.gz` is kept as its text and downloads as one: `logs.zip` as `logs.log`, `game.log.gz` as `game.log`); a run of edenprobe's has its counts and each case that did not pass |
+| `r/<id>/` | a report: its facts (its issue as GitHub said it last, and its fix; the other reports of its failure), its screenshots (each shown small, and opened whole by a click), and each log with its summary, to read or download (a log sent in a `.zip` or a `.gz` is kept as its text and downloads as one: `logs.zip` as `logs.log`, `game.log.gz` as `game.log`); a run of edenprobe's has its counts and each case that did not pass |
 | `probe/index.html` | the runs of Amberlith: the machines (an emulator, a driver and its version, a system), each case that fails somewhere with its results on each machine, each suite's, and each run |
 | `probe/c/<key>.html` | a case of Amberlith: `<key>` 16 hex digits of its suite and name; its results on each machine, what the rules say of it, and its newest 200 failures and skips with their detail |
 | `probe/d/<driver>.html` | a driver, by the ban table's name (`radv`, `nvidia`; `unknown` for the console's reports): its machines, the cases that fail on it, its ban candidates, its runs |
@@ -320,9 +361,10 @@ fill in; an empty value stops the service):
 | `TRACER_ASSETS` | `/usr/local/share/tracer` | where `style.css`, `site.js` and `tracer.svg` are |
 | `TRACER_TITLES` | none: no list | the games' names by title ID, made by `scripts/make-titles.py --out FILE`; without it a game its logs don't name keeps its title ID |
 | `TRACER_ISSUES_REPO` | none: no issue is filed | `OWNER/NAME`: the repository an approved report becomes an issue of; the start's log line says it, or that it is not set |
-| `TRACER_ISSUES_TOKEN` | none: needed with the repository | a fine-grained token of that repository alone, with Issues read and write and nothing else; never in the log |
+| `TRACER_ISSUES_TOKEN` | none: needed with the repository | a fine-grained token of that repository alone, with Issues read and write, Pull requests and Contents read (the issues followed, a fix compared with the nightlies) and nothing else; never in the log |
 | `TRACER_ISSUES_EMOJI` | the check mark (U+2705) | the approval's emoji: its character, or a server emoji's name |
 | `TRACER_ISSUES_LABELS` | none | `label,label`: the labels each issue gets |
+| `TRACER_NOTIFY` | `off` | `reply` or `ping`: a report's sender is told by a reply, which pings them with `ping`, once its fix is in a nightly ([Followed, and the sender told](#followed-and-the-sender-told)); needs `TRACER_ISSUES_REPO`; any other word stops it, naming the value |
 | `TRACER_MIN_FREE` | `1024` | the MiB the site's file system keeps free: a report whose files would go under it is refused ([above](#deleting-and-the-hourly-limit)); `0` for no floor; a value that is no whole number from 0 to 1048576 stops it, naming the value |
 | `TRACER_UPSTREAM_REPO` | `scarletnx/ScarletNX` | `OWNER/NAME`: the repository whose main a report's build is compared with, its owner's `nightly` the nightlies'; asked with `TRACER_ISSUES_TOKEN`, not at all without it |
 

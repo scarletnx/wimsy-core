@@ -79,6 +79,18 @@ temporary folder:
   site's disk kept free (a report and an update refused under `TRACER_MIN_FREE` before any download, with the MiB
   said, one that fits taken, a disk that cannot be read, no floor), the JSON with no Discord id, the channels it
   answers in (a list, `all`, none, and other words refused);
+- what an issue may hold of a report's text (a title ID as `<game>`, a value naming a game's file cut whole, an
+  extension alone and a commit kept);
+- a report linked to an issue that exists (`link`, `unlink`), through a fake GitHub: by an administrator only, in a
+  reply or by number, the comment that links back, a pull request, an issue that is none, a refused comment said, the
+  approval opening none for a linked report;
+- the issues followed (`TRACER_NOTIFY` and its refusals), through a fake GitHub: an issue and a pull request open,
+  then closed by a merged pull request whose commit no nightly has yet and merged with it in one (the sender told
+  once, pinged, by a reply to the report's message), the next nightly having the first, GitHub failing, a reopened
+  issue losing its fix, one fixed with no one told asked no more, a report linked to another issue forgetting the
+  first's;
+- two reports of one failure: each named in the other's reply, page and JSON, the second's approval linking it to the
+  first's issue with a comment and opening none, the first gone from the second's page with its message;
 - the issues an approval files, through a fake GitHub: an administrator's reaction files one, a second files none,
   anyone else's reaction or another emoji nothing, a refusal said and tried again, the settings and their refusals;
 - how old a report's build is, through a fake GitHub: behind main, the plurals, a commit asked once an hour, `-dirty`
@@ -119,10 +131,11 @@ temporary folder:
 `python3 scripts/test-mutants.py` then changes Tracer's code one way at a time in a copy of the tree, and expects its
 tests to fail on each: `tracer/src/rules.c` (a threshold one off, a comparison that lets one more in, a condition left
 out: 19 mutants, `test_tracer --rules`); what a report keeps of its files, in `files.c`, `report.c` and `issues.c` (a
-zip's screenshots, a picture never read as a log, the paths outside a home, the limits said with their values: 30
-mutants, `test_tracer --files`); what a log holds of a run, in `probe.c` (Amberlith's starting note, a name that only
+zip's screenshots, a picture never read as a log, the paths outside a home, the limits said with their values, what
+an issue may hold of the game: 33 mutants, `test_tracer --files`); what a log holds of a run, in `probe.c` (Amberlith's starting note, a name that only
 begins like it, libc's detail kept, a worker's answer naming another program: 4 mutants, `test_tracer --probe`); and
-the worker's locale for a zip's names, made before it shuts itself in (1 mutant, the whole suite). A mutant they pass,
+the worker's locale for a zip's names, made before it shuts itself in, who links a report to an issue, and when a
+report's sender is told its fix is out, and an approval of a failure an issue has (5 mutants, the whole suite). A mutant they pass,
 or one whose text its file no longer has once, fails it. About 30 s.
 
 `make -C tracer bench [RUNS=1000] [FOLDER=/tmp/tracer-bench]` (`tracer/tests/bench_probe.c`, built by `make test`,

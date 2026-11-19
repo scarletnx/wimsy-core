@@ -33,6 +33,7 @@
 #include "channels.h"
 #include "age.h"
 #include "files.h"
+#include "follow.h"
 #include "issues.h"
 #include "mcp.h"
 #include "message.h"
@@ -2763,6 +2764,42 @@ static TrReaction reaction(u64 user, u64 guild, u64 message, const char* emoji) 
     r.emoji = rei_strdup(emoji);
     return r;
 }
+/* what an issue may hold of a log's or a report's text: no title ID, no game's file */
+static void test_upstream_text(void) {
+    char* t;
+    t = tr_upstream_text("svcBreak in 0100A6301214E000 sdk+1470d8", 200);
+    SAME(t, "svcBreak in <game> sdk+1470d8");
+    free(t);
+    t = tr_upstream_text("at [0100a6301214e000][v0], then 0004000000055d00.", 200);
+    SAME(t, "at [<game>][v0], then <game>.");
+    free(t);
+    t = tr_upstream_text("commit 0123456789abcdef0123456789abcdef01234567 and a1b2c3d4e5f60718a", 200);
+    SAME(t, "commit 0123456789abcdef0123456789abcdef01234567 and a1b2c3d4e5f60718a"); /* not 16 digits */
+    free(t);
+    t = tr_upstream_text("could not open ~/Some Game [0100A6301214E000][v0].nsp, so it stopped", 200);
+    SAME(t, "<cut: it names a game's file>");
+    free(t);
+    t = tr_upstream_text("loading ~/mods/Patch.PCHTXT", 200);
+    SAME(t, "<cut: it names a game's file>");
+    free(t);
+    t = tr_upstream_text("an .nsp is a dump; libnsp.so, x.nspx and nsp stay\na line", 200);
+    SAME(t, "an .nsp is a dump; libnsp.so, x.nspx and nsp stay a line"); /* ".nsp" alone names no file */
+    free(t);
+    t = tr_upstream_text("0100A6301214E000", 5);
+    SAME(t, "<game");
+    free(t);
+    { /* the title: no "#", which GitHub would link to the repository's issue */
+        StReport r;
+        memset(&r, 0, sizeof r);
+        r.id = 12;
+        r.signature = "fatal see #1008 in 0100A6301214E000";
+        r.console = "Switch";
+        t = tr_issue_title(&r);
+        SAME(t, "Tracer report 12: fatal see  1008 in <game> (Switch)");
+        free(t);
+    }
+}
+
 static void test_issues(void) {
     TrIssues is;
     TrReaction r;
@@ -2844,14 +2881,21 @@ static void test_issues(void) {
     HAS(gh_body, "\"labels\":[\"game report\",\"needs triage\"]");
     HAS(gh_body, "approved on Discord by a server's administrator");
     { /* no "#" outside the code block, where GitHub would link an issue */
-        const char* fence = strstr(gh_body, "````text");
+        const char* fence = strstr(gh_body, "```text");
         CHECK(fence && !memchr(gh_body, '#', (size_t)(fence - gh_body)));
     }
     HAS(gh_body, "https://reports.example/r/");
-    HAS(gh_body, "````text"); /* a fence longer than the note's backticks: what it says is code, no @ or # link */
-    HAS(gh_body, "@everyone #12 ```ticks```");
+    HAS(gh_body, "```text"); /* what the log says is code: no @ or # link */
     HAS(gh_body, "svcBreak");
+    HAS(gh_body, "\"title\":\"Tracer report ");
     LACKS(gh_body, "140"); /* no Discord id */
+    /* no game: its name, its title ID, the player's note and the last lines are the report page's alone */
+    LACKS(gh_body, "Some Game");
+    LACKS(gh_body, "0100aaaabbbb0000");
+    LACKS(gh_body, "0100AAAABBBB0000");
+    LACKS(gh_body, "@everyone");
+    LACKS(gh_body, "Last lines");
+    LACKS(gh_body, "save.bin");
     CHECK(st_get(tracer.store, id, &rep, NULL, NULL) == 1 && rep.issue == 345);
     SAME(rep.issue_url, "https://github.com/o/r/issues/345");
     st_report_free(&rep);
@@ -2893,6 +2937,469 @@ static void test_issues(void) {
     tr_issues_free(&is);
     free(gh_body);
     gh_body = NULL;
+}
+
+/* GitHub for the links: issue 1234 open, pull request 77 closed, 5 none; a comment answered comment_status */
+static int comment_status = 201, link_asks;
+static char *comment_body, comment_url[256];
+static void fake_links(void* ctx, const char* method, const char* url, const char* body, const char* etag,
+                       RgAnswer* out) {
+    (void)ctx;
+    (void)etag;
+    memset(out, 0, sizeof *out);
+    ++link_asks;
+    if (!strcmp(method, "POST") && strstr(url, "/comments")) {
+        snprintf(comment_url, sizeof comment_url, "%s %s", method, url);
+        free(comment_body);
+        comment_body = rei_strdup(body ? body : "");
+        out->status = comment_status;
+        out->body = rei_strdup(comment_status == 201 ? "{\"id\":1}" : "{\"message\":\"Must have admin rights\"}");
+    } else if (!strcmp(url, "https://api.github.com/repos/o/r/issues/1234")) {
+        out->status = 200;
+        out->body = rei_strdup("{\"number\":1234,\"html_url\":\"https://github.com/o/r/issues/1234\","
+                               "\"state\":\"open\"}");
+    } else if (!strcmp(url, "https://api.github.com/repos/o/r/issues/77")) {
+        out->status = 200;
+        out->body = rei_strdup("{\"number\":77,\"html_url\":\"https://github.com/o/r/pull/77\",\"state\":"
+                               "\"closed\",\"pull_request\":{\"url\":\"x\"}}");
+    } else {
+        out->status = 404;
+        out->body = rei_strdup("{\"message\":\"Not Found\"}");
+    }
+}
+
+/* a report linked to an issue that exists, by an administrator: the link both ways (the database, the page, a comment
+   on the issue), a pull request, an issue that is none, a refused comment, unlinked; no one else links */
+static void test_links(void) {
+    TrIssues is;
+    TrMessage m;
+    StReport rep;
+    long id, n, issue;
+    char *t, *p, *rel;
+    /* the commands */
+    CHECK(tr_link("<@99> link 12 1234", &n, &issue) == TR_LINK && n == 12 && issue == 1234);
+    CHECK(tr_link("<@99> LINK #12 #1234", &n, &issue) == TR_LINK && n == 12 && issue == 1234);
+    CHECK(tr_link("<@99> link #1234", &n, &issue) == TR_LINK && n == 0 && issue == 1234);
+    CHECK(tr_link("<@99> unlink 12", &n, &issue) == TR_UNLINK && n == 12);
+    CHECK(tr_link("<@99> unlink", &n, &issue) == TR_UNLINK && n == 0);
+    CHECK(tr_link("<@99> link 12 1234 please", &n, &issue) == TR_REPORT);
+    CHECK(tr_link("<@99> link it", &n, &issue) == TR_REPORT && tr_link("<@99> linked 12", &n, &issue) == TR_REPORT);
+    CHECK(tr_link("<@99> unlink 12 x", &n, &issue) == TR_REPORT && tr_link("<@99> help", &n, &issue) == TR_REPORT);
+    /* no repository: said */
+    tracer.issues = NULL;
+    m = message(8200, 150, "<@99> link 1 1234");
+    t = answer_text(respond(&m));
+    HAS(t, "No repository is set for the issues (TRACER_ISSUES_REPO), so a report links to none.");
+    free(t);
+    tr_message_free(&m);
+    memset(&is, 0, sizeof is);
+    is.repo = "o/r";
+    is.emoji = "\xe2\x9c\x85";
+    is.fetch = fake_links;
+    tracer.issues = &is;
+    m = message(8201, 150, "<@99> it crashes");
+    attach(&m, "game.log", "https://cdn.discordapp.com/1/game.log", 10);
+    free(answer_text(respond(&m)));
+    tr_message_free(&m);
+    id = st_report_of(tracer.store, 8201);
+    CHECK(id > 0);
+    /* its sender, no administrator: refused, GitHub not asked */
+    link_asks = 0;
+    m = message(8202, 150, "");
+    free(m.content);
+    m.content = rei_format("<@99> link %ld 1234", id);
+    t = answer_text(respond(&m));
+    HAS(t, "Only the server's owner and administrators link a report to an issue");
+    free(t);
+    tr_message_free(&m);
+    CHECK(link_asks == 0);
+    /* an administrator, in a reply to the report: linked, a comment on the issue */
+    m = message(8203, 88, "<@99> link #1234");
+    m.roles[m.nroles++] = 5;
+    m.reply_to = 8201;
+    t = answer_text(respond(&m));
+    rel = rei_format("Report #%ld is linked to issue #1234 (open) now.", id);
+    HAS(t, rel);
+    free(rel);
+    free(t);
+    tr_message_free(&m);
+    SAME(comment_url, "POST https://api.github.com/repos/o/r/issues/1234/comments");
+    rel = rei_format("Tracer report %ld is linked to this issue, by a server's administrator on Discord: "
+                     "https://reports.example/r/%ld/",
+                     id, id);
+    HAS(comment_body, rel);
+    free(rel);
+    CHECK(st_get(tracer.store, id, &rep, NULL, NULL) == 1 && rep.issue == 1234);
+    SAME(rep.issue_url, "https://github.com/o/r/issues/1234");
+    st_report_free(&rep);
+    rel = rei_format("r/%ld/index.html", id);
+    p = page(rel);
+    HAS(p, "<dt>Issue</dt><dd><a href=\"https://github.com/o/r/issues/1234\">#1234</a></dd>");
+    free(p);
+    free(rel);
+    /* the same again: nothing asked */
+    link_asks = 0;
+    m = message(8204, 88, "");
+    free(m.content);
+    m.content = rei_format("<@99> link %ld 1234", id);
+    m.roles[m.nroles++] = 5;
+    t = answer_text(respond(&m));
+    HAS(t, "is linked to #1234 already.");
+    free(t);
+    tr_message_free(&m);
+    CHECK(link_asks == 0);
+    /* an issue that is none: said with GitHub's answer, the link as it was */
+    m = message(8205, 88, "");
+    free(m.content);
+    m.content = rei_format("<@99> link %ld 5", id);
+    m.roles[m.nroles++] = 5;
+    t = answer_text(respond(&m));
+    HAS(t, "was not linked to #5: GitHub answered 404 to GET repos/o/r/issues/5: Not Found");
+    free(t);
+    tr_message_free(&m);
+    /* a pull request, its comment refused: linked all the same, the refusal said */
+    comment_status = 403;
+    m = message(8206, 88, "");
+    free(m.content);
+    m.content = rei_format("<@99> link %ld 77", id);
+    m.roles[m.nroles++] = 5;
+    t = answer_text(respond(&m));
+    rel = rei_format("Report #%ld is linked to pull request #77 (closed) now, in place of #1234. Its comment that "
+                     "links back to the report was refused: GitHub answered 403 to POST repos/o/r/issues/77/comments: "
+                     "Must have admin rights",
+                     id);
+    HAS(t, rel);
+    free(rel);
+    free(t);
+    tr_message_free(&m);
+    comment_status = 201;
+    CHECK(st_get(tracer.store, id, &rep, NULL, NULL) == 1 && rep.issue == 77);
+    st_report_free(&rep);
+    /* the approval opens none for a linked report */
+    {
+        TrReaction r = reaction(88, 33, 8201, "\xe2\x9c\x85");
+        r.roles[r.nroles++] = 5;
+        link_asks = 0;
+        CHECK(!tr_approved(&tracer, &r) && link_asks == 0);
+        tr_reaction_free(&r);
+    }
+    /* unlinked: none, and unlinked again said so */
+    m = message(8207, 88, "");
+    free(m.content);
+    m.content = rei_format("<@99> unlink %ld", id);
+    m.roles[m.nroles++] = 5;
+    t = answer_text(respond(&m));
+    HAS(t, "is linked to no issue now: it was #77, whose comment that links to the report stays.");
+    free(t);
+    tr_message_free(&m);
+    m = message(8208, 88, "<@99> unlink");
+    m.roles[m.nroles++] = 5;
+    m.reply_to = 8201;
+    t = answer_text(respond(&m));
+    HAS(t, "is linked to no issue.");
+    free(t);
+    tr_message_free(&m);
+    CHECK(st_get(tracer.store, id, &rep, NULL, NULL) == 1 && rep.issue == 0 && !rep.issue_url);
+    st_report_free(&rep);
+    /* no report named, none replied to */
+    m = message(8209, 88, "<@99> link 1234");
+    m.roles[m.nroles++] = 5;
+    t = answer_text(respond(&m));
+    HAS(t, "Which report? `@Tracer link 12 1234` links report 12 to issue 1234");
+    free(t);
+    tr_message_free(&m);
+    CHECK(tr_forget(&tracer, 8201));
+    tracer.issues = NULL;
+    free(comment_body);
+    comment_body = NULL;
+}
+
+/* ---- the reports of one failure ---- */
+/* two reports of one failure: each named in the other's reply, page and JSON; the second's approval links it to the
+   first's issue, no new one opened; the first gone from the second's page with its message */
+static void test_same_failure(void) {
+    TrIssues is;
+    TrMessage m;
+    TrReaction r;
+    StReport rep;
+    long first, second;
+    char *t, *p, *rel, *want;
+    memset(&is, 0, sizeof is);
+    is.repo = "o/r";
+    is.emoji = "\xe2\x9c\x85";
+    is.fetch = fake_links;
+    tracer.issues = &is;
+    m = message(8400, 170, "<@99> it stops");
+    attach(&m, "game.log", "https://cdn.discordapp.com/1/game.log", 10);
+    free(answer_text(respond(&m)));
+    tr_message_free(&m);
+    first = st_by_message(tracer.store, 8400);
+    CHECK(!st_set_issue(tracer.store, first, 1234, "https://github.com/o/r/issues/1234"));
+    m = message(8401, 171, "<@99> it stops for me too");
+    attach(&m, "game.log", "https://cdn.discordapp.com/1/game.log", 10);
+    t = answer_text(respond(&m));
+    tr_message_free(&m);
+    second = st_by_message(tracer.store, 8401);
+    want = rei_format("#%ld (issue #1234)", first);
+    HAS(t, "Same failure");
+    HAS(t, want);
+    free(want);
+    free(t);
+    rel = rei_format("r/%ld/index.html", second);
+    p = page(rel);
+    want = rei_format("<dt>Same failure</dt><dd><a href=\"../%ld/\">#%ld</a> (issue #1234)", first, first);
+    HAS(p, want);
+    free(want);
+    free(p);
+    free(rel);
+    rel = rei_format("r/%ld/index.html", first); /* drawn again as the second came */
+    p = page(rel);
+    want = rei_format("<a href=\"../%ld/\">#%ld</a>", second, second);
+    HAS(p, want);
+    free(want);
+    free(p);
+    free(rel);
+    rel = rei_format("api/r/%ld.json", second);
+    p = page(rel);
+    want = rei_format("\"same_failure\":[{\"report\":%ld,\"issue\":1234}", first);
+    HAS(p, want);
+    free(want);
+    free(p);
+    free(rel);
+    /* the second approved: linked to the first's issue, which a comment tells, and no issue opened */
+    link_asks = 0;
+    r = reaction(88, 33, 8401, "\xe2\x9c\x85");
+    r.roles[r.nroles++] = 5;
+    t = answer_text(tr_approved(&tracer, &r));
+    tr_reaction_free(&r);
+    want = rei_format("Report #%ld has the failure of report #%ld, which is issue #1234: linked to it, and no other "
+                      "issue opened.",
+                      second, first);
+    HAS(t, want);
+    free(want);
+    free(t);
+    CHECK(link_asks == 1);
+    SAME(comment_url, "POST https://api.github.com/repos/o/r/issues/1234/comments");
+    want = rei_format("Tracer report %ld has this issue's failure (the same game, the same signature as report %ld)",
+                      second, first);
+    HAS(comment_body, want);
+    free(want);
+    CHECK(st_get(tracer.store, second, &rep, NULL, NULL) == 1 && rep.issue == 1234);
+    SAME(rep.issue_url, "https://github.com/o/r/issues/1234");
+    st_report_free(&rep);
+    /* the first gone: the second's page names it no more */
+    CHECK(tr_forget(&tracer, 8400));
+    rel = rei_format("r/%ld/index.html", second);
+    p = page(rel);
+    want = rei_format("<a href=\"../%ld/\">#%ld</a>", first, first);
+    LACKS(p, want);
+    free(want);
+    free(p);
+    free(rel);
+    CHECK(tr_forget(&tracer, 8401));
+    tracer.issues = NULL;
+    free(comment_body);
+    comment_body = NULL;
+}
+
+/* ---- the issues followed ---- */
+static char* follow_answer; /* GraphQL's answer, whole */
+static int follow_status = 200, follow_asks;
+static char follow_query[8192];
+static const char* compare_of[4][2]; /* a commit's first letters, and the compare's status for it */
+static void fake_follow(void* ctx, const char* method, const char* url, const char* body, const char* etag,
+                        RgAnswer* out) {
+    int i;
+    (void)ctx;
+    (void)etag;
+    memset(out, 0, sizeof *out);
+    ++follow_asks;
+    if (!strcmp(method, "POST") && !strcmp(url, "https://api.github.com/graphql")) {
+        snprintf(follow_query, sizeof follow_query, "%s", body ? body : "");
+        out->status = follow_status;
+        out->body = rei_strdup(follow_status == 200 ? follow_answer : "{\"message\":\"Server Error\"}");
+        return;
+    }
+    for (i = 0; i < 4 && compare_of[i][0]; ++i)
+        if (strstr(url, "/compare/") && strstr(url, compare_of[i][0])) {
+            out->status = 200;
+            out->body = rei_format("{\"status\":\"%s\"}", compare_of[i][1]);
+            return;
+        }
+    out->status = 404;
+    out->body = rei_strdup("{\"message\":\"Not Found\"}");
+}
+static int tells, told_ping;
+static char told_text[1024];
+static u64 told_to;
+static u64 fake_tell(void* ctx, u64 channel, u64 message, const cJSON* embed, int ping) {
+    (void)ctx;
+    (void)channel;
+    ++tells;
+    told_ping = ping;
+    told_to = message;
+    snprintf(told_text, sizeof told_text, "%s %s", jstr(embed, "title"), jstr(embed, "description"));
+    return 990000 + (u64)tells;
+}
+/* GraphQL's answer: issue 1234's node, pull request 77's, and the newest nightly's tag */
+static void follow_says(const char* issue, const char* pull, const char* tag) {
+    free(follow_answer);
+    follow_answer = rei_format("{\"data\":{\"repository\":{\"i1234\":%s,\"i77\":%s},\"nightly\":{\"latestRelease\":{"
+                               "\"tagName\":\"%s\"}}}}",
+                               issue, pull, tag);
+}
+#define FIX_A "f00d000000000000000000000000000000000000"
+#define FIX_B "beef000000000000000000000000000000000000"
+static void test_follow(void) {
+    TrIssues is;
+    TrAge a;
+    TrNotify n;
+    StReport r;
+    TrMessage m;
+    char *why, *p, *rel;
+    long first, second;
+    /* the setting */
+    CHECK(!tr_notify_of(NULL, 0, &n, &why) && n == TR_NOTIFY_OFF);
+    CHECK(!tr_notify_of("ping", 1, &n, &why) && n == TR_NOTIFY_PING);
+    CHECK(!tr_notify_of("reply", 1, &n, &why) && n == TR_NOTIFY_REPLY);
+    CHECK(tr_notify_of("loud", 1, &n, &why) == -1);
+    SAME(why, "TRACER_NOTIFY=loud is none of off, reply and ping");
+    free(why);
+    CHECK(tr_notify_of("ping", 0, &n, &why) == -1);
+    SAME(why, "TRACER_NOTIFY=ping needs TRACER_ISSUES_REPO: a report's fix is known by its issue");
+    free(why);
+    /* two reports: one linked to issue 1234, the other to pull request 77 */
+    memset(&is, 0, sizeof is);
+    is.repo = "o/r";
+    is.emoji = "\xe2\x9c\x85";
+    is.fetch = fake_follow;
+    memset(&a, 0, sizeof a);
+    snprintf(a.repo, sizeof a.repo, "o/r");
+    snprintf(a.owner, sizeof a.owner, "o");
+    snprintf(a.name, sizeof a.name, "r");
+    tracer.issues = &is;
+    tracer.age = &a;
+    tracer.notify = TR_NOTIFY_PING;
+    tracer.tell = fake_tell;
+    m = message(8300, 160, "<@99> first");
+    attach(&m, "game.log", "https://cdn.discordapp.com/1/game.log", 10);
+    free(answer_text(respond(&m)));
+    tr_message_free(&m);
+    m = message(8301, 161, "<@99> second");
+    attach(&m, "game.log", "https://cdn.discordapp.com/1/game.log", 10);
+    free(answer_text(respond(&m)));
+    tr_message_free(&m);
+    first = st_by_message(tracer.store, 8300);
+    second = st_by_message(tracer.store, 8301);
+    CHECK(!st_set_issue(tracer.store, first, 1234, "https://github.com/o/r/issues/1234"));
+    CHECK(!st_set_issue(tracer.store, second, 77, "https://github.com/o/r/pull/77"));
+    /* both open: kept, nobody told */
+    follow_says("{\"__typename\":\"Issue\",\"state\":\"OPEN\",\"stateReason\":null,\"timelineItems\":{\"nodes\":[]}}",
+                "{\"__typename\":\"PullRequest\",\"state\":\"OPEN\",\"merged\":false,\"mergeCommit\":null}",
+                "nightly-2026-11-17-aaaaaaa");
+    tells = 0;
+    CHECK(tr_follow(&tracer) == 2 && tells == 0);
+    CHECK(strstr(follow_query, "i1234:issueOrPullRequest(number:1234)") != NULL);
+    CHECK(strstr(follow_query, "i77:issueOrPullRequest(number:77)") != NULL);
+    CHECK(strstr(follow_query, "\"nightly\":\"o\"") != NULL);
+    CHECK(st_get(tracer.store, first, &r, NULL, NULL) == 1);
+    SAME(r.issue_state, "open");
+    CHECK(!r.fix_commit && !r.told);
+    st_report_free(&r);
+    CHECK(tr_follow(&tracer) == 0); /* nothing changed: nothing drawn again */
+    /* the issue closed by a pull request whose commit no nightly has yet; the pull request merged, in the nightly: its
+       sender told, pinged, once */
+    follow_says("{\"__typename\":\"Issue\",\"state\":\"CLOSED\",\"stateReason\":\"COMPLETED\",\"timelineItems\":{"
+                "\"nodes\":[{\"closer\":{\"__typename\":\"PullRequest\",\"number\":1479,\"merged\":true,"
+                "\"mergeCommit\":{\"oid\":\"" FIX_A "\"}}}]}}",
+                "{\"__typename\":\"PullRequest\",\"state\":\"MERGED\",\"merged\":true,\"mergeCommit\":{\"oid\":\"" FIX_B
+                "\"}}",
+                "nightly-2026-11-17-aaaaaaa");
+    compare_of[0][0] = "f00d0000";
+    compare_of[0][1] = "behind";
+    compare_of[1][0] = "beef0000";
+    compare_of[1][1] = "ahead";
+    compare_of[2][0] = NULL;
+    CHECK(tr_follow(&tracer) == 3 && tells == 1 && told_ping == 1 && told_to == 8301);
+    rel = rei_format("Report #%ld: fixed Fixed by pull request #77 (beef000), in nightly 2026-11-17 (aaaaaaa). Try "
+                     "it, and send a new log if it still fails.",
+                     second);
+    SAME(told_text, rel);
+    free(rel);
+    CHECK(st_get(tracer.store, first, &r, NULL, NULL) == 1);
+    SAME(r.issue_state, "closed");
+    SAME(r.issue_reason, "COMPLETED");
+    SAME(r.fix_commit, FIX_A);
+    CHECK(r.fix_pr == 1479 && !r.fix_nightly && !r.told);
+    st_report_free(&r);
+    CHECK(st_get(tracer.store, second, &r, NULL, NULL) == 1);
+    SAME(r.issue_state, "merged");
+    SAME(r.fix_nightly, "nightly-2026-11-17-aaaaaaa");
+    CHECK(r.fix_pr == 77 && r.told > 0);
+    st_report_free(&r);
+    CHECK(st_report_of(tracer.store, 990001) == second); /* the reply leads to the report too */
+    rel = rei_format("r/%ld/index.html", first);
+    p = page(rel);
+    HAS(p,
+        ">#1234</a> closed (COMPLETED)<br>fixed by <a href=\"https://github.com/o/r/pull/1479\">pull request #1479</a>, "
+        "<a href=\"https://github.com/o/r/commit/" FIX_A "\">f00d000</a>, in no nightly yet</dd>");
+    free(p);
+    free(rel);
+    rel = rei_format("api/r/%ld.json", second);
+    p = page(rel);
+    HAS(p, "\"issue_state\":\"merged\"");
+    HAS(p, "\"fix_pr\":77");
+    HAS(p, "\"fix_nightly\":\"nightly-2026-11-17-aaaaaaa\"");
+    free(p);
+    free(rel);
+    /* the next nightly has the first fix: its sender told, the second not again */
+    follow_says("{\"__typename\":\"Issue\",\"state\":\"CLOSED\",\"stateReason\":\"COMPLETED\",\"timelineItems\":{"
+                "\"nodes\":[{\"closer\":{\"__typename\":\"PullRequest\",\"number\":1479,\"merged\":true,"
+                "\"mergeCommit\":{\"oid\":\"" FIX_A "\"}}}]}}",
+                "{\"__typename\":\"PullRequest\",\"state\":\"MERGED\",\"merged\":true,\"mergeCommit\":{\"oid\":\"" FIX_B
+                "\"}}",
+                "nightly-2026-11-18-bbbbbbb");
+    compare_of[0][1] = "identical";
+    CHECK(tr_follow(&tracer) == 2 && tells == 2 && told_to == 8300);
+    CHECK(strstr(follow_query, "i1234:") != NULL);
+    CHECK(!strstr(follow_query, "i77:")); /* fixed in a nightly and told: no longer asked */
+    CHECK(strstr(told_text, "Fixed by pull request #1479 (f00d000), in nightly 2026-11-18 (bbbbbbb)") != NULL);
+    CHECK(tr_follow(&tracer) == 0 && tells == 2);
+    /* GitHub failing: said, nothing changed */
+    follow_status = 502;
+    st_set_told(tracer.store, first, 0);
+    CHECK(tr_follow(&tracer) == -1 && tells == 2);
+    follow_status = 200;
+    /* a report linked to another issue forgets what was followed of the first */
+    tracer.notify = TR_NOTIFY_OFF;
+    CHECK(!st_set_issue(tracer.store, second, 1234, "https://github.com/o/r/issues/1234"));
+    CHECK(st_get(tracer.store, second, &r, NULL, NULL) == 1 && !r.issue_state && !r.fix_nightly && !r.told);
+    st_report_free(&r);
+    /* reopened: no fix; the first report, fixed in a nightly, is no longer asked */
+    follow_says("{\"__typename\":\"Issue\",\"state\":\"OPEN\",\"stateReason\":\"REOPENED\",\"timelineItems\":{"
+                "\"nodes\":[]}}",
+                "null", "nightly-2026-11-18-bbbbbbb");
+    CHECK(tr_follow(&tracer) == 1 && tells == 2);
+    CHECK(st_get(tracer.store, second, &r, NULL, NULL) == 1);
+    SAME(r.issue_state, "open");
+    SAME(r.issue_reason, "REOPENED");
+    CHECK(!r.fix_commit && !r.fix_nightly && !r.fix_pr);
+    st_report_free(&r);
+    /* fixed again, in a nightly, with no one told (TRACER_NOTIFY=off): kept, and asked no more */
+    follow_says("{\"__typename\":\"Issue\",\"state\":\"CLOSED\",\"stateReason\":\"COMPLETED\",\"timelineItems\":{"
+                "\"nodes\":[{\"closer\":{\"__typename\":\"Commit\",\"oid\":\"" FIX_A "\"}}]}}",
+                "null", "nightly-2026-11-18-bbbbbbb");
+    CHECK(tr_follow(&tracer) == 1 && tells == 2);
+    CHECK(st_get(tracer.store, second, &r, NULL, NULL) == 1 && !r.fix_pr && r.fix_nightly && !r.told);
+    st_report_free(&r);
+    follow_asks = 0;
+    CHECK(tr_follow(&tracer) == 0 && follow_asks == 0);
+    CHECK(tr_forget(&tracer, 8300) && tr_forget(&tracer, 8301));
+    tracer.issues = NULL;
+    tracer.age = NULL;
+    tracer.tell = NULL;
+    free(follow_answer);
+    follow_answer = NULL;
 }
 
 /* ---- the build's age ---- */
@@ -4525,6 +5032,7 @@ static void every_test(const char* self_path) {
     test_probe_parts();
     test_probe_lines();
     test_probe_zip();
+    test_upstream_text();
     test_rules();
     if (tracer.store) {
         test_reports();
@@ -4543,6 +5051,9 @@ static void every_test(const char* self_path) {
         test_worker(self_path);
         test_untraceable(self_path);
         test_issues();
+        test_links();
+        test_follow();
+        test_same_failure();
         test_age();
         test_archive_download();
         test_zip_reports();
@@ -4588,6 +5099,7 @@ int main(int argc, char** argv) {
         test_unpack();
         test_zip_images();
         test_public_log();
+        test_upstream_text();
         if (tracer.store) test_zip_reports();
     } else
         every_test(argv[0]);

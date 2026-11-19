@@ -49,11 +49,15 @@ u64 tr_deleted(const char* json, size_t len);
 /* READY's user id, and its name (owned, or NULL) when name is given */
 u64 tr_ready(const char* json, size_t len, char** name);
 
-typedef enum { TR_REPORT, TR_HELP, TR_DELETE, TR_ADD } TrVerb;
+typedef enum { TR_REPORT, TR_HELP, TR_DELETE, TR_ADD, TR_LINK, TR_UNLINK } TrVerb;
 /* what content asks of the bot, its mentions left out: "help"; "delete 12" (or "delete #12", *number 12), or
    "delete" alone (*number 0: the report the message replies to); "add 12" (or "add #12") and a note after it; else a
    report. *note (owned) is the rest of the text on one line, cut to TR_NOTE bytes; "" for none */
 TrVerb tr_command(const char* content, char** note, long* number);
+/* whether content links a report to a GitHub issue: "link 12 1234" (*report 12, *issue 1234; "#12", "#1234" too), or
+   "link 1234" (*report 0: the report the message replies to); "unlink 12", or "unlink" alone (*report 0). TR_LINK,
+   TR_UNLINK, or TR_REPORT for any other text (tr_command's to read) */
+TrVerb tr_link(const char* content, long* report, long* issue);
 /* content's words, its mentions left out, on one line and cut to TR_NOTE bytes, as a report's note; owned */
 char* tr_words(const char* content);
 #endif

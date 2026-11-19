@@ -119,8 +119,9 @@ A channel id for `REIWIMSY_CHANNELS` and the card channels: Developer Mode, righ
    (the site's address), `TRACER_CHANNELS` (channels' ids, or `all` for every channel it can read; without it no
    report is taken), and the other keys
    [Tracer](./TRACER.md#settings) lists. For the issues, `TRACER_ISSUES_REPO` and `TRACER_ISSUES_TOKEN`: on GitHub,
-   Settings, Developer settings, Fine-grained tokens, the repository alone, the permission Issues: Read and write,
-   nothing else. For the games' names, `TRACER_TITLES`, a file `python3 scripts/make-titles.py --out FILE` makes in
+   Settings, Developer settings, Fine-grained tokens, the repository alone, the permissions Issues: Read and write,
+   Pull requests: Read and Contents: Read (the issues followed, a fix compared with the nightlies), nothing else; and
+   `TRACER_NOTIFY=ping` for a report's sender to be told when its fix is out. For the games' names, `TRACER_TITLES`, a file `python3 scripts/make-titles.py --out FILE` makes in
    the jail.
 5. On, and started:
 

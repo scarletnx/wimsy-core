@@ -27,6 +27,9 @@ typedef struct {
     char* probe_why; /* owned: why a first log with lines of edenprobe holds no run of it, NULL for none */
 } Taken;
 
+/* how a report's sender is told its fix is in a nightly (follow.h): not at all, a reply, a reply that pings them */
+typedef enum { TR_NOTIFY_OFF, TR_NOTIFY_REPLY, TR_NOTIFY_PING } TrNotify;
+
 typedef struct Tracer Tracer;
 struct Tracer {
     Store* store;
@@ -62,6 +65,11 @@ struct Tracer {
     /* the bytes free on the file system of path (statvfs's for an unprivileged user), -1 with why (owned) when it
        cannot be read; NULL for tr_free_bytes */
     double (*free_bytes)(const char* path, char** why);
+    TrNotify notify; /* TRACER_NOTIFY's */
+    /* embed posted as a reply to message of channel, which pings its author when ping is 1: the reply's id, 0 when
+       Discord took none (said in the log); NULL for no Discord */
+    u64 (*tell)(void* ctx, u64 channel, u64 message, const cJSON* embed, int ping);
+    void* tell_ctx;
 };
 
 /* the bytes free on the file system of path for an unprivileged user (statvfs), or -1 with why (owned) */

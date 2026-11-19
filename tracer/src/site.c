@@ -621,6 +621,15 @@ char* site_report_html(const StReport* r, const StFile* files, int nfiles, const
     field(&b, "Game version", r->version);
     field(&b, "Signature", r->signature);
     field(&b, "Missed", r->missed);
+    if (r->nsame) { /* the newest other reports of this failure, any game's */
+        int k;
+        buf_add(&b, "<dt>Same failure</dt><dd>");
+        for (k = 0; k < r->nsame; ++k) {
+            buf_printf(&b, "%s<a href=\"../%ld/\">#%ld</a>", k ? ", " : "", r->same[k], r->same[k]);
+            if (r->same_issue[k] > 0) buf_printf(&b, " (issue #%ld)", r->same_issue[k]);
+        }
+        buf_add(&b, "</dd>\n");
+    }
     if (hex(r->commit) || (r->build && *r->build) || r->age) { /* the build, its commit linked, and how old it was */
         buf_add(&b, "<dt>Build</dt><dd>");
         esc(&b, r->build ? r->build : r->commit ? r->commit : "");
@@ -637,7 +646,40 @@ char* site_report_html(const StReport* r, const StFile* files, int nfiles, const
     if (r->issue > 0 && r->issue_url && !strncmp(r->issue_url, "https://github.com/", 19)) {
         buf_add(&b, "<dt>Issue</dt><dd><a href=\"");
         esc(&b, r->issue_url);
-        buf_printf(&b, "\">#%ld</a></dd>\n", r->issue);
+        buf_printf(&b, "\">#%ld</a>", r->issue);
+        if (r->issue_state) { /* as GitHub said it last (follow.h) */
+            buf_add(&b, " ");
+            esc(&b, r->issue_state);
+            if (r->issue_reason) {
+                buf_add(&b, " (");
+                esc(&b, r->issue_reason);
+                buf_add(&b, ")");
+            }
+        }
+        if (r->fix_commit && hex(r->fix_commit)) { /* in the issue's repository: https://github.com/OWNER/NAME */
+            const char* at = r->issue_url + 19;
+            int base = 19, slashes = 0;
+            char* repo;
+            for (; *at && slashes < 2; ++at, ++base) slashes += *at == '/';
+            if (slashes == 2) --base;
+            repo = rei_format("%.*s", base, r->issue_url);
+            buf_add(&b, "<br>fixed by ");
+            if (r->fix_pr) {
+                buf_add(&b, "<a href=\"");
+                esc(&b, repo);
+                buf_printf(&b, "/pull/%ld\">pull request #%ld</a>, ", r->fix_pr, r->fix_pr);
+            }
+            buf_add(&b, "<a href=\"");
+            esc(&b, repo);
+            buf_printf(&b, "/commit/%s\">%.7s</a>", r->fix_commit, r->fix_commit);
+            free(repo);
+            if (r->fix_nightly) {
+                buf_add(&b, ", in ");
+                esc(&b, r->fix_nightly);
+            } else
+                buf_add(&b, ", in no nightly yet");
+        }
+        buf_add(&b, "</dd>\n");
     }
     buf_add(&b, "</dl>\n");
     if (probe) probe_section(&b, probe);
@@ -713,6 +755,21 @@ static cJSON* report_object(const StReport* r) {
     if (r->issue > 0 && r->issue_url) {
         cJSON_AddNumberToObject(o, "issue", (double)r->issue);
         jset(o, "issue_url", r->issue_url);
+        jset(o, "issue_state", r->issue_state);
+        jset(o, "issue_reason", r->issue_reason);
+        if (r->fix_pr) cJSON_AddNumberToObject(o, "fix_pr", (double)r->fix_pr);
+        jset(o, "fix_commit", r->fix_commit);
+        jset(o, "fix_nightly", r->fix_nightly);
+    }
+    if (r->nsame) {
+        cJSON* same = cJSON_AddArrayToObject(o, "same_failure");
+        int k;
+        for (k = 0; k < r->nsame; ++k) {
+            cJSON* each = cJSON_CreateObject();
+            cJSON_AddNumberToObject(each, "report", (double)r->same[k]);
+            if (r->same_issue[k] > 0) cJSON_AddNumberToObject(each, "issue", (double)r->same_issue[k]);
+            cJSON_AddItemToArray(same, each);
+        }
     }
     return o;
 }
@@ -877,7 +934,7 @@ static int write_page(const char* root, const char* rel, char* html) {
     return done;
 }
 
-static int report_page(Store* s, const char* root, long id) {
+int site_report_page(Store* s, const char* root, long id) {
     StReport r;
     StFile* files;
     StNote* notes = NULL;
@@ -887,6 +944,8 @@ static int report_page(Store* s, const char* root, long id) {
         char* rel = rei_format("r/%ld/index.html", id);
         st_notes(s, id, &notes, &nnotes);
         if (!strcmp(r.key, PROBE_KEY)) run = st_probe_get(s, id, &probe, 1) == 1;
+        if (r.signature && (r.nsame = st_same_failure(s, r.signature, NULL, id, r.same, r.same_issue, TR_SAME)) < 0)
+            r.nsame = 0;
         done = write_page(root, rel, site_report_html(&r, files, nfiles, notes, nnotes, run ? &probe : NULL));
         free(rel);
         rel = rei_format("api/r/%ld.json", id);
@@ -939,7 +998,7 @@ static int lists(Store* s, const char* root, StGame* games, int ngames) {
 int site_update(Store* s, const char* root, long id, const char* key) {
     StGame* games;
     int n, done = 0, probe = key && !strcmp(key, PROBE_KEY);
-    if (id) done |= report_page(s, root, id);
+    if (id) done |= site_report_page(s, root, id);
     if (st_games(s, &games, &n)) return -1;
     if (!probe) done |= game_page(s, root, key, games, n);
     done |= lists(s, root, games, n);
@@ -985,7 +1044,7 @@ int site_rebuild(Store* s, const char* root) {
         st_games_free(games, ngames);
         return -1;
     }
-    for (i = 0; i < n; ++i) done |= report_page(s, root, all[i].id);
+    for (i = 0; i < n; ++i) done |= site_report_page(s, root, all[i].id);
     for (i = 0; i < ngames; ++i) done |= game_page(s, root, games[i].key, games, ngames);
     done |= lists(s, root, games, ngames);
     done |= site_probe(s, root);
