@@ -132,6 +132,11 @@ static void refs(void) {
     CHECK(rei_references("issue 12, PR 305, pull request 7, pull 8 and pr 2 broke", n) == 0);
     CHECK(rei_references("#1234567 #123456 <https://x/#5> #7.", n) == 2 && n[0] == 123456 && n[1] == 7);
     CHECK(rei_references("\xc3\xa9#4 #4", n) == 1 && n[0] == 4); /* after a letter of UTF-8: in a word */
+    /* Tracer's numbers are its reports', never an issue: "report #74", "Tracer #12", "reports #3 and #4" (the second
+       stands alone, an issue) */
+    CHECK(rei_references("Tracer report #74 crashes, as tracer #12 and Reports  #3 did", n) == 0);
+    c = rei_references("reports #3 and #4; the report: #5; reported #6", n);
+    CHECK(c == 3 && n[0] == 4 && n[1] == 5 && n[2] == 6);
     CHECK(rei_command("!nightly", &number) == REI_NIGHTLY);
     CHECK(rei_command("  !Release ", &number) == REI_RELEASE);
     CHECK(rei_command("!release #355", &number) == REI_RELEASE_PR && number == 355);
@@ -1408,6 +1413,16 @@ static void event_tests(void) {
     SAME(m.content, "he said \"#160\" \\ caf\xc3\xa9 \xf0\x9f\x98\x80\n");
     ev_message_free(&m);
     CHECK(!m.content && !m.id);
+    /* whom it mentions: the users its mentions list, not a name in its text nor a role */
+    {
+        static const char mention[] =
+            "{\"id\":\"7\",\"channel_id\":\"8\",\"content\":\"<@200> delete #12 <@&300>\",\"author\":{\"id\":\"1\"},"
+            "\"mentions\":[{\"id\":\"200\",\"username\":\"Tracer\",\"bot\":true}],\"mention_roles\":[\"300\"]}";
+        CHECK(ev_mentions(mention, strlen(mention), 200));
+        CHECK(!ev_mentions(mention, strlen(mention), 300) && !ev_mentions(mention, strlen(mention), 1));
+        CHECK(!ev_mentions(mention, strlen(mention), 0));
+        CHECK(!ev_mentions("{\"id\":\"7\",\"content\":\"<@200>\"}", 29, 200)); /* no list: none */
+    }
     /* a reply: its own author counts, not the one it answers */
     CHECK(message(
         "{\"id\":\"2\",\"channel_id\":\"3\",\"content\":\"#5\",\"author\":{\"id\":\"1\"},\"referenced_message\":"

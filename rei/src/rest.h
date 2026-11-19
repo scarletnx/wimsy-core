@@ -16,9 +16,11 @@ typedef struct {
     void* ctx;
     void (*sleep)(double seconds); /* the wait a 429 asks for */
     u64 self;                      /* the bot's own user id, once dc_self found it */
+    const char* name;              /* the bot its log lines name: REI_NAME of the file that called dc_init */
 } Dc;
 
-void dc_init(Dc* d, RgFetch fetch, void* ctx);
+void dc_init_as(Dc* d, const char* name, RgFetch fetch, void* ctx);
+#define dc_init(d, fetch, ctx) dc_init_as(d, REI_NAME, fetch, ctx)
 /* the bot's user id, asked once; 0 when Discord did not say */
 u64 dc_self(Dc* d);
 /* the application's emojis (its bot's id is the application's), Discord's list of them; owned, or NULL, said */

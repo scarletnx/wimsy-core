@@ -36,6 +36,15 @@ void ev_message_free(EvMessage* m) {
     memset(m, 0, sizeof *m);
 }
 
+int ev_mentions(const char* json, size_t len, u64 user) {
+    cJSON* d = user ? cJSON_ParseWithLength(json, len) : NULL;
+    const cJSON* each;
+    int yes = 0;
+    cJSON_ArrayForEach(each, cJSON_GetObjectItemCaseSensitive(d, "mentions")) yes |= id_of(each, "id") == user;
+    cJSON_Delete(d);
+    return yes;
+}
+
 char* ev_ready_user(const char* json, size_t len) {
     cJSON* d = cJSON_ParseWithLength(json, len);
     const cJSON* name = jpath(d, "user.username");

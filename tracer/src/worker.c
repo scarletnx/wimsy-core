@@ -34,6 +34,19 @@
 #define NAME_MAX_KEPT 200       /* the bytes of a file's name kept from an answer */
 #define SKIPPED_MAX   4000      /* the bytes of the lines of the files not taken */
 
+/* whether a variable, "NAME=value", is a bot's setting or names a secret: never a worker's */
+static int secret(const char* variable) {
+    static const char* const prefixes[] = {"TRACER_", "REIWIMSY_", "GITHUB_"};
+    static const char* const words[] = {"TOKEN", "KEY", "SECRET"};
+    size_t n = strcspn(variable, "="), k, at;
+    for (k = 0; k < sizeof prefixes / sizeof *prefixes; ++k)
+        if (!strncmp(variable, prefixes[k], strlen(prefixes[k]))) return 1;
+    for (k = 0; k < sizeof words / sizeof *words; ++k)
+        for (at = 0; at + strlen(words[k]) <= n; ++at)
+            if (!strncmp(variable + at, words[k], strlen(words[k]))) return 1;
+    return 0;
+}
+
 char** wk_env(char* const* environ_now) {
     size_t n = 0, kept = 0, i;
     char** env;
@@ -44,7 +57,7 @@ char** wk_env(char* const* environ_now) {
         abort();
     }
     for (i = 0; i < n; ++i)
-        if (strncmp(environ_now[i], "TRACER_", 7)) env[kept++] = environ_now[i];
+        if (!secret(environ_now[i])) env[kept++] = environ_now[i];
     env[kept] = NULL;
     return env;
 }

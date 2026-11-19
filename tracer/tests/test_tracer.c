@@ -2517,10 +2517,22 @@ static void test_worker(const char* self_path) {
     char *t, *p, *why, **env;
     Taken k;
     long id;
-    char* const fake_environ[] = {"HOME=/home/x", "TRACER_TOKEN=secret", "TRACER_URL=https://a", "PATH=/bin", NULL};
-    /* its environment: no setting or token of the bot's */
+    char* const fake_environ[] = {"HOME=/home/x",
+                                  "TRACER_TOKEN=secret",
+                                  "TRACER_URL=https://a",
+                                  "REIWIMSY_TOKEN=rei",
+                                  "REIWIMSY_STATE=/var/db/reiwimsy/state.json",
+                                  "GITHUB_TOKEN=gh",
+                                  "PATH=/bin",
+                                  "AWS_SECRET_ACCESS_KEY=k",
+                                  "SSH_AUTH_SOCK_KEYS=x",
+                                  "LANG=C.UTF-8",
+                                  "TOKENLESS=y",
+                                  NULL};
+    /* its environment: no setting or token of either bot the program may run, nothing that names a secret */
     env = wk_env(fake_environ);
-    CHECK(env[0] && !strcmp(env[0], "HOME=/home/x") && env[1] && !strcmp(env[1], "PATH=/bin") && !env[2]);
+    CHECK(env[0] && !strcmp(env[0], "HOME=/home/x") && env[1] && !strcmp(env[1], "PATH=/bin") && env[2] &&
+          !strcmp(env[2], "LANG=C.UTF-8") && !env[3]);
     free(env);
     worker_argv[0] = (char*)self_path;
     worker_argv[2] = NULL;

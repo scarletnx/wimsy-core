@@ -7,13 +7,15 @@
 * [Replies](#replies)
 * [Cards](#cards)
   * [Cards left saying "Building"](#cards-left-saying-building)
+* [Tracer beside it](#tracer-beside-it)
 * [Settings](#settings)
 * [What it keeps](#what-it-keeps)
 * [The service](#the-service)
 * [When it stops](#when-it-stops)
 
 `rei/`, in C99 with [Concord](https://github.com/Cogmasters/concord) 3.0.1, libcurl and
-[cJSON](https://github.com/DaveGamble/cJSON) 1.7.19 (`rei/third_party/cjson`): ScarletNX's Discord bot. It answers a
+[cJSON](https://github.com/DaveGamble/cJSON) 1.7.19 (`rei/third_party/cjson`), and Tracer's code beside it:
+ScarletNX's Discord bot. It answers a
 message that names an issue or a pull request with a link to each, and keeps a card on Discord for each open pull
 request, each open issue and each push to main, edited as GitHub changes. Installing it:
 [Install](./INSTALL.md#reiwimsy).
@@ -21,10 +23,11 @@ request, each open issue and each push to main, edited as GitHub changes. Instal
 ## Replies
 
 A message that names `#160` (`issue #160`, `PR #160` too; a bare number is talk) gets one reply: each linked, with its
-title, issue or PR, its state and labels, in GitHub's colours; 5 numbers a message at most. `!nightly` links the newest
-nightly and its downloads, `!release` the newest version (the nightly while there is none), `!release #355` a pull
-request's builds. With a GitHub token it edits a reply of the last week when what it links changes, looking every 10
-minutes.
+title, issue or PR, its state and labels, in GitHub's colours; 5 numbers a message at most. A number after `report`,
+`reports` or `Tracer` is a Tracer report's (`Tracer report #74`, `Tracer #12`), not an issue, and gets none. `!nightly`
+links the newest nightly and its downloads, `!release` the newest version (the nightly while there is none), `!release
+#355` a pull request's builds. With a GitHub token it edits a reply of the last week when what it links changes, looking
+every 10 minutes.
 
 It reads the text of messages only to find those numbers, and sends GitHub's API only the numbers. It keeps no message
 and logs nothing said, and pings no one.
@@ -60,6 +63,20 @@ build published, failed or cancelled). Main's head, a card under an hour old, on
 older than the builds GitHub lists keep saying "Building", each said with why, and the last line counts each kind. A
 second run finds nothing to do.
 
+## Tracer beside it
+
+With `TRACER_TOKEN` in its env file, `reiwimsy` runs [Tracer](./TRACER.md) in its own process: two bots, each with its
+own Discord application, token, gateway and name, so each answers as itself, and one service, one env file and one
+jail. Each bot's gateway is a Concord client of its own, Tracer's on a thread of its own; the first gateway that stops
+ends the program with status 1, its line saying which bot's stopped, and daemon(8) starts both again. A message that
+mentions Tracer is Tracer's alone: ReiWimsy gives it no reply, as Tracer's commands may hold a `#12` that is a report's
+number (`@Tracer delete #12`), and it reads no number after `report`, `reports` or `Tracer` either. Tracer's keys,
+`TRACER_*`, are [Tracer's](./TRACER.md#settings), in the same file; one without `TRACER_TOKEN` stops the program,
+naming it, as a setting quietly not taken. Tracer's workers run `reiwimsy --report`, and their environment holds
+neither bot's settings nor tokens ([Security](./SECURITY.md#tracers-workers)). The start's lines say whether Tracer
+runs (`Tracer: beside ReiWimsy, with its own token; the messages that mention it (user N) are its own`, or `Tracer:
+none, as TRACER_TOKEN is not set`); each bot's lines open with its name, `reiwimsy:` or `tracer:`.
+
 ## Settings
 
 A line each of its env file, `/usr/local/etc/reiwimsy.env` (the package puts `dist/freebsd/reiwimsy.env.sample` there
@@ -75,6 +92,7 @@ to fill in; an empty value stops the service):
 | `REIWIMSY_CARDS_PRS` | none: no pull request cards | the channel id of the pull requests' cards |
 | `REIWIMSY_CARDS_ISSUES` | none: no issue cards | the channel id of the issues' cards |
 | `REIWIMSY_CARDS_NIGHTLY` | none: no nightly cards | the channel id of the nightlies' cards |
+| `TRACER_TOKEN` | none: no Tracer | Tracer's Discord bot's token, another application's: with it the program runs Tracer beside ReiWimsy, and reads Tracer's other keys ([Tracer beside it](#tracer-beside-it)) |
 | `REIWIMSY_STATE` | none: nothing kept between runs | the file its replies' and cards' ids are kept in; the service sets it from `reiwimsy_state` |
 
 A `REIWIMSY_` key it does not know stops it, naming the key; so does a channel id that is not one, and a card channel
@@ -100,6 +118,9 @@ user `reiwimsy` and starts it again 30 s after it stops, its output in syslog (t
 | `reiwimsy_enable` | `NO` | `YES` starts it with the jail |
 | `reiwimsy_env_file` | `/usr/local/etc/reiwimsy.env` | its settings; root's, 600 |
 | `reiwimsy_state` | `/var/db/reiwimsy/state.json` | what it keeps, exported as `REIWIMSY_STATE` |
+| `reiwimsy_tracer_db` | `/var/db/tracer/tracer.db` | Tracer's database, exported as `TRACER_DB` when the env file has `TRACER_TOKEN`; its folder (the user's, 700) holds the workers' `work/` |
+| `reiwimsy_tracer_site` | `/var/db/tracer-site` | Tracer's site (the user's, 755: the web server's jail mounts it read-only), exported as `TRACER_SITE` |
+| `reiwimsy_tracer_assets` | `/usr/local/share/reiwimsy/tracer` | the site's files the package holds, exported as `TRACER_ASSETS` |
 
     service -j discordbots reiwimsy start|stop|restart|status
     service -j discordbots reiwimsy fixcards [apply]

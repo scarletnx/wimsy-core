@@ -26,12 +26,12 @@ On FreeBSD, `make -C tracer test CXXRT=-lc++` ([Build](./BUILD.md#tracer)). The 
 
 ## ReiWimsy
 
-`rei/tests/test_rei.c`, no Concord: the parsing, the gateway's events (read from their JSON: Concord decodes none of
-them, as its decoder crashes on messages of 2 to 3 KB) and the messages waiting for an answer, the replies and their
-edits, GitHub's ETags and pages, Discord's waits and answers, and the state file. The cards: drawn, posted, edited,
-moved to the end at their activity, deleted a day after they close, posted again when deleted by hand, a nightly's for
-each push, the newest kept; and the fix of the cards left saying "Building" (a dry run, then each kind of card, then a
-run with nothing to do).
+`rei/tests/test_rei.c`, no Concord: the parsing (a Tracer report's number no issue), the gateway's events (read from
+their JSON: Concord decodes none of them, as its decoder crashes on messages of 2 to 3 KB) and the messages waiting for
+an answer, the replies and their edits, GitHub's ETags and pages, Discord's waits and answers, and the state file. The
+cards: drawn, posted, edited, moved to the end at their activity, deleted a day after they close, posted again when
+deleted by hand, a nightly's for each push, the newest kept; and the fix of the cards left saying "Building" (a dry run,
+then each kind of card, then a run with nothing to do).
 
 ## AccordWimsy
 
@@ -95,12 +95,12 @@ temporary folder:
   anyone else's reaction or another emoji nothing, a refusal said and tried again, the settings and their refusals;
 - how old a report's build is, through a fake GitHub: behind main, the plurals, a commit asked once an hour, `-dirty`
   and a commit the repository lacks, no line at main or the newest nightly, GitHub silent or refusing, no token, no git;
-- the worker, the test program run as one: a report through it, its environment without the token, one that crashes,
-  one that never answers, one gone before it reads, one that names a host file, one shut in its folder that tries the
-  site, the database and /etc/passwd, one that answers without having shut itself in, one that reads the bot's
-  environment before the bot keeps it from its user's debuggers and not after, the bot's descriptors closed in it, no
-  worker for a message without files, a Share Log zip whose names are flagged UTF-8 and have accents, read once shut
-  in;
+- the worker, the test program run as one: a report through it, its environment without either bot's settings and
+  tokens, one that crashes, one that never answers, one gone before it reads, one that names a host file, one shut in
+  its folder that tries the site, the database and /etc/passwd, one that answers without having shut itself in, one that
+  reads the bot's environment before the bot keeps it from its user's debuggers and not after, the bot's descriptors
+  closed in it, no worker for a message without files, a Share Log zip whose names are flagged UTF-8 and have accents,
+  read once shut in;
 - the MCP server over that site: its handshake and protocol versions, notifications, broken and unknown requests, each
   tool's filters, limits and errors, and a query's 16 words at most;
 - runs of Amberlith (edenprobe before its 1.0.0): its families and which lose their detail, the drivers by the ban
@@ -131,12 +131,13 @@ temporary folder:
 `python3 scripts/test-mutants.py` then changes Tracer's code one way at a time in a copy of the tree, and expects its
 tests to fail on each: `tracer/src/rules.c` (a threshold one off, a comparison that lets one more in, a condition left
 out: 19 mutants, `test_tracer --rules`); what a report keeps of its files, in `files.c`, `report.c` and `issues.c` (a
-zip's screenshots, a picture never read as a log, the paths outside a home, the limits said with their values, what
-an issue may hold of the game: 33 mutants, `test_tracer --files`); what a log holds of a run, in `probe.c` (Amberlith's starting note, a name that only
-begins like it, libc's detail kept, a worker's answer naming another program: 4 mutants, `test_tracer --probe`); and
-the worker's locale for a zip's names, made before it shuts itself in, who links a report to an issue, and when a
-report's sender is told its fix is out, and an approval of a failure an issue has (5 mutants, the whole suite). A mutant they pass,
-or one whose text its file no longer has once, fails it. About 30 s.
+zip's screenshots, a picture never read as a log, the paths outside a home, the limits said with their values, what an
+issue may hold of the game: 33 mutants, `test_tracer --files`); what a log holds of a run, in `probe.c` (Amberlith's
+starting note, a name that only begins like it, libc's detail kept, a worker's answer naming another program: 4 mutants,
+`test_tracer --probe`); and the worker's locale for a zip's names, made before it shuts itself in, who links a report to
+an issue, and when a report's sender is told its fix is out, an approval of a failure an issue has, and a worker's
+environment (7 mutants, the whole suite). A mutant they pass, or one whose text its file no longer has once, fails it.
+About 30 s.
 
 `make -C tracer bench [RUNS=1000] [FOLDER=/tmp/tracer-bench]` (`tracer/tests/bench_probe.c`, built by `make test`,
 run by hand) keeps RUNS runs like edenprobe 0.9.0's graphics run (1069 cases) on fifteen machines in a new database in
@@ -193,6 +194,10 @@ In a job of its own, on each pull request and each push to main, the bots built 
   forever: the bot has to end with status 1 on its own, saying its session was last seen ready longer ago than three
   heartbeat intervals. `stalled` (ReiWimsy) the same, once the first connection is left each `GET /gateway/bot` held
   with no answer, which Concord also waits on forever.
+- `both`: `reiwimsy` with `TRACER_TOKEN`, Tracer beside ReiWimsy in one process. The fake knows two tokens, each its
+  own user in `users/@me` and in its gateway's READY; once both are ready, each gateway brings `<@200> delete #12`,
+  which mentions Tracer, and `see #12`. Tracer has to answer the first and ReiWimsy the second, each with its own token,
+  and ReiWimsy never the first; then the gateways close under both and the program ends with status 1.
 - `reiwimsy --fix-cards` on a nightly channel holding two cards that say "Building": its dry run changes nothing,
   `--apply` deletes the one of a commit inside a push and redraws the push's head with its failed build, and a second
   `--apply` finds nothing to do.

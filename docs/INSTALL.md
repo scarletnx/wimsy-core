@@ -11,6 +11,7 @@
   * [ReiWimsy's Discord application](#reiwimsys-discord-application)
 * [Tracer](#tracer)
   * [Tracer's Discord application](#tracers-discord-application)
+  * [Tracer beside ReiWimsy, in one process](#tracer-beside-reiwimsy-in-one-process)
 * [AccordWimsy](#accordwimsy)
 * [Upgrade and removal](#upgrade-and-removal)
 * [Another machine: what changes](#another-machine-what-changes)
@@ -116,13 +117,12 @@ A channel id for `REIWIMSY_CHANNELS` and the card channels: Developer Mode, righ
 
 3. Its Discord application ([below](#tracers-discord-application)) and its token.
 4. The env file the package made in `tracer`, `/usr/local/etc/tracer.env` (root's, 600): `TRACER_TOKEN`, `TRACER_URL`
-   (the site's address), `TRACER_CHANNELS` (channels' ids, or `all` for every channel it can read; without it no
-   report is taken), and the other keys
-   [Tracer](./TRACER.md#settings) lists. For the issues, `TRACER_ISSUES_REPO` and `TRACER_ISSUES_TOKEN`: on GitHub,
-   Settings, Developer settings, Fine-grained tokens, the repository alone, the permissions Issues: Read and write,
-   Pull requests: Read and Contents: Read (the issues followed, a fix compared with the nightlies), nothing else; and
-   `TRACER_NOTIFY=ping` for a report's sender to be told when its fix is out. For the games' names, `TRACER_TITLES`, a file `python3 scripts/make-titles.py --out FILE` makes in
-   the jail.
+   (the site's address), `TRACER_CHANNELS` (channels' ids, or `all` for every channel it can read; without it no report
+   is taken), and the other keys [Tracer](./TRACER.md#settings) lists. For the issues, `TRACER_ISSUES_REPO` and
+   `TRACER_ISSUES_TOKEN`: on GitHub, Settings, Developer settings, Fine-grained tokens, the repository alone, the
+   permissions Issues: Read and write, Pull requests: Read and Contents: Read (the issues followed, a fix compared with
+   the nightlies), nothing else; and `TRACER_NOTIFY=ping` for a report's sender to be told when its fix is out. For the
+   games' names, `TRACER_TITLES`, a file `python3 scripts/make-titles.py --out FILE` makes in the jail.
 5. On, and started:
 
        sysrc -j tracer tracer_enable=YES
@@ -160,6 +160,32 @@ In the Developer Portal:
 An id for `TRACER_CHANNELS` or `TRACER_ADMINS`: Developer Mode, right click, Copy Channel ID or Copy User ID. A forum
 channel's id takes its posts too. `TRACER_CHANNELS=all` takes reports in every channel and thread the bot can read, as
 its server's roles and channels' permissions let it.
+
+### Tracer beside ReiWimsy, in one process
+
+`reiwimsy` runs Tracer too when its env file has `TRACER_TOKEN` ([ReiWimsy](./REIWIMSY.md#tracer-beside-it)): one
+service in `discordbots`, two bots, each with its own application and token. Its package holds the site's files
+(`/usr/local/share/reiwimsy/tracer`); the `tracer` package stays in `tracerweb`, for `tracer-mcp`. Moving a Tracer that
+runs alone in its jail to it:
+
+1. Stopped, and kept: `service -j tracer tracer stop`, `sysrc -j tracer tracer_enable=NO`.
+2. Its database and site into `discordbots`, the bot's user their owner:
+
+       cp -a /usr/local/bastille/jails/tracer/root/var/db/tracer /usr/local/bastille/jails/discordbots/root/var/db/
+       cp -a /usr/local/bastille/jails/tracer/root/var/db/tracer-site /usr/local/bastille/jails/discordbots/root/var/db/
+       bastille cmd discordbots chown -R reiwimsy:reiwimsy /var/db/tracer /var/db/tracer-site
+
+3. Tracer's keys from `tracer.env` into `discordbots`' `/usr/local/etc/reiwimsy.env` (`TRACER_TOKEN`, `TRACER_URL`,
+   `TRACER_CHANNELS` and the others; `TRACER_TITLES` with its file copied too); the service sets `TRACER_DB`,
+   `TRACER_SITE` and `TRACER_ASSETS` (`reiwimsy_tracer_db`, `reiwimsy_tracer_site`, `reiwimsy_tracer_assets`).
+4. The new package: `sh scripts/install.sh discordbots packages/reiwimsy-$(cat VERSION).pkg` (it brings sqlite3).
+5. `tracerweb`'s mount on the site in `discordbots`, read-only as before:
+
+       bastille umount tracerweb /usr/local/www/tracer
+       bastille mount tracerweb /usr/local/bastille/jails/discordbots/root/var/db/tracer-site /usr/local/www/tracer nullfs ro 0 0
+
+6. `service -j discordbots reiwimsy restart`; its log says `Tracer: beside ReiWimsy`, both bots' `up as` lines and
+   Tracer's `disk:` and `follow:` lines; a report in a test channel, then the real one.
 
 ## AccordWimsy
 
