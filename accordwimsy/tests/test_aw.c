@@ -1535,6 +1535,55 @@ int main(void) {
     }
 
     {
+        /* GitHub lists game disabled (its access blocked, as by a takedown notice; its git answers 403): said once,
+           left out of the pass and of the freshness file, its copy here as it is; listed enabled again, it is
+           mirrored again */
+        const char* game_json = "{\"name\":\"game\",\"private\":false,\"description\":\"A game\","
+                                "\"default_branch\":\"main\",\"html_url\":\"https://github.com/org/game\"";
+        char *fresh = aw_format("%s/fresh", root), *text = NULL;
+        char* listing = aw_format("[%s,\"disabled\":true}]", game_json);
+        github("orgs/org/repos?type=all&sort=full_name", listing);
+        now_t += 600;
+        CHECK(pass_err(&c, state, &text) == 0);
+        CHECK(strstr(text, "game is disabled on GitHub (its access blocked, as by a takedown notice)") != NULL);
+        free(text);
+        CHECK(jnum(cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(state, "repos"), "game"),
+                   "blocked") == now_t);
+        text = slurp(fresh);
+        CHECK(!strstr(text, "game "));
+        free(text);
+        text = NULL;
+        now_t += 600;
+        CHECK(pass_err(&c, state, &text) == 0);
+        CHECK(!strstr(text ? text : "", "is disabled on GitHub"));
+        free(text);
+        {
+            char *command = aw_format("./accordwimsy status %s 2>&1", env), out[2048] = "", got[256];
+            FILE* p = popen(command, "r");
+            while (p && fgets(got, sizeof got, p)) strncat(out, got, sizeof out - strlen(out) - 1);
+            CHECK(p && pclose(p) == 0);
+            CHECK(strstr(out, "game: disabled on GitHub since ") != NULL);
+            free(command);
+        }
+        free(listing);
+        listing = aw_format("[%s,\"disabled\":false}]", game_json);
+        github("orgs/org/repos?type=all&sort=full_name", listing);
+        now_t += 600;
+        CHECK(pass(&c, state, NULL) == 0);
+        CHECK(!cJSON_IsNumber(cJSON_GetObjectItemCaseSensitive(
+            cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(state, "repos"), "game"), "blocked")));
+        text = slurp(fresh);
+        {
+            char* line = aw_format("game %ld\n", now_t);
+            CHECK(strstr(text, line) != NULL);
+            free(line);
+        }
+        free(text);
+        free(listing);
+        free(fresh);
+    }
+
+    {
         /* the default branch rewritten on GitHub: for someone to see, on standard error, its old tip kept; then three
            of its four branches and tags gone in one pass, as someone deleting everything would */
         char* err;
