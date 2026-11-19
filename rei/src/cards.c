@@ -29,21 +29,25 @@
 
 /* each release file, in the order the cards list them: the job of ScarletNX's build.yml that makes it (macOS's and
    iOS's share one runner), what it is for, as scripts/nightly-notes.py's SYSTEMS has it, what it holds where that is
-   not all, and the application's emoji beside it (Wimsy as its system, scarletnx/wimsy-dist's emoji/) */
+   not all, the application's emoji beside it (Wimsy as its system, scarletnx/wimsy-dist's emoji/), and 1 for a file
+   only a run a nightly can come of makes (build.yml's appimage-cross): a pull request's card lists it only when its
+   run has its job or its release the file */
 static const struct {
     const char *file, *job, *system, *arch, *note, *icon;
+    int nightly;
 } PACKAGES[] = {
-    {"ScarletNX-linux-x86_64.AppImage", "Linux AppImage (x86_64)", "Linux", "x86-64", "", "wimsy_linux"},
-    {"ScarletNX-linux-aarch64.AppImage", "Linux AppImage (aarch64)", "Linux", "ARM64", "", "wimsy_linux"},
-    {"ScarletNX-linux-ppc64le.AppImage", "Linux AppImage (ppc64le)", "Linux", "PowerPC64 LE", "", "wimsy_linux"},
+    {"ScarletNX-linux-x86_64.AppImage", "Linux AppImage (x86_64)", "Linux", "x86-64", "", "wimsy_linux", 0},
+    {"ScarletNX-linux-aarch64.AppImage", "Linux AppImage (aarch64)", "Linux", "ARM64", "", "wimsy_linux", 0},
+    {"ScarletNX-linux-ppc64le.AppImage", "Linux AppImage (ppc64le)", "Linux", "PowerPC64 LE", "", "wimsy_linux", 1},
     {"ScarletNX-linux-ppc64.AppImage", "Linux AppImage (ppc64)", "Linux", "PowerPC64 BE", " (Linux programs)",
-     "wimsy_linux"},
-    {"ScarletNX-linux-riscv64.AppImage", "Linux AppImage (riscv64)", "Linux", "RISC-V 64", "", "wimsy_linux"},
-    {"ScarletNX-linux-loongarch64.AppImage", "Linux AppImage (loongarch64)", "Linux", "LoongArch64", "", "wimsy_linux"},
-    {"ScarletNX-windows-x86_64.zip", "Windows (Clang + LLVM)", "Windows", "x86-64", "", "wimsy_windows"},
-    {"ScarletNX-android-universal.apk", "Android APK", "Android", "ARM64, x86-64", "", "wimsy_android"},
-    {"ScarletNX-macos-arm64.zip", "macOS and iOS (arm64)", "macOS", "ARM64", "", "wimsy_macos"},
-    {"ScarletNX-ios-arm64.ipa", "macOS and iOS (arm64)", "iOS", "ARM64", "", "wimsy_ios"},
+     "wimsy_linux", 0},
+    {"ScarletNX-linux-riscv64.AppImage", "Linux AppImage (riscv64)", "Linux", "RISC-V 64", "", "wimsy_linux", 1},
+    {"ScarletNX-linux-loongarch64.AppImage", "Linux AppImage (loongarch64)", "Linux", "LoongArch64", "", "wimsy_linux",
+     1},
+    {"ScarletNX-windows-x86_64.zip", "Windows (Clang + LLVM)", "Windows", "x86-64", "", "wimsy_windows", 0},
+    {"ScarletNX-android-universal.apk", "Android APK", "Android", "ARM64, x86-64", "", "wimsy_android", 0},
+    {"ScarletNX-macos-arm64.zip", "macOS and iOS (arm64)", "macOS", "ARM64", "", "wimsy_macos", 0},
+    {"ScarletNX-ios-arm64.ipa", "macOS and iOS (arm64)", "iOS", "ARM64", "", "wimsy_ios", 0},
 };
 #define NPACKAGES (int)(sizeof PACKAGES / sizeof *PACKAGES)
 /* a field's value Discord takes, in letters */
@@ -52,12 +56,6 @@ static const struct {
 #define GO_ON     "\xe2\x80\x8b"
 /* each package's emoji as a message writes it, <:name:id>; "" until cd_icons found it */
 static char g_icons[NPACKAGES][64];
-/* Build's jobs that make no release file whose state Tests always says: each job, as build.yml names it, and what it
-   tests. The others are said when they fail */
-static const struct {
-    const char *job, *label;
-} CHECKS[] = {{"Linux (ppc64, cross)", "Linux PowerPC64 BE ELFv1"}};
-#define NCHECKS (int)(sizeof CHECKS / sizeof *CHECKS)
 
 static const char* S(const char* s) { return s ? s : ""; }
 /* FNV-1a of text, as 16 hex digits */
@@ -347,8 +345,7 @@ void cd_icons(const cJSON* emojis) {
                     PACKAGES[i].icon, PACKAGES[i].system);
     }
 }
-/* the emoji cd_icons found for the system name names first (Linux, Windows...), as a job's name or a check's;
-   "" for none */
+/* the emoji cd_icons found for the system a job's name names first (Linux, Windows...); "" for none */
 static const char* icon_of(const char* name) {
     const char *first = NULL, *icon = "";
     int i;
@@ -364,6 +361,17 @@ static const char* icon_of(const char* name) {
 /* a job's failure as a conclusion says it; not a cancelled or skipped one */
 static int failure(const char* conclusion) {
     return !strcmp(conclusion, "failure") || !strcmp(conclusion, "timed_out") || !strcmp(conclusion, "startup_failure");
+}
+/* a run that ended failed: GitHub says so, or it was cancelled once one of its jobs had failed (ScarletNX's
+   scripts/fail-fast.py cancels the rest of a run at its first failed job) */
+static int run_failed(const cJSON* run, const cJSON* jobs) {
+    const char* ended = S(jstr(run, "conclusion"));
+    const cJSON* job;
+    if (failure(ended)) return 1;
+    if (strcmp(ended, "cancelled")) return 0;
+    cJSON_ArrayForEach(job, jobs) if (!strcmp(S(jstr(job, "status")), "completed") &&
+                                      failure(S(jstr(job, "conclusion")))) return 1;
+    return 0;
 }
 /* package i's line: its icon, its system and its architecture where it has one, then what */
 static void line_of(Buf* b, int i, const char* what) {
@@ -393,9 +401,9 @@ int cd_downloads(Buf* b, const cJSON* release) {
 }
 char* cd_mascot(const char* repo) { return rei_format(WIMSY, repo); }
 /* a line per release file in Downloads: published, its extension linked; else what its job does; built: what a built
-   one waits for. Then in Tests a line per job of CHECKS, what its tests did, and one per other job that makes no file
-   and failed */
-static void packages(cJSON* fields, const cJSON* jobs, const cJSON* release, const char* built) {
+   one waits for; pr: a pull request's card, which leaves out a nightly's file its run and release have nothing of.
+   Then in Tests a line per job that makes no file and failed */
+static void packages(cJSON* fields, const cJSON* jobs, const cJSON* release, const char* built, int pr) {
     Lines downloads = {fields, "Downloads", {0}}, tests = {fields, "Tests", {0}};
     const cJSON* job;
     int i;
@@ -404,6 +412,7 @@ static void packages(cJSON* fields, const cJSON* jobs, const cJSON* release, con
         const char *status, *conclusion;
         Buf v = {0}, one = {0};
         job = named(jobs, "name", PACKAGES[i].job);
+        if (pr && PACKAGES[i].nightly && !asset && !job) continue;
         status = S(jstr(job, "status"));
         conclusion = S(jstr(job, "conclusion"));
         if (asset)
@@ -425,34 +434,11 @@ static void packages(cJSON* fields, const cJSON* jobs, const cJSON* release, con
         buf_free(&v);
     }
     lines_end(&downloads);
-    for (i = 0; i < NCHECKS; ++i) {
-        const char *status, *conclusion, *icon = icon_of(CHECKS[i].label);
-        Buf one = {0};
-        job = named(jobs, "name", CHECKS[i].job);
-        status = S(jstr(job, "status"));
-        conclusion = S(jstr(job, "conclusion"));
-        if (*icon) buf_printf(&one, "%s ", icon);
-        buf_printf(&one, "%s: ", CHECKS[i].label);
-        if (!job || !strcmp(status, "queued") || !strcmp(status, "waiting") || !strcmp(status, "pending") ||
-            !strcmp(status, "requested"))
-            buf_add(&one, "Waiting");
-        else if (strcmp(status, "completed"))
-            buf_printf(&one, "Testing ([log](%s))", S(jstr(job, "html_url")));
-        else if (!strcmp(conclusion, "success"))
-            buf_add(&one, "Passed");
-        else if (!strcmp(conclusion, "cancelled") || !strcmp(conclusion, "skipped"))
-            capitalized(&one, conclusion);
-        else
-            buf_printf(&one, "Failed ([log](%s))", S(jstr(job, "html_url")));
-        lines_add(&tests, one.text);
-        buf_free(&one);
-    }
     cJSON_ArrayForEach(job, jobs) {
         const char* name = S(jstr(job, "name"));
         int listed = 0;
         Buf one = {0};
         for (i = 0; i < NPACKAGES; ++i) listed |= !strcmp(name, PACKAGES[i].job);
-        for (i = 0; i < NCHECKS; ++i) listed |= !strcmp(name, CHECKS[i].job);
         if (listed || strcmp(S(jstr(job, "status")), "completed") || !failure(S(jstr(job, "conclusion")))) continue;
         if (*icon_of(name)) buf_printf(&one, "%s ", icon_of(name));
         buf_printf(&one, "%s: Failed ([log](%s))", name, S(jstr(job, "html_url")));
@@ -606,14 +592,12 @@ cJSON* cd_pr(Cards* c, int number, int* open, double* closed_at) {
         fork_name = rei_strdup(S(jstr(cJSON_GetObjectItemCaseSensitive(head_obj, "repo"), "full_name")));
         built = rei_strdup(strcmp(fork_name, c->gh->repo) && !labeled(pr, LABEL) ? "waits for the team's label"
                                                                                  : "being published");
-        packages(fields, jobs, current, built);
+        packages(fields, jobs, current, built, 1);
         /* the outcome that moves the card: published or failed, kept while its push's builds run again or are
            cancelled */
         if (current)
             snprintf(c->builds, sizeof c->builds, "published %s", head);
-        else if (run && !strcmp(S(jstr(run, "status")), "completed") &&
-                 (!strcmp(S(jstr(run, "conclusion")), "failure") || !strcmp(S(jstr(run, "conclusion")), "timed_out") ||
-                  !strcmp(S(jstr(run, "conclusion")), "startup_failure")))
+        else if (run && !strcmp(S(jstr(run, "status")), "completed") && run_failed(run, jobs))
             snprintf(c->builds, sizeof c->builds, "failed %s", head);
         else {
             char* mine = rei_format(" %s", head);
@@ -892,7 +876,8 @@ cJSON* cd_nightly(Cards* c, const char* sha) {
         buf_printf(&b, "Building main at [`%.7s`](%s), committed %s.", sha, commit, date);
     else if (strcmp(S(jstr(run, "conclusion")), "success")) {
         const char* ended = S(jstr(run, "conclusion"));
-        char* how = !strcmp(ended, "failure")     ? rei_strdup("failed")
+        char* how = !strcmp(ended, "failure") || (!strcmp(ended, "cancelled") && run_failed(run, jobs))
+                        ? rei_strdup("failed")
                     : !strcmp(ended, "cancelled") ? rei_strdup("was cancelled")
                                                   : rei_format("ended as %s", *ended ? ended : "nothing GitHub said");
         buf_printf(&b, "Not published: the build of [`%.7s`](%s) %s ([run](%s)).", sha, commit, how,
@@ -925,7 +910,7 @@ cJSON* cd_nightly(Cards* c, const char* sha) {
     }
     for (i = 0; i < n; ++i) free(lines[i]);
     if (n >= 0) free(lines);
-    packages(fields, jobs, own, built);
+    packages(fields, jobs, own, built, 0);
     {
         char *source = rei_format("[`%.7s`](%s)", sha, commit),
              *every = rei_format("[%s](" SERVER "/%s/releases)", c->gh->nightly, c->gh->nightly);

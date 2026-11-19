@@ -968,6 +968,19 @@ static void fix_cards(void) {
             cJSON_Delete(drawn);
             free(run);
         }
+        /* cancelled once a job of it had failed (ScarletNX's fail-fast): failed */
+        gh_shas("repos/o/r/actions/workflows/build.yml/runs?head_sha=@c&per_page=100&page=1",
+                "{\"workflow_runs\":[{\"id\":71,\"event\":\"push\",\"status\":\"completed\",\"conclusion\":"
+                "\"cancelled\",\"created_at\":\"2026-11-04T22:00:05Z\"}]}");
+        gh("repos/o/r/actions/runs/71/jobs?per_page=100&page=1",
+           "{\"jobs\":[{\"name\":\"Linux (aarch64)\",\"status\":\"completed\",\"conclusion\":\"failure\"},"
+           "{\"name\":\"Android APK\",\"status\":\"completed\",\"conclusion\":\"cancelled\"}]}");
+        {
+            cJSON* drawn = cd_nightly(&c, head);
+            HAS(jstr(drawn, "description"), "failed ([run]");
+            cJSON_Delete(drawn);
+        }
+        gh("repos/o/r/actions/runs/71/jobs?per_page=100&page=1", "{\"jobs\":[]}");
         /* built, and older than the oldest nightly kept: none of it is kept now, which is all the card can know */
         gh_shas("repos/o/r/actions/workflows/build.yml/runs?head_sha=@c&per_page=100&page=1",
                 "{\"workflow_runs\":[{\"id\":71,\"event\":\"push\",\"status\":\"completed\",\"conclusion\":"
@@ -982,7 +995,13 @@ static void fix_cards(void) {
         c.nightlies = NULL;
         {
             cJSON* drawn = cd_nightly(&c, head);
+            char* all = cJSON_PrintUnformatted(drawn);
             HAS(jstr(drawn, "description"), "; no nightly of it is kept now: o/nightly keeps the newest 30.");
+            /* a nightly's card lists every package, those only a nightly builds too */
+            HAS(all, "Linux PowerPC64 LE: ");
+            HAS(all, "Linux RISC-V 64: ");
+            HAS(all, "Linux LoongArch64: ");
+            free(all);
             cJSON_Delete(drawn);
         }
         free(head);
@@ -1089,8 +1108,6 @@ static void pr_card(void) {
        "{\"name\":\"Android APK\",\"status\":\"completed\",\"conclusion\":\"failure\",\"html_url\":\"https://j/2\"},"
        "{\"name\":\"Linux AppImage (aarch64)\",\"status\":\"completed\",\"conclusion\":\"success\"},"
        "{\"name\":\"macOS and iOS (arm64)\",\"status\":\"queued\",\"html_url\":\"https://j/3\"},"
-       "{\"name\":\"Linux (ppc64, cross)\",\"status\":\"completed\",\"conclusion\":\"failure\","
-       "\"html_url\":\"https://j/4\"},"
        "{\"name\":\"Linux (x86_64, ASan + UBSan)\",\"status\":\"completed\",\"conclusion\":\"failure\","
        "\"html_url\":\"https://j/5\"},"
        "{\"name\":\"Linux (x86_64)\",\"status\":\"completed\",\"conclusion\":\"success\",\"html_url\":\"https://j/6\"},"
@@ -1114,20 +1131,19 @@ static void pr_card(void) {
         "on main at [`3333333`](https://github.com/o/r/commit/3333333333333333333333333333333333333333) "
         "([its nightly](https://n/1)).");
     HAS(text, "**2 commits**, the newest first\\n- \\\\[gpu\\\\] Second \\\\*one\\\\*\\n- \\\\[gpu\\\\] First");
-    /* a line a package in one Downloads field, its icon, then its link or its job's state; then in Tests the jobs
-       of CHECKS, what their tests did, and the other jobs that make no file and failed, not those running or passed,
-       each with the icon of the system its name names.
+    /* a line a package in one Downloads field, its icon, then its link or its job's state, but a nightly's package
+       its run has no job for and its release no file; then in Tests the other jobs that make no file and failed, not
+       those running or passed, each with the icon of the system its name names.
        No Build field (each job has its line) and no Builds while this push's are published (each has its link) */
     HAS(text,
         "{\"name\":\"Downloads\",\"value\":\"<:wimsy_linux:11> Linux x86-64: Building ([log](https://j/1))\\n"
-        "<:wimsy_linux:11> Linux ARM64: Built, being published\\n<:wimsy_linux:11> Linux PowerPC64 LE: Waiting\\n"
+        "<:wimsy_linux:11> Linux ARM64: Built, being published\\n"
         "<:wimsy_linux:11> Linux PowerPC64 BE: [.AppImage](https://n/p) (Linux programs)\\n"
-        "<:wimsy_linux:11> Linux RISC-V 64: Waiting\\n<:wimsy_linux:11> Linux LoongArch64: Waiting\\n"
         "<:wimsy_windows:22> Windows x86-64: [.zip](https://n/w)\\n"
         "<:wimsy_android:33> Android: Failed ([log](https://j/2))\\n"
         "<:wimsy_macos:44> macOS ARM64: Waiting\\n<:wimsy_ios:55> iOS ARM64: Waiting\",\"inline\":false},"
-        "{\"name\":\"Tests\",\"value\":\"<:wimsy_linux:11> Linux PowerPC64 BE ELFv1: Failed ([log](https://j/4))\\n"
-        "<:wimsy_linux:11> Linux (x86_64, ASan + UBSan): Failed ([log](https://j/5))\",\"inline\":false}");
+        "{\"name\":\"Tests\",\"value\":\"<:wimsy_linux:11> Linux (x86_64, ASan + UBSan): Failed ([log](https://j/5))\","
+        "\"inline\":false}");
     CHECK(!strstr(text, " MB") && !strstr(text, "https://j/6") && !strstr(text, "https://j/7"));
     CHECK(!strstr(text, "\"name\":\"Build\"") && !strstr(text, "\"name\":\"Builds\""));
     HAS(text, "\"color\":2066493"); /* GitHub's green: open */
@@ -1177,13 +1193,14 @@ static void pr_card(void) {
         CHECK(first && second && n == 2);
         CHECK(rei_letters(cJSON_GetObjectItemCaseSensitive(first, "value")->valuestring) <= 1024);
         CHECK(rei_letters(cJSON_GetObjectItemCaseSensitive(second, "value")->valuestring) <= 1024);
+        /* a nightly's package its run has a job for: listed on a pull request's card too */
         CHECK(strstr(cJSON_GetObjectItemCaseSensitive(first, "value")->valuestring, "Linux LoongArch64: Building"));
         {
             const char* windows = "<:wimsy_windows:1563256573802057808> Windows x86-64: Building ([log](";
             CHECK(!strncmp(cJSON_GetObjectItemCaseSensitive(second, "value")->valuestring, windows, strlen(windows)));
         }
         text = cJSON_PrintUnformatted(e);
-        HAS(text, "<:wimsy_linux:1563256571297923183> Linux PowerPC64 BE ELFv1: Waiting");
+        CHECK(!strstr(text, "ELFv1") && !strstr(text, "\"Tests\""));
         HAS(text, "{\"name\":\"Builds\",\"value\":\"[The push before](https://n/pr-7)\",\"inline\":true}");
         free(text);
         cJSON_Delete(e);
@@ -1213,6 +1230,14 @@ static void pr_card(void) {
         SAME(c.activity, was); /* a job done */
         run_is(&c, "\"completed\",\"conclusion\":\"cancelled\"");
         SAME(c.activity, was); /* cancelled, none failed before */
+        gh("repos/o/r/actions/runs/9/jobs?per_page=100&page=1",
+           "{\"jobs\":[{\"name\":\"Linux AppImage (x86_64)\",\"status\":\"completed\",\"conclusion\":\"success\"},"
+           "{\"name\":\"Linux (aarch64)\",\"status\":\"completed\",\"conclusion\":\"failure\"}]}");
+        run_is(&c, "\"completed\",\"conclusion\":\"cancelled\"");
+        CHECK(strcmp(c.activity, was)); /* cancelled once a job had failed (ScarletNX's fail-fast): failed */
+        SAME(c.builds, "failed 1111111111111111111111111111111111111111");
+        gh("repos/o/r/actions/runs/9/jobs?per_page=100&page=1",
+           "{\"jobs\":[{\"name\":\"Linux AppImage (x86_64)\",\"status\":\"completed\",\"conclusion\":\"success\"}]}");
         run_is(&c, "\"completed\",\"conclusion\":\"failure\"");
         CHECK(strcmp(c.activity, was)); /* failed */
         SAME(c.builds, "failed 1111111111111111111111111111111111111111");
