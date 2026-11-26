@@ -15,6 +15,10 @@ struct discord;
 /* Discord's heartbeat interval, in ms, until a HELLO gives one */
 #define WD_INTERVAL  41250
 
-/* watches client's gateway from now on: before discord_run. end ends the bot */
-void wd_start(struct discord* client, void (*end)(void));
+/* the clients one program may watch: ReiWimsy's and Tracer's */
+#define WD_CLIENTS 2
+
+/* watches client's gateway from now on: before discord_run. end ends the program; name is the bot's, in the log line
+   that says why (a program running two bots watches each) */
+void wd_start(struct discord* client, const char* name, void (*end)(void));
 #endif

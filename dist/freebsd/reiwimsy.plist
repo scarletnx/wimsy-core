@@ -6,3 +6,20 @@ libexec/reiwimsy
 etc/rc.d/reiwimsy
 @mode 644
 etc/reiwimsy.env.sample
+share/reiwimsy/tracer/style.css
+share/reiwimsy/tracer/site.js
+share/reiwimsy/tracer/tracer.svg
+share/reiwimsy/tracer/sws/sepia-auto.css
+share/reiwimsy/tracer/sws/sepia-light.css
+share/reiwimsy/tracer/sws/sepia-dark.css
+share/reiwimsy/tracer/sws/wimsy-auto.css
+share/reiwimsy/tracer/sws/wimsy-light.css
+share/reiwimsy/tracer/sws/wimsy-dark.css
+share/reiwimsy/tracer/sws/fuddles-auto.css
+share/reiwimsy/tracer/sws/fuddles-light.css
+share/reiwimsy/tracer/sws/fuddles-dark.css
+share/reiwimsy/tracer/sws/default.css
+share/reiwimsy/tracer/sws/logo-sepia.svg
+share/reiwimsy/tracer/sws/logo-wimsy.svg
+share/reiwimsy/tracer/sws/logo-fuddles.svg
+share/reiwimsy/tracer/sws/logo-default.svg

@@ -41,7 +41,7 @@ for e in c["external-endpoints"]:
     if e["group"] == "Bots":
         assert f'span[title="{e["name"]}"]::before{{background-image:url(data:image/png;base64,' in css, e["name"]
     key = e["group"].lower() + "_" + re.sub(r"[ /_,.#+&]", "-", e["name"]).lower()
-    assert re.search(rf"^\s*(bot|push|site) {key} ", push, re.M), ("push.sh never pushes", key)
+    assert re.search(rf"^\s*(bot|push|site|tracer) {key}(\s|$)", push, re.M), ("push.sh never pushes", key)
 print(len(bots), "bots:", ", ".join(bots))
 assert set(c["ui"]["favicon"]) == {"default", "size16x16", "size32x32"}, c["ui"]["favicon"]
 for e in c["endpoints"]:

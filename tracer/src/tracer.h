@@ -16,11 +16,12 @@
 #define TR_HOURLY    10                 /* the reports one person sends in an hour */
 #define TR_ROLES     256                /* the roles of a member that a message names, at most */
 #define TR_KEY       72                 /* a game's key: its title ID, or n- and its name's letters and digits */
+#define TR_SAME      5                  /* the other reports of a failure a report's reply and page name, at most */
 /* the bot's settings, its env file's keys; tracer-mcp knows them too, so that both may be given one env file */
 #define TR_KEYS                                                                                                        \
     "TRACER_TOKEN", "TRACER_URL", "TRACER_CHANNELS", "TRACER_ADMINS", "TRACER_DB", "TRACER_SITE", "TRACER_ASSETS",     \
         "TRACER_TITLES", "TRACER_ISSUES_REPO", "TRACER_ISSUES_TOKEN", "TRACER_ISSUES_EMOJI", "TRACER_ISSUES_LABELS",   \
-        "TRACER_UPSTREAM_REPO", "TRACER_MIN_FREE"
+        "TRACER_UPSTREAM_REPO", "TRACER_MIN_FREE", "TRACER_NOTIFY"
 #define TR_MIN_FREE 1024 /* the MiB the site's file system keeps free when TRACER_MIN_FREE does not say */
 
 /* a download: url's body into out (cleared first), max bytes at most. 0, or -1 with why (owned) */

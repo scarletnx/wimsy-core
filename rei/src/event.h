@@ -20,6 +20,9 @@ typedef struct {
    card), and for one that is no JSON object with an author, an id and a channel id */
 int ev_message(const char* json, size_t len, EvMessage* m);
 void ev_message_free(EvMessage* m);
+/* whether MESSAGE_CREATE's message mentions user, as its mentions list the users it names (a reply that pings its
+   author too); 0 for no user */
+int ev_mentions(const char* json, size_t len, u64 user);
 /* READY's user name, owned, or NULL */
 char* ev_ready_user(const char* json, size_t len);
 

@@ -2,8 +2,9 @@
 # Every minute, from /usr/local/etc/cron.d/status-scarletnx on the host (as root): whether each
 # bot is up, pushed to status.scarletnx.dev's Gatus at @GATUS_PUSH_URL@ (its external endpoints, group
 # Bots). Gatus marks one down when no push came for 5 minutes, so this script stopping shows there too.
-#   ReiWimsy, Tracer: up when its rc variable in its jail (discordbots, tracer) says YES and its program
-#     has run there for a minute or more (a bot daemon(8) restarts every 30 s reads as down).
+#   ReiWimsy: up when reiwimsy_enable says YES in the jail discordbots and its program has run there for a
+#     minute or more (a bot daemon(8) restarts every 30 s reads as down).
+#   Tracer: it runs inside ReiWimsy when ReiWimsy's env file holds TRACER_TOKEN: up when it does and ReiWimsy is up.
 #   AccordWimsy: up when `noirjail.sh jail fresh` passes (each mirror had a good pass within its time).
 #   git.scarletnx.dev: up when forgejo_enable says YES in the jail gitscarlet and its forgejo has run a minute or
 #     more, read from the host (its guard keeps everything else off that jail and its tunnel's).
@@ -52,6 +53,17 @@ bot() {
 	fi
 }
 
+# Pushes Tracer <key>: it runs inside ReiWimsy, so down when ReiWimsy's env file in the jail discordbots holds no
+# TRACER_TOKEN, else as ReiWimsy is.
+# Usage: tracer <key>
+tracer() {
+	if ! grep -q '^TRACER_TOKEN=.' "$jails/discordbots/root/usr/local/etc/reiwimsy.env" 2> /dev/null; then
+		push "$1" false "turned off: no TRACER_TOKEN in discordbots' reiwimsy.env"
+		return
+	fi
+	bot "$1" discordbots reiwimsy_enable /usr/local/libexec/reiwimsy
+}
+
 # Pushes site <key>: up when the web jail tracerweb's nginx answers <url> from inside the jail, else down with
 # fetch's words.
 # Usage: site <key> <url>
@@ -67,7 +79,7 @@ if [ ! -r "$header" ]; then
 	exit 78
 fi
 bot bots_reiwimsy discordbots reiwimsy_enable /usr/local/libexec/reiwimsy
-bot bots_tracer tracer tracer_enable /usr/local/libexec/tracer
+tracer bots_tracer
 bot web_git-scarletnx-dev gitscarlet forgejo_enable "/usr/local/sbin/forgejo web"
 site web_issues-scarletnx-dev http://127.0.0.1:8080/
 esc=$(printf '\033')

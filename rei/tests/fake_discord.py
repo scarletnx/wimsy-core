@@ -26,6 +26,12 @@ TRACER_CHANNELS=all), then someone's reply that mentions the bot and brings no f
 has a ScarletNX log and no mention (the REST API gives it; the CDN, its log); once the bot has answered it, another
 person's reply to the same message.
 
+both, for reiwimsy running Tracer beside ReiWimsy: two tokens, each its own user (ReiWimsy's 100, Tracer's 200) in
+users/@me and in its gateway's READY. Once both are ready, each gateway brings the same two messages, as Discord sends
+a message to every bot that reads the channel: 80, "<@200> delete #12", which mentions Tracer, and 81, "see #12". Each
+answer is a line naming the bot whose token posted it. GitHub answers issue 12. Two seconds after Tracer has answered
+80 and ReiWimsy 81 (or 30 s), the drop.
+
 cards, for reiwimsy --fix-cards: the nightly channel 5 holds two of the bot's cards saying "Building" from five hours
 ago, a push's with no nightly (B) and one a nightly was published from (C); one of its cards saying something else,
 and someone else's. GitHub answers what drawing C asks; Discord's channel listing, PATCH and DELETE work on that
@@ -42,11 +48,16 @@ import sys
 import time
 
 CERT, KEY, DROP_AFTER = sys.argv[1], sys.argv[2], sys.argv[3]
-if DROP_AFTER not in ("github", "ready", "replies", "cards", "zombie", "unready", "stalled"):
-    sys.exit(
-        f"fake_discord.py: DROP_AFTER is {DROP_AFTER!r}, not github, ready, replies, cards, zombie, unready or stalled"
-    )
+MODES = ("github", "ready", "replies", "cards", "zombie", "unready", "stalled", "both")
+if DROP_AFTER not in MODES:
+    sys.exit(f"fake_discord.py: DROP_AFTER is {DROP_AFTER!r}, not one of {', '.join(MODES)}")
 ME = {"id": "100", "username": "FakeBot", "discriminator": "0", "bot": True}
+# both: Tracer's token (test_gateway.sh's) and user, beside ReiWimsy's (any other token, ME)
+TRACER_TOKEN = "TracerTracerTracerTracer.Trace0.TracerTracerTracerTracerTr"
+TRACER_ME = {"id": "200", "username": "Tracer", "discriminator": "0", "bot": True}
+ready_bots = {}  # both: the send of each bot's gateway connection, by its user id, once READY went
+both_started = False
+
 cue = asyncio.Event()  # what the drop waits for
 posted = asyncio.Queue()  # each message a bot posts, its JSON
 broken = False
@@ -218,7 +229,7 @@ async def frame_of(reader):
 
 
 async def gateway(reader, writer, headers):
-    global connections
+    global connections, both_started
     connections += 1
     n = connections
     acks = 0
@@ -253,13 +264,48 @@ async def gateway(reader, writer, headers):
             say(f"gateway: MESSAGE_CREATE {message}, a reply by {author} to message 50")
             try:  # the bot answers in order: an answer to 70, when it gives one, comes first
                 while True:
-                    said = await asyncio.wait_for(posted.get(), 30)
+                    said = (await asyncio.wait_for(posted.get(), 30))["body"]
                     say(f"discord: answered {json.dumps(said)}")
                     if said.get("message_reference", {}).get("message_id") == message:
                         break
             except TimeoutError:
                 say(f"discord: no answer to {message} in 30 s")
                 break
+        cue.set()
+
+    async def both():
+        """the two messages through each bot's gateway, then each answer, named by the bot that posted it"""
+        person = {"id": "8", "username": "someone8"}
+        mention = {
+            "id": "80",
+            "channel_id": "6",
+            "guild_id": "5",
+            "type": 0,
+            "author": person,
+            "member": {"roles": []},
+            "content": "<@200> delete #12",
+            "mentions": [TRACER_ME],
+            "attachments": [],
+        }
+        plain = dict(mention, id="81", content="see #12", mentions=[])
+        for user, bot_send in ready_bots.items():
+            for seq, message in enumerate((mention, plain), start=2):
+                bot_send({"op": 0, "t": "MESSAGE_CREATE", "s": seq, "d": message})
+            say(f"gateway: MESSAGE_CREATE 80 and 81 to user {user}")
+        wanted = {("Tracer", "80"), ("ReiWimsy", "81")}
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            try:
+                got = await asyncio.wait_for(posted.get(), max(0.1, deadline - time.monotonic()))
+            except TimeoutError:
+                break
+            to = got["body"].get("message_reference", {}).get("message_id")
+            say(f"discord: answered as {got['by']} to {to}: {json.dumps(got['body'])}")
+            wanted.discard((got["by"], to))
+            if not wanted:
+                deadline = min(deadline, time.monotonic() + 2)  # what else comes within 2 s
+        if wanted:
+            say(f"discord: no answer in 30 s from {sorted(wanted)}")
         cue.set()
 
     async def ack():
@@ -295,11 +341,17 @@ async def gateway(reader, writer, headers):
                 say(f"gateway: connection {n}: IDENTIFY, closed with no CLOSE frame")
                 break
             if op == 2:
-                ready = {"v": 10, "user": ME, "guilds": [], "session_id": "fake", "shard": [0, 1]}
+                user = TRACER_ME if json.loads(data).get("d", {}).get("token") == TRACER_TOKEN else ME
+                ready = {"v": 10, "user": user, "guilds": [], "session_id": "fake", "shard": [0, 1]}
                 ready["resume_gateway_url"] = "wss://gateway.discord.gg"
-                ready["application"] = {"id": ME["id"], "flags": 0}
+                ready["application"] = {"id": user["id"], "flags": 0}
                 send({"op": 0, "t": "READY", "s": 1, "d": ready})
-                say(f"gateway: connection {n}: READY" if beating else "gateway: READY")
+                say(f"gateway: connection {n}: READY" if beating else f"gateway: READY as user {user['id']}")
+                if DROP_AFTER == "both":
+                    ready_bots[user["id"]] = send
+                    if len(ready_bots) == 2 and not both_started:
+                        both_started = True
+                        replying = asyncio.ensure_future(both())
                 if DROP_AFTER == "zombie" and n == 1:
                     start = json.dumps({"op": 0, "t": "MESSAGE_CREATE", "s": 2, "d": {"content": "x" * 60000}})
                     writer.write(frame(1, start[:1000].encode(), 60000))
@@ -338,6 +390,22 @@ async def serve(reader, writer):
                     answer(writer, {"message": "Not Found"}, "404 Not Found")
             elif DROP_AFTER == "cards" and cards_discord(writer, method, target, body):
                 pass
+            elif DROP_AFTER == "both" and host == "api.github.com":
+                if method == "GET" and target == "/repos/owner/repo/issues/12":
+                    say(f"github: {method} {target}")
+                    answer(
+                        writer,
+                        {
+                            "number": 12,
+                            "title": "An issue",
+                            "state": "open",
+                            "labels": [],
+                            "html_url": "https://github.com/owner/repo/issues/12",
+                        },
+                    )
+                else:
+                    say(f"github: {method} {target}: no answer here, 404")
+                    answer(writer, {"message": "Not Found"}, "404 Not Found")
             elif host == "api.github.com":
                 say(f"github: {method} {target} held")
                 if DROP_AFTER == "github":
@@ -370,14 +438,15 @@ async def serve(reader, writer):
                 say(f"cdn: {method} {target}")
                 answer(writer, LOG if target == LOG_PATH else "", kind="text/plain")
             elif target.startswith("/api/v10/users/@me"):
-                answer(writer, ME)
+                answer(writer, TRACER_ME if headers.get("authorization") == "Bot " + TRACER_TOKEN else ME)
             elif target.startswith("/api/v10/applications/@me"):
                 answer(writer, {"id": ME["id"], "flags": 1 << 19})  # the Message Content intent, limited
             elif method == "GET" and target == "/api/v10/channels/6/messages/50":
                 say(f"discord: {method} {target}")
                 answer(writer, LOGGED)
             elif method == "POST" and target in ("/api/v10/channels/6/messages", "/api/v10/channels/7/messages"):
-                posted.put_nowait(json.loads(body))
+                by = "Tracer" if headers.get("authorization") == "Bot " + TRACER_TOKEN else "ReiWimsy"
+                posted.put_nowait({"by": by, "body": json.loads(body)})
                 answer(writer, {"id": str(900 + posted.qsize())})
             elif "/emojis" in target:
                 answer(writer, {"items": []})

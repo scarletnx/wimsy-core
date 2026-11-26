@@ -70,12 +70,23 @@ static const char* const UPGRADES[] = {
     "CREATE INDEX probe_cases_name ON probe_cases(name, report, result);",
     /* 9, the program a run's starting note names: Amberlith, or edenprobe, the name before its 1.0.0 (NULL: a run kept
        before this, all edenprobe's) */
-    "ALTER TABLE probe_runs ADD COLUMN program TEXT;"};
+    "ALTER TABLE probe_runs ADD COLUMN program TEXT;",
+    /* 10, each report's issue as GitHub said it last, the pull request and nightly that fixed it, and when its sender
+       was told */
+    "ALTER TABLE reports ADD COLUMN issue_state TEXT;"
+    "ALTER TABLE reports ADD COLUMN issue_reason TEXT;"
+    "ALTER TABLE reports ADD COLUMN fix_pr INTEGER NOT NULL DEFAULT 0;"
+    "ALTER TABLE reports ADD COLUMN fix_commit TEXT;"
+    "ALTER TABLE reports ADD COLUMN fix_nightly TEXT;"
+    "ALTER TABLE reports ADD COLUMN told REAL NOT NULL DEFAULT 0;",
+    /* 11, the reports of one failure, found by their signature */
+    "CREATE INDEX reports_signature ON reports(signature, id);"};
 
 /* a report's columns, in the order row_report reads them */
 #define REPORT_COLUMNS                                                                                                 \
     "id, created, guild, channel, message, poster, game, title, named, title_id, note, version, build, commit_id, "    \
-    "branch, system, gpu, driver, outcome, signature, missed, console, issue, issue_url, age"
+    "branch, system, gpu, driver, outcome, signature, missed, console, issue, issue_url, age, issue_state, "           \
+    "issue_reason, fix_pr, fix_commit, fix_nightly, told"
 
 static void said(Store* s, const char* what) { rei_log("the database, %s: %s", what, sqlite3_errmsg(s->db)); }
 
@@ -457,7 +468,9 @@ int st_claim_issue(Store* s, long report) {
 }
 
 int st_set_issue(Store* s, long report, long number, const char* url) {
-    sqlite3_stmt* q = prepared(s, "UPDATE reports SET issue = ?, issue_url = ? WHERE id = ?");
+    sqlite3_stmt* q =
+        prepared(s, "UPDATE reports SET issue = ?, issue_url = ?, issue_state = NULL, issue_reason = NULL,"
+                    " fix_pr = 0, fix_commit = NULL, fix_nightly = NULL, told = 0 WHERE id = ?");
     int ok;
     if (!q) return -1;
     sqlite3_bind_int64(q, 1, number);
@@ -467,6 +480,78 @@ int st_set_issue(Store* s, long report, long number, const char* url) {
     if (!ok) said(s, "an issue kept");
     sqlite3_finalize(q);
     return ok ? 0 : -1;
+}
+
+int st_set_followed(Store* s, const StReport* r) {
+    sqlite3_stmt* q = prepared(s, "UPDATE reports SET issue_state = ?, issue_reason = ?, fix_pr = ?, fix_commit = ?,"
+                                  " fix_nightly = ? WHERE id = ?");
+    int ok;
+    if (!q) return -1;
+    text_at(q, 1, r->issue_state);
+    text_at(q, 2, r->issue_reason);
+    sqlite3_bind_int64(q, 3, r->fix_pr);
+    text_at(q, 4, r->fix_commit);
+    text_at(q, 5, r->fix_nightly);
+    sqlite3_bind_int64(q, 6, r->id);
+    ok = sqlite3_step(q) == SQLITE_DONE;
+    if (!ok) said(s, "an issue's state kept");
+    sqlite3_finalize(q);
+    return ok ? 0 : -1;
+}
+
+int st_set_told(Store* s, long report, double when) {
+    sqlite3_stmt* q = prepared(s, "UPDATE reports SET told = ? WHERE id = ?");
+    int ok;
+    if (!q) return -1;
+    sqlite3_bind_double(q, 1, when);
+    sqlite3_bind_int64(q, 2, report);
+    ok = sqlite3_step(q) == SQLITE_DONE;
+    if (!ok) said(s, "a sender told kept");
+    sqlite3_finalize(q);
+    return ok ? 0 : -1;
+}
+
+static void row_report(sqlite3_stmt* q, StReport* r);
+int st_followed(Store* s, int telling, StReport** reports, int* n) {
+    sqlite3_stmt* q = prepared(s, "SELECT " REPORT_COLUMNS " FROM reports WHERE issue > 0 AND NOT (fix_nightly IS NOT"
+                                  " NULL AND (told > 0 OR ? = 0)) ORDER BY id");
+    int cap = 0;
+    *reports = NULL;
+    *n = 0;
+    if (!q) return -1;
+    sqlite3_bind_int(q, 1, telling);
+    while (sqlite3_step(q) == SQLITE_ROW) {
+        if (*n == cap) {
+            cap = cap ? cap * 2 : 16;
+            *reports = realloc(*reports, (size_t)cap * sizeof **reports);
+            if (!*reports) {
+                fputs(REI_NAME ": out of memory\n", stderr);
+                abort();
+            }
+        }
+        memset(&(*reports)[*n], 0, sizeof **reports);
+        row_report(q, &(*reports)[(*n)++]);
+    }
+    sqlite3_finalize(q);
+    return 0;
+}
+
+int st_same_failure(Store* s, const char* signature, const char* key, long except, long* ids, long* issues, int max) {
+    sqlite3_stmt* q = prepared(s, "SELECT id, issue FROM reports WHERE signature = ? AND id != ? AND (? IS NULL OR"
+                                  " game = ?) ORDER BY id DESC LIMIT ?");
+    int n = 0;
+    if (!q) return -1;
+    text_at(q, 1, signature);
+    sqlite3_bind_int64(q, 2, except);
+    text_at(q, 3, key);
+    text_at(q, 4, key);
+    sqlite3_bind_int(q, 5, max);
+    while (n < max && sqlite3_step(q) == SQLITE_ROW) {
+        ids[n] = (long)sqlite3_column_int64(q, 0);
+        issues[n++] = (long)sqlite3_column_int64(q, 1);
+    }
+    sqlite3_finalize(q);
+    return n;
 }
 
 int st_set_bytes(Store* s, long report, int n, double bytes) {
@@ -578,6 +663,12 @@ static void row_report(sqlite3_stmt* q, StReport* r) {
     r->issue = (long)sqlite3_column_int64(q, 22);
     r->issue_url = text_of(q, 23);
     r->age = text_of(q, 24);
+    r->issue_state = text_of(q, 25);
+    r->issue_reason = text_of(q, 26);
+    r->fix_pr = (long)sqlite3_column_int64(q, 27);
+    r->fix_commit = text_of(q, 28);
+    r->fix_nightly = text_of(q, 29);
+    r->told = sqlite3_column_double(q, 30);
 }
 
 int st_get(Store* s, long id, StReport* r, StFile** files, int* nfiles) {
@@ -701,6 +792,10 @@ void st_report_free(StReport* r) {
     free(r->console);
     free(r->issue_url);
     free(r->age);
+    free(r->issue_state);
+    free(r->issue_reason);
+    free(r->fix_commit);
+    free(r->fix_nightly);
     memset(r, 0, sizeof *r);
 }
 

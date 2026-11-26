@@ -5,7 +5,10 @@
 #
 # The ReiWimsy Discord bot, run by daemon(8) as the reiwimsy user, started again when it stops; its output in syslog.
 # Its tokens and channels are in reiwimsy_env_file (root's, mode 600), which rc.subr exports to it; what it keeps of
-# its replies and its cards, in reiwimsy_state (its own folder, which only it reads).
+# its replies and its cards, in reiwimsy_state (its own folder, which only it reads). With TRACER_TOKEN in that file it
+# runs Tracer beside it: Tracer's database in reiwimsy_tracer_db's folder, which only it reads, the site it draws in
+# reiwimsy_tracer_site, which anyone may read (a web server's jail mounts it read-only), its files from
+# reiwimsy_tracer_assets.
 #
 #   service reiwimsy fixcards         says what reiwimsy --fix-cards would do of the nightly channel's cards that still
 #                                     say "Building", as the reiwimsy user, with the env file; changes nothing
@@ -20,6 +23,9 @@ load_rc_config $name
 : ${reiwimsy_enable:=NO}
 : ${reiwimsy_env_file:=/usr/local/etc/reiwimsy.env}
 : ${reiwimsy_state:=/var/db/reiwimsy/state.json}
+: ${reiwimsy_tracer_db:=/var/db/tracer/tracer.db}
+: ${reiwimsy_tracer_site:=/var/db/tracer-site}
+: ${reiwimsy_tracer_assets:=/usr/local/share/reiwimsy/tracer}
 
 pidfile=/var/run/${name}.pid
 command=/usr/sbin/daemon
@@ -37,6 +43,12 @@ reiwimsy_precmd()
 	fi
 	install -d -o reiwimsy -g reiwimsy -m 700 "$(dirname "${reiwimsy_state}")"
 	export REIWIMSY_STATE="${reiwimsy_state}"
+	if grep -q '^TRACER_TOKEN=.' "${reiwimsy_env_file}"; then
+		install -d -o reiwimsy -g reiwimsy -m 700 "$(dirname "${reiwimsy_tracer_db}")"
+		install -d -o reiwimsy -g reiwimsy -m 755 "${reiwimsy_tracer_site}"
+		export TRACER_DB="${reiwimsy_tracer_db}" TRACER_SITE="${reiwimsy_tracer_site}" \
+			TRACER_ASSETS="${reiwimsy_tracer_assets}"
+	fi
 }
 
 reiwimsy_fixcards()

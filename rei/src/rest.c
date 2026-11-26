@@ -13,8 +13,9 @@ static void nap(double seconds) {
     t.tv_nsec = (long)((seconds - (double)t.tv_sec) * 1e9);
     nanosleep(&t, NULL);
 }
-void dc_init(Dc* d, RgFetch fetch, void* ctx) {
+void dc_init_as(Dc* d, const char* name, RgFetch fetch, void* ctx) {
     memset(d, 0, sizeof *d);
+    d->name = name;
     d->fetch = fetch;
     d->ctx = ctx;
     d->sleep = nap;
@@ -50,14 +51,15 @@ static int ask(Dc* d, const char* method, const char* path, const char* body, Rg
     free(url);
     return out->status;
 }
-static void said_wrong(const char* what, const char* path, const RgAnswer* a) {
-    rei_log("Discord: %s %s answered %d: %.200s", what, path, a->status,
-            a->error  ? a->error
-            : a->body ? a->body
-                      : "nothing");
+static void said_wrong(const Dc* d, const char* what, const char* path, const RgAnswer* a) {
+    rei_log_as(d->name ? d->name : REI_NAME, "Discord: %s %s answered %d: %.200s", what, path, a->status,
+               a->error  ? a->error
+               : a->body ? a->body
+                         : "nothing");
 }
-/* the body of a message carrying embed: no pings, a reply to reply_to when not 0; owned */
-static char* message_of(const cJSON* embed, u64 reply_to) {
+/* the body of a message carrying embed: a reply to reply_to when not 0, which pings its author when ping is 1, and
+   no other ping; owned */
+static char* message_of(const cJSON* embed, u64 reply_to, int ping) {
     cJSON *m = cJSON_CreateObject(), *embeds = cJSON_AddArrayToObject(m, "embeds"),
           *mentions = cJSON_AddObjectToObject(m, "allowed_mentions");
     char* text;
@@ -69,7 +71,7 @@ static char* message_of(const cJSON* embed, u64 reply_to) {
         snprintf(id, sizeof id, "%llu", (unsigned long long)reply_to);
         cJSON_AddStringToObject(ref, "message_id", id);
         cJSON_AddBoolToObject(ref, "fail_if_not_exists", 0);
-        cJSON_AddBoolToObject(mentions, "replied_user", 0);
+        cJSON_AddBoolToObject(mentions, "replied_user", ping);
     }
     text = cJSON_PrintUnformatted(m);
     cJSON_Delete(m);
@@ -87,7 +89,7 @@ u64 dc_self(Dc* d) {
         d->self = id_of(me, "id");
         cJSON_Delete(me);
     } else if (!d->self)
-        said_wrong("GET", "users/@me", &a);
+        said_wrong(d, "GET", "users/@me", &a);
     answer_free(&a);
     return d->self;
 }
@@ -99,14 +101,16 @@ cJSON* dc_emojis(Dc* d) {
     if (app && ask(d, "GET", path, NULL, &a) == 200 && (got = cJSON_Parse(a.body)))
         items = cJSON_DetachItemFromObjectCaseSensitive(got, "items");
     else if (app)
-        said_wrong("GET", path, &a);
+        said_wrong(d, "GET", path, &a);
     cJSON_Delete(got);
     answer_free(&a);
     free(path);
     return items;
 }
-u64 dc_post(Dc* d, u64 channel, const cJSON* embed, u64 reply_to) {
-    char *path = rei_format("channels/%llu/messages", (unsigned long long)channel), *body = message_of(embed, reply_to);
+u64 dc_post(Dc* d, u64 channel, const cJSON* embed, u64 reply_to) { return dc_reply(d, channel, embed, reply_to, 0); }
+u64 dc_reply(Dc* d, u64 channel, const cJSON* embed, u64 reply_to, int ping) {
+    char *path = rei_format("channels/%llu/messages", (unsigned long long)channel),
+         *body = message_of(embed, reply_to, ping);
     RgAnswer a = {0};
     u64 id = 0;
     if (ask(d, "POST", path, body, &a) == 200) {
@@ -114,14 +118,14 @@ u64 dc_post(Dc* d, u64 channel, const cJSON* embed, u64 reply_to) {
         id = id_of(sent, "id");
         cJSON_Delete(sent);
     }
-    if (!id) said_wrong("POST", path, &a);
+    if (!id) said_wrong(d, "POST", path, &a);
     answer_free(&a);
     free(body);
     free(path);
     return id;
 }
 /* 0 for a 2xx, 404 for gone, else the status, -1 for no answer (said in the log) */
-static int done_or_gone(const char* what, const char* path, RgAnswer* a, int status) {
+static int done_or_gone(const Dc* d, const char* what, const char* path, RgAnswer* a, int status) {
     int said;
     if (status >= 200 && status < 300)
         said = 0;
@@ -129,16 +133,16 @@ static int done_or_gone(const char* what, const char* path, RgAnswer* a, int sta
         said = 404;
     else {
         said = status ? status : -1;
-        said_wrong(what, path, a);
+        said_wrong(d, what, path, a);
     }
     answer_free(a);
     return said;
 }
 int dc_edit(Dc* d, u64 channel, u64 message, const cJSON* embed) {
     char *path = rei_format("channels/%llu/messages/%llu", (unsigned long long)channel, (unsigned long long)message),
-         *body = message_of(embed, 0);
+         *body = message_of(embed, 0, 0);
     RgAnswer a = {0};
-    int said = done_or_gone("PATCH", path, &a, ask(d, "PATCH", path, body, &a));
+    int said = done_or_gone(d, "PATCH", path, &a, ask(d, "PATCH", path, body, &a));
     free(body);
     free(path);
     return said;
@@ -146,7 +150,7 @@ int dc_edit(Dc* d, u64 channel, u64 message, const cJSON* embed) {
 int dc_remove(Dc* d, u64 channel, u64 message) {
     char* path = rei_format("channels/%llu/messages/%llu", (unsigned long long)channel, (unsigned long long)message);
     RgAnswer a = {0};
-    int said = done_or_gone("DELETE", path, &a, ask(d, "DELETE", path, NULL, &a));
+    int said = done_or_gone(d, "DELETE", path, &a, ask(d, "DELETE", path, NULL, &a));
     free(path);
     return said;
 }
@@ -159,7 +163,7 @@ cJSON* dc_messages(Dc* d, u64 channel, u64 before, int max) {
     cJSON* list = NULL;
     if (ask(d, "GET", path, NULL, &a) == 200) list = cJSON_Parse(a.body);
     if (!cJSON_IsArray(list)) {
-        said_wrong("GET", path, &a);
+        said_wrong(d, "GET", path, &a);
         cJSON_Delete(list);
         list = NULL;
     }

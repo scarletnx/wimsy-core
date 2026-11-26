@@ -16,11 +16,13 @@
 # (fake_discord.py's cards): the dry run changes nothing, --apply deletes the one of a push with no nightly and redraws
 # the one a nightly was published from, and a second --apply finds nothing to do. Tracer answers only in its channel 6
 # there, and a mention in channel 7 goes unanswered; tracer-all is the same with TRACER_CHANNELS=all, which answers
-# that one too.
+# that one too. both: reiwimsy with TRACER_TOKEN, two bots in one process (fake_discord.py's both): each answers with
+# its own token, Tracer "@Tracer delete #12" and ReiWimsy "see #12", and ReiWimsy leaves the first to Tracer; the
+# gateways then close under both, and the program ends with 1.
 #
 #   sh rei/tests/test_gateway.sh PROGRAM BINARY
 #
-# PROGRAM: reiwimsy, tracer, tracer-all, zombie, tracer-zombie, unready, tracer-unready, stalled or fix-cards.
+# PROGRAM: reiwimsy, tracer, tracer-all, zombie, tracer-zombie, unready, tracer-unready, stalled, fix-cards or both.
 #
 # Linux, no network: the bot runs in a mount and network namespace of its own, and in a user namespace too when not run
 # by root (a machine that keeps those from users runs the test as root), whose /etc/hosts sends Discord and GitHub to
@@ -37,9 +39,10 @@ unready) drop_after=unready bot=reiwimsy ;;
 stalled) drop_after=stalled bot=reiwimsy ;;
 tracer-unready) drop_after=unready bot=tracer ;;
 fix-cards) drop_after=cards bot=reiwimsy ;;
+both) drop_after=both bot='\(reiwimsy\|tracer\)' ;;
 *)
 	echo "usage: sh test_gateway.sh PROGRAM BINARY, PROGRAM one of reiwimsy, tracer, tracer-all, zombie," \
-		"tracer-zombie, unready, tracer-unready, stalled, fix-cards (program \"$program\")" >&2
+		"tracer-zombie, unready, tracer-unready, stalled, fix-cards, both (program \"$program\")" >&2
 	exit 2
 	;;
 esac
@@ -64,8 +67,9 @@ printf 'subjectAltName=DNS:discord.com,DNS:gateway.discord.gg,DNS:cdn.discordapp
 openssl x509 -req -in "$tmp/leaf.csr" -CA "$tmp/ca.pem" -CAkey "$tmp/ca.key" -CAcreateserial -days 2 \
 	-extfile "$tmp/san.ext" -out "$tmp/leaf.pem" 2> /dev/null
 printf '127.0.0.1 localhost discord.com gateway.discord.gg cdn.discordapp.com api.github.com\n' > "$tmp/hosts"
-# a token of Discord's form, which Concord checks before anything
+# a token of Discord's form, which Concord checks before anything; Tracer's beside ReiWimsy's (fake_discord.py's)
 token=FakeFakeFakeFakeFakeFake.Fake00.FakeFakeFakeFakeFakeFakeFake
+tracer_token=TracerTracerTracerTracer.Trace0.TracerTracerTracerTracerTr
 mkdir "$tmp/site"
 if [ "$program" = reiwimsy ]; then
 	set -- REIWIMSY_TOKEN=$token REIWIMSY_REPO=owner/repo GITHUB_TOKEN=fake REIWIMSY_CARDS_NIGHTLY=1 \
@@ -74,6 +78,10 @@ elif [ "$program" = zombie ] || [ "$program" = unready ] || [ "$program" = stall
 	set -- REIWIMSY_TOKEN=$token REIWIMSY_REPO=owner/repo REIWIMSY_STATE="$tmp/state.json"
 elif [ "$program" = fix-cards ]; then
 	set -- REIWIMSY_TOKEN=$token REIWIMSY_REPO=owner/repo GITHUB_TOKEN=fake REIWIMSY_CARDS_NIGHTLY=5
+elif [ "$program" = both ]; then
+	set -- REIWIMSY_TOKEN=$token REIWIMSY_REPO=owner/repo REIWIMSY_STATE="$tmp/state.json" \
+		TRACER_TOKEN=$tracer_token TRACER_URL=http://127.0.0.1:8 TRACER_DB="$tmp/tracer.db" TRACER_SITE="$tmp/site" \
+		TRACER_ASSETS="$top/tracer/site" TRACER_CHANNELS=6
 else
 	set -- TRACER_TOKEN=$token TRACER_URL=http://127.0.0.1:8 TRACER_DB="$tmp/tracer.db" TRACER_SITE="$tmp/site" \
 		TRACER_ASSETS="$top/tracer/site" TRACER_CHANNELS=$([ "$program" = tracer-all ] && echo all || echo 6)
@@ -194,6 +202,21 @@ elif ! grep -q 'gateway: closed with 1001' "$tmp/fake.log"; then
 	failed="the fake gateway never closed under it"
 elif ! grep -q "$said" "$tmp/bot.log"; then
 	failed="it never said its GET gateway/bot failed and what Discord answers it now"
+elif [ "$drop_after" = both ]; then
+	if ! grep -q '^reiwimsy: Tracer: beside ReiWimsy, with its own token; .* (user 200)' "$tmp/bot.log"; then
+		failed="it never said Tracer runs beside ReiWimsy as user 200"
+	elif ! grep -q '^gateway: READY as user 100$' "$tmp/fake.log" ||
+		! grep -q '^gateway: READY as user 200$' "$tmp/fake.log"; then
+		failed="the two gateways did not identify with the two tokens"
+	elif ! grep -q '^discord: answered as Tracer to 80: .*There is no report #12' "$tmp/fake.log"; then
+		failed="Tracer did not answer \"@Tracer delete #12\" with its own token"
+	elif ! grep -q '^discord: answered as ReiWimsy to 81: .*An issue' "$tmp/fake.log"; then
+		failed="ReiWimsy did not answer \"see #12\" with its own token"
+	elif grep -q '^discord: answered as ReiWimsy to 80' "$tmp/fake.log"; then
+		failed="ReiWimsy answered the message that mentions Tracer"
+	elif grep -q '^discord: answered as Tracer to 81' "$tmp/fake.log"; then
+		failed="Tracer answered the message that does not mention it"
+	fi
 elif [ "$drop_after" = replies ]; then
 	# the first reply: a report of message 50, its log downloaded and kept with its home folder as ~; the second: told
 	# that message is that report already. The mention in channel 7: its help, with all; nothing, with channel 6 alone
@@ -224,5 +247,6 @@ fi
 [ "$program" = tracer ] && echo "tracer: the mention in channel 7, which TRACER_CHANNELS=6 leaves out, went unanswered"
 [ "$program" = tracer-all ] && echo "tracer-all: TRACER_CHANNELS=all answered the mention in channel 7 with its help"
 [ "$drop_after" = zombie ] && echo "$program: left the connection stalled mid-frame, identified on the next, kept it"
+[ "$program" = both ] && echo "both: Tracer answered \"@Tracer delete #12\" and ReiWimsy \"see #12\", each as itself"
 { [ "$drop_after" = unready ] || [ "$drop_after" = stalled ]; } && said=$watched
 echo "$program: ended with 1 when its gateway stopped: $(grep "$said" "$tmp/bot.log")"

@@ -111,19 +111,30 @@ done
 
 # The programs, built and tested from a copy, so the checkout keeps no objects
 cp -R "$top/rei" "$top/accordwimsy" "$top/tracer" "$work/"
-(cd "$work/rei" && make -s clean && make -s test && make -s CONCORD="$work/concord-prefix")
 (cd "$work/accordwimsy" && make -s clean && make -s test)
-# its log summary demangles through the C++ runtime, libc++'s in base
+# Tracer's log summary demangles through the C++ runtime, libc++'s in base; reiwimsy runs Tracer too
 (cd "$work/tracer" && make -s clean && make -s test CXXRT=-lc++ && make -s CONCORD="$work/concord-prefix" CXXRT=-lc++)
+(cd "$work/rei" && make -s clean && make -s test && make -s CONCORD="$work/concord-prefix" CXXRT=-lc++)
+
+# Tracer's site files (the pieces each start copies into its site, and the themes), as a package installs them under
+# share/<folder>: the tracer package's, and reiwimsy's own, so that each works alone in a jail
+site_files() {
+	install -d "$1"
+	install -m 644 "$work/tracer/site/style.css" "$work/tracer/site/site.js" "$work/tracer/site/tracer.svg" "$1/"
+	sh "$top/scripts/tracer-themes.sh" "$1/sws" "$top"
+	chmod 644 "$1/sws/"*
+}
 
 s=$work/stage/reiwimsy/usr/local
 install -d "$s/libexec" "$s/etc/rc.d"
 install -m 755 "$work/rei/reiwimsy" "$s/libexec/reiwimsy"
 install -m 555 "$here/reiwimsy.rc" "$s/etc/rc.d/reiwimsy"
 install -m 644 "$here/reiwimsy.env.sample" "$s/etc/reiwimsy.env.sample"
-# an assignment: a dependency missing stops the script, which an argument's $(...) would not
-rdeps=$(deps curl ca_root_nss)
-package reiwimsy "ScarletNX's Discord bot: links issues and pull requests, keeps cards" net-im/reiwimsy "$rdeps"
+site_files "$s/share/reiwimsy/tracer"
+# an assignment: a dependency missing stops the script, which an argument's $(...) would not; libarchive is base's
+rdeps=$(deps curl ca_root_nss sqlite3)
+package reiwimsy "ScarletNX's Discord bots: ReiWimsy's links and cards, and Tracer's game reports" net-im/reiwimsy \
+	"$rdeps"
 
 s=$work/stage/accordwimsy/usr/local
 install -d "$s/bin" "$s/etc/accordwimsy" "$s/share/examples/accordwimsy"
@@ -143,11 +154,7 @@ install -m 755 "$work/tracer/tracer" "$work/tracer/tracer-mcp" "$s/libexec/"
 install -m 555 "$here/tracer.rc" "$s/etc/rc.d/tracer"
 install -m 555 "$here/tracer-mcp.rc" "$s/etc/rc.d/tracer_mcp"
 install -m 644 "$here/tracer.env.sample" "$s/etc/tracer.env.sample"
-install -m 644 "$work/tracer/site/style.css" "$work/tracer/site/site.js" "$work/tracer/site/tracer.svg" \
-	"$s/share/tracer/"
-# the stylesheet in each theme and each theme's Wimsy, which the site's nginx gives by the reader's pick
-sh "$top/scripts/tracer-themes.sh" "$s/share/tracer/sws" "$top"
-chmod 644 "$s/share/tracer/sws/"*
+site_files "$s/share/tracer"
 install -m 644 "$here/tracer-nginx.conf" "$s/share/examples/tracer/nginx.conf"
 # libarchive is base's
 tdeps=$(deps curl ca_root_nss sqlite3 libmicrohttpd)

@@ -260,6 +260,24 @@ FILES = (
         '    free(shown);',
     ),
     (
+        "the issue keeps a title ID",
+        'issues.c',
+        '        if (run == 16 && (at + 1 == n || !hex(s[at + 1]))) {',
+        '        if (run == 17 && (at + 1 == n || !hex(s[at + 1]))) {',
+    ),
+    (
+        "the issue keeps a line that names a game's file",
+        'issues.c',
+        '        if (game_file(s, end)) {',
+        '        if (0 && game_file(s, end)) {',
+    ),
+    (
+        "a word that is an extension alone is a game's file",
+        'issues.c',
+        '    if (i <= 1 || i == n) return 0;',
+        '    if (!i || i == n) return 0;',
+    ),
+    (
         'the issue has no screenshots',
         'issues.c',
         '    shots(&b, r->id, files, nfiles, url);',
@@ -295,8 +313,47 @@ PROBE = (
     ),
 )
 
-# what only the whole suite holds: the worker, a process of its own shut in its folder (test_worker)
+# what only the whole suite holds: the worker, a process of its own shut in its folder, and its environment
+# (test_worker); who links a
+# report to an issue (test_links); when a report's sender is told its fix is out (test_follow); an approval of a
+# failure an issue has (test_same_failure)
 WORKER = (
+    (
+        "an approval opens a new issue for a failure an issue has",
+        'report.c',
+        '        if (i < n) {\n            e = same_linked(',
+        '        if (0 && i < n) {\n            e = same_linked(',
+    ),
+    (
+        "a worker's environment keeps ReiWimsy's settings",
+        'worker.c',
+        'static const char* const prefixes[] = {"TRACER_", "REIWIMSY_", "GITHUB_"};',
+        'static const char* const prefixes[] = {"TRACER_", "TRACER_", "GITHUB_"};',
+    ),
+    (
+        "a worker's environment keeps a name that holds a secret",
+        'worker.c',
+        '    for (k = 0; k < sizeof words / sizeof *words; ++k)',
+        '    for (k = 0; k < 0; ++k)',
+    ),
+    (
+        "a sender is told before a nightly has the fix",
+        'follow.c',
+        '            if (t->notify != TR_NOTIFY_OFF && now.fix_nightly && !r[i].told) {',
+        '            if (t->notify != TR_NOTIFY_OFF && now.fix_commit && !r[i].told) {',
+    ),
+    (
+        "a nightly behind the fix has it",
+        'follow.c',
+        '        has = !strcmp(status, "ahead") || !strcmp(status, "identical");',
+        '        has = 1;',
+    ),
+    (
+        'anyone links a report to an issue',
+        'report.c',
+        '    if (!admin(t, m, r.guild)) {\n        st_report_free(&r);\n        return said("Only the server',
+        '    if (0) {\n        st_report_free(&r);\n        return said("Only the server',
+    ),
     (
         "the worker makes a zip's locale once shut in, where its files do not open",
         'worker.c',

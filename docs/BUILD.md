@@ -37,9 +37,13 @@ installed into a folder of its own. GNU make builds it (`gmake`, which is `make`
 
 ## ReiWimsy
 
-    make -C rei CONCORD="$HOME/concord"                # rei/reiwimsy
+    make -C rei CONCORD="$HOME/concord"                # rei/reiwimsy, with Tracer (tracer/libtracer.a) beside it
     make -C rei test                                   # its tests: no Discord, no network, no Concord
     make -C rei test-gateway CONCORD="$HOME/concord"   # reiwimsy against a fake Discord: Linux (Testing)
+
+`reiwimsy` runs [Tracer](./REIWIMSY.md#tracer-beside-it) too: its make builds `make -C tracer libtracer.a`, the bot
+without ReiWimsy's pieces, and links it, with SQLite, libarchive, zlib and the C++ runtime (`CXXRT=-lc++` on FreeBSD,
+as for Tracer). Its tests need none of them.
 
 ## Tracer
 
