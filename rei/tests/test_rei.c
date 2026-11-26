@@ -331,6 +331,8 @@ static void commands(void) {
     cJSON* e;
     link_start();
     gh("repos/o/nightly/releases/latest", NIGHTLY);
+    gh("repos/o/r/actions/workflows/build.yml/runs?event=schedule&branch=main&per_page=1",
+       "{\"workflow_runs\":[{\"id\":76,\"status\":\"completed\"}]}");
     gh("repos/o/nightly/releases/tags/pr-355",
        "{\"name\":\"PR #355: Android menu files\",\"tag_name\":\"pr-355\",\"html_url\":\"https://n/pr-355\","
        "\"prerelease\":true,\"assets\":[]}");
@@ -367,6 +369,23 @@ static void commands(void) {
     e = lk_answer(&l, "!nightly", numbers, &n);
     CHECK(times_asked("GET", "https://api.github.com/repos/o/nightly/releases/latest") == 1);
     cJSON_Delete(e);
+    /* a scheduled Build of main not ended: the nightly being built, its run and when it began, above the newest */
+    gh("repos/o/r/actions/workflows/build.yml/runs?event=schedule&branch=main&per_page=1",
+       "{\"workflow_runs\":[{\"id\":77,\"status\":\"in_progress\",\"html_url\":\"https://g/77\","
+       "\"run_started_at\":\"2026-11-26T00:23:11Z\"}]}");
+    e = lk_answer(&l, "!nightly", numbers, &n);
+    CHECK(e && !strncmp(jstr(e, "description"),
+                        "A nightly is being built: [run 77](https://g/77), begun 2026-11-26 00:23 UTC.\n", 78));
+    SAME(jstr(e, "url"), "https://n/nightly-2026-10-17-44aa300");
+    cJSON_Delete(e);
+    /* GitHub not listing the scheduled builds: said, the newest still given */
+    answer("GET",
+           "https://api.github.com/repos/o/r/actions/workflows/build.yml/runs?event=schedule&branch=main&per_page=1",
+           502, "{}");
+    e = lk_answer(&l, "!nightly", numbers, &n);
+    CHECK(e && !strncmp(jstr(e, "description"), "Whether a nightly is being built is not known", 45));
+    SAME(jstr(e, "url"), "https://n/nightly-2026-10-17-44aa300");
+    cJSON_Delete(e);
     e = lk_answer(&l, "!release", numbers, &n);
     CHECK(e && !strncmp(jstr(e, "description"), "No version is released yet. The newest nightly:", 47));
     SAME(jstr(e, "url"), "https://n/nightly-2026-10-17-44aa300");
@@ -387,6 +406,14 @@ static void commands(void) {
     e = lk_answer(&l, "  !Release ", numbers, &n);
     SAME(jstr(e, "url"), "https://x/v0.1.0");
     CHECK(jnum(e, "color") == REI_OPEN);
+    cJSON_Delete(e);
+    /* no nightly yet, one being built: both said */
+    gh("repos/o/r/actions/workflows/build.yml/runs?event=schedule&branch=main&per_page=1",
+       "{\"workflow_runs\":[{\"id\":78,\"status\":\"queued\",\"html_url\":\"https://g/78\","
+       "\"created_at\":\"2026-11-26T03:23:00Z\"}]}");
+    e = lk_answer(&l, "!nightly", numbers, &n);
+    SAME(jstr(e, "description"),
+         "No nightly is published yet. A nightly is being built: [run 78](https://g/78), begun 2026-11-26 03:23 UTC.");
     cJSON_Delete(e);
     link_end();
     rg_init(&g, "o/r", "p/builds", fake, NULL);
@@ -750,21 +777,20 @@ static void cards_tests(void) {
         cd_load(&again, saved);
         CHECK(again.ncards == 1 && again.cards[0].message == c.cards[0].message && again.purged_issues);
         SAME(again.since, c.since);
-        SAME(again.head, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
         SAME(again.cards[0].moved, c.cards[0].moved);
         CHECK(*again.cards[0].moved && again.cards[0].stale == c.cards[0].stale);
         cd_free(&again);
         cJSON_Delete(saved);
     }
     /* cards kept before their activity was: an issue's drawn again once, where it is, to learn what moves it; a
-       nightly's never moves */
+       nightly's of no nightly (a push's, from when each had one) deleted and forgotten */
     {
         int before = nsent, removes = cd_removes;
         char* old = rei_format("{\"cards\":[{\"key\":\"issue-12\",\"message\":\"%llu\",\"drawn\":\"x\",\"closed\":0,"
                                "\"gone\":false,\"dirty\":false},{\"key\":\"nightly-abc\",\"message\":\"5\",\"drawn\":"
-                               "\"y\",\"closed\":0,\"gone\":false,\"dirty\":false}],\"since\":\"%s\",\"head\":\"%s\","
+                               "\"y\",\"closed\":0,\"gone\":false,\"dirty\":false}],\"since\":\"%s\",\"head\":\"a\","
                                "\"purged_issues\":true}",
-                               (unsigned long long)c.cards[0].message, c.since, c.head);
+                               (unsigned long long)c.cards[0].message, c.since);
         cJSON* saved = cJSON_Parse(old);
         Cards again;
         cd_init(&again, &g, dc, 0, 1, 3);
@@ -772,8 +798,8 @@ static void cards_tests(void) {
         CHECK(again.ncards == 2 && again.cards[0].dirty && !*again.cards[0].moved && !again.cards[1].dirty);
         cards_fixtures("open", "null");
         updated(&again, "[]");
-        CHECK(nsent == before && cd_removes == removes && again.cards[0].message == c.cards[0].message);
-        CHECK(*again.cards[0].moved && !again.cards[0].dirty);
+        CHECK(nsent == before && cd_removes == removes + 1 && again.cards[0].message == c.cards[0].message);
+        CHECK(*again.cards[0].moved && !again.cards[0].dirty && again.ncards == 1);
         cd_free(&again);
         cJSON_Delete(saved);
         free(old);
@@ -800,54 +826,83 @@ static void gh_shas(const char* path, const char* body) {
     free(p);
     free(b);
 }
-/* main moved by pushes of several commits each: a nightly's card for each push's head, the oldest first, none for the
-   commits inside a push, which no build runs for; the head now has one before GitHub's activity lists its push */
-static void nightly_pushes(void) {
+/* the nightly releases as the rounds read them: the one before, @c, with a package, always as it is; the day's, @e,
+   with assets, when they are given */
+static void releases_with(const char* assets) {
+    const char* before =
+        "{\"tag_name\":\"nightly-2026-11-25-ccccccc\",\"name\":\"Nightly 2026-11-25 (ccccccc)\","
+        "\"html_url\":\"https://n/c\",\"published_at\":\"2026-11-25T03:00:00Z\",\"body\":\"Built from "
+        "main at [`ccccccc`](https://github.com/o/r/commit/@c).\",\"assets\":[{\"name\":"
+        "\"ScarletNX-linux-x86_64.AppImage\",\"size\":1,\"browser_download_url\":\"https://n/c/lin\"}]}";
+    char* list = assets
+                     ? rei_format("[{\"tag_name\":\"nightly-2026-11-26-eeeeeee\",\"name\":\"Nightly 2026-11-26 "
+                                  "(eeeeeee)\",\"html_url\":\"https://n/e\",\"published_at\":\"2026-11-26T03:00:00Z\","
+                                  "\"body\":\"Built from main at [`eeeeeee`](https://github.com/o/r/commit/@e).\","
+                                  "\"assets\":%s},%s]",
+                                  assets, before)
+                     : rei_format("[%s]", before);
+    gh_shas("repos/o/nightly/releases?per_page=100&page=1", list);
+    free(list);
+}
+/* the nightly's channel: no card for a push to main, its build running or not, nor for a nightly with no package yet;
+   one for a nightly published with its packages, titled as its release, with its changes since the one before; a
+   push's card from before, of no nightly, deleted and forgotten */
+static void nightly_cards(void) {
     Cards c;
     CdDiscord dc = {NULL, c_post, c_edit, c_remove, c_history, c_messages};
-    int before;
-    char x;
+    int before, removes;
     forget();
     rg_init(&g, "o/r", NULL, fake, NULL);
     cd_init(&c, &g, dc, 0, 0, 3);
-    cards_fixtures("open", "null"); /* main at @a, the first round learns it */
+    cards_fixtures("open", "null");
+    releases_with(NULL);
+    now_is += 30;
+    cd_round(&c); /* the first round learns what is there */
+    CHECK(c.ncards == 0);
+    gh_shas("repos/o/r/actions/workflows/build.yml/runs?per_page=20",
+            "{\"workflow_runs\":[{\"id\":90,\"event\":\"push\",\"head_branch\":\"main\",\"head_sha\":\"@e\","
+            "\"status\":\"in_progress\",\"head_repository\":{\"full_name\":\"o/r\"}}]}");
+    gh("repos/o/r/actions/runs/90/jobs?per_page=100&page=1", "{\"jobs\":[]}");
+    before = nsent;
     now_is += 30;
     cd_round(&c);
-    CHECK(c.head[0] == 'a' && strlen(c.head) == 40);
-    for (x = 'b'; x <= 'g'; ++x) { /* each commit as cd_nightly asks for it, with no build yet */
-        char *commit = rei_format("repos/o/r/commits/@%c", x),
-             *runs = rei_format("repos/o/r/actions/workflows/build.yml/runs?head_sha=@%c&per_page=100&page=1", x);
-        gh_shas(commit, "{\"commit\":{\"committer\":{\"date\":\"2026-11-04T20:56:45Z\"}}}");
-        gh_shas(runs, "{\"workflow_runs\":[]}");
-        free(commit);
-        free(runs);
+    CHECK(nsent == before && c.ncards == 0); /* a push to main and its build: no card */
+    releases_with("[]");
+    now_is += 30;
+    cd_round(&c);
+    CHECK(nsent == before && c.ncards == 0); /* the day's nightly with no package yet: none */
+    gh_shas("repos/o/r/commits/@e", "{\"commit\":{\"committer\":{\"date\":\"2026-11-26T00:10:00Z\"}}}");
+    gh_shas("repos/o/r/actions/workflows/build.yml/runs?head_sha=@e&per_page=100&page=1", "{\"workflow_runs\":[]}");
+    gh_shas("repos/o/r/compare/@c...@e",
+            "{\"status\":\"ahead\",\"commits\":[{\"sha\":\"@d\",\"parents\":[{\"sha\":"
+            "\"@c\"}],\"commit\":{\"message\":\"[vk] a fix\"}},{\"sha\":\"@e\",\"parents\":"
+            "[{\"sha\":\"@d\"}],\"commit\":{\"message\":\"[gui] a row\"}}]}");
+    releases_with("[{\"name\":\"ScarletNX-linux-x86_64.AppImage\",\"size\":52428800,\"browser_download_url\":"
+                  "\"https://n/e/lin\"}]");
+    now_is += 30;
+    cd_round(&c);
+    CHECK(nsent == before + 1 && c.ncards == 1);
+    HAS(sent[before].description, "\"title\":\"Nightly 2026-11-26 (eeeeeee)\"");
+    HAS(sent[before].description, "Built from main at [`eeeeeee`]");
+    HAS(sent[before].description, "a row");
+    HAS(sent[before].description, "Every nightly stays in o/nightly");
+    HAS(sent[before].description, "Windows ARM64");
+    /* a push's card from before, of no nightly: deleted at the next round, and forgotten */
+    {
+        char* old = shas("{\"cards\":[{\"key\":\"nightly-@d\",\"message\":\"777\",\"drawn\":\"x\",\"dirty\":false}],"
+                         "\"head\":\"@a\"}");
+        cJSON* saved = cJSON_Parse(old);
+        Cards again;
+        cd_init(&again, &g, dc, 0, 0, 3);
+        cd_load(&again, saved);
+        removes = cd_removes;
+        now_is += 30;
+        cd_round(&again);
+        CHECK(cd_removes == removes + 1 && again.ncards == 0);
+        cd_free(&again);
+        cJSON_Delete(saved);
+        free(old);
     }
-    /* two pushes since: @a to @c (@b, @c), then @c to @e (@d, @e) */
-    gh_shas("repos/o/r/commits/main", "{\"sha\":\"@e\"}");
-    gh_shas("repos/o/r/activity?ref=refs/heads/main&per_page=10",
-            "[{\"after\":\"@e\",\"before\":\"@c\"},{\"after\":\"@c\",\"before\":\"@a\"},"
-            "{\"after\":\"@a\",\"before\":\"@9\"}]");
-    gh_shas("repos/o/r/compare/@a...@e", "{\"commits\":[{\"sha\":\"@b\",\"parents\":[{\"sha\":\"@a\"}]},"
-                                         "{\"sha\":\"@c\",\"parents\":[{\"sha\":\"@b\"}]},"
-                                         "{\"sha\":\"@d\",\"parents\":[{\"sha\":\"@c\"}]},"
-                                         "{\"sha\":\"@e\",\"parents\":[{\"sha\":\"@d\"}]}]}");
-    before = nsent;
-    now_is += 30;
-    cd_round(&c);
-    CHECK(nsent == before + 2 && c.ncards == 2);
-    HAS(sent[before].description, "\"title\":\"Nightly 2026-11-04 (ccccccc)\"");
-    HAS(sent[before + 1].description, "\"title\":\"Nightly 2026-11-04 (eeeeeee)\"");
-    HAS(sent[before + 1].description, "Building main at");
-    /* main at @g, the activity a push behind (@e to @f only): @f's card, then @g's */
-    gh_shas("repos/o/r/commits/main", "{\"sha\":\"@g\"}");
-    gh_shas("repos/o/r/activity?ref=refs/heads/main&per_page=10",
-            "[{\"after\":\"@f\",\"before\":\"@e\"},{\"after\":\"@e\",\"before\":\"@c\"}]");
-    before = nsent;
-    now_is += 30;
-    cd_round(&c);
-    CHECK(nsent == before + 2 && c.ncards == 4);
-    HAS(sent[before].description, "(fffffff)");
-    HAS(sent[before + 1].description, "(ggggggg)");
     cd_free(&c);
     rg_free(&g);
     forget();
@@ -872,140 +927,52 @@ static u64 building_card(double when, int n, char x) {
     free(embed);
     return id;
 }
-/* the cards the rounds left saying "Building": a commit inside a push deleted, a push's head drawn again with how its
-   build ended, the rest said and left; a dry run first does nothing, and a second run finds nothing to do */
+/* the cards the rounds left saying "Building", from when each push had one: one of a commit a nightly was published
+   from drawn again, the rest deleted, another's and one saying something else left; a dry run first does nothing, and
+   a second run finds nothing to do */
 static void fix_cards(void) {
     Cards c;
     CdDiscord dc = {NULL, c_post, c_edit, c_remove, c_history, c_messages};
     double now = 1793847600; /* 2026-11-05T03:00:00Z */
-    u64 b, cc, d, e, f, gg, h, one, theirs, built;
+    u64 b, e, theirs, built;
     int edits_before, removes;
-    const char* x;
     forget();
     now_is = now;
     rg_init(&g, "o/r", NULL, fake, NULL);
     cd_init(&c, &g, dc, 0, 0, 5);
-    b = building_card(now - 5 * 3600 + 60, 0, 'b');  /* inside the push @a to @c */
-    cc = building_card(now - 5 * 3600 + 62, 0, 'c'); /* that push's head: its build failed */
-    d = building_card(now - 4 * 3600 + 60, 0, 'd');  /* inside the push @c to @e */
-    e = building_card(now - 4 * 3600 + 62, 0, 'e');  /* its head: published */
-    f = building_card(now - 3 * 3600 + 60, 0, 'f');  /* the push @e to @f: still building */
-    gg = building_card(now - 2 * 3600 + 60, 0, '7'); /* main's head now */
-    h = building_card(now - 600, 0, '8');            /* ten minutes old, no push listed yet */
-    one = building_card(now - 9.5 * 3600, 0, '1');   /* before the pushes listed, from 17:00 */
+    b = building_card(now - 5 * 3600 + 60, 0, 'b'); /* a push's, of no nightly */
+    e = building_card(now - 4 * 3600 + 62, 0, 'e'); /* a nightly was published from it */
     theirs = card_posted(now - 4 * 3600 + 70, 0, 9999,
                          "{\"description\":\"Building main at [`2222222`](https://github.com/o/r/commit/@2)\"}");
     built = card_posted(now - 4 * 3600 + 80, 0, 0,
                         "{\"description\":\"Built from main at [`3333333`](https://github.com/o/r/commit/@3)\"}");
-    gh_shas("repos/o/r/commits/main", "{\"sha\":\"@7\"}");
-    /* the pushes' builds: 100 a page, so GitHub may hold older than the last, from 17:00 */
-    {
-        Buf runs = {0};
-        int i;
-        buf_add(&runs, "{\"workflow_runs\":[{\"head_sha\":\"@7\",\"created_at\":\"2026-11-05T01:00:05Z\"},"
-                       "{\"head_sha\":\"@f\",\"created_at\":\"2026-11-05T00:00:05Z\"},"
-                       "{\"head_sha\":\"@e\",\"created_at\":\"2026-11-04T23:00:05Z\"},"
-                       "{\"head_sha\":\"@c\",\"created_at\":\"2026-11-04T22:00:05Z\"}");
-        for (i = 0; i < 96; ++i) buf_add(&runs, ",{\"head_sha\":\"@a\",\"created_at\":\"2026-11-04T17:00:05Z\"}");
-        buf_add(&runs, "]}");
-        gh_shas("repos/o/r/actions/workflows/build.yml/runs?branch=main&event=push&per_page=100&page=1", runs.text);
-        buf_free(&runs);
-    }
-    gh("repos/o/nightly/releases?per_page=100&page=1",
-       "[{\"tag_name\":\"nightly-2026-11-04-eeeeeee\",\"name\":\"Nightly 2026-11-04 (eeeeeee)\",\"html_url\":"
-       "\"https://n/e\",\"published_at\":\"2026-11-04T23:20:00Z\",\"body\":\"its notes\",\"assets\":[]}]");
-    for (x = "cdef7"; *x; ++x) {
-        char* commit = rei_format("repos/o/r/commits/@%c", *x);
-        gh_shas(commit, "{\"commit\":{\"committer\":{\"date\":\"2026-11-04T22:00:00Z\"}}}");
-        free(commit);
-    }
-    gh_shas("repos/o/r/actions/workflows/build.yml/runs?head_sha=@c&per_page=100&page=1",
-            "{\"workflow_runs\":[{\"id\":71,\"event\":\"push\",\"status\":\"completed\",\"conclusion\":\"failure\","
-            "\"created_at\":\"2026-11-04T22:00:05Z\",\"html_url\":\"https://r/71\"}]}");
+    /* GitHub not giving the nightlies: nothing done */
+    removes = cd_removes;
+    CHECK(cd_fix(&c, FIX_SELF, 1) == -1 && cd_removes == removes);
+    gh_shas("repos/o/nightly/releases?per_page=100&page=1",
+            "[{\"tag_name\":\"nightly-2026-11-04-eeeeeee\",\"name\":\"Nightly 2026-11-04 (eeeeeee)\",\"html_url\":"
+            "\"https://n/e\",\"published_at\":\"2026-11-04T23:20:00Z\",\"body\":\"[`eeeeeee`]"
+            "(https://github.com/o/r/commit/@e)\",\"assets\":[]}]");
+    gh_shas("repos/o/r/commits/@e", "{\"commit\":{\"committer\":{\"date\":\"2026-11-04T22:00:00Z\"}}}");
     gh_shas("repos/o/r/actions/workflows/build.yml/runs?head_sha=@e&per_page=100&page=1",
-            "{\"workflow_runs\":[{\"id\":72,\"event\":\"push\",\"status\":\"completed\",\"conclusion\":\"success\","
+            "{\"workflow_runs\":[{\"id\":72,\"event\":\"schedule\",\"status\":\"completed\",\"conclusion\":\"success\","
             "\"created_at\":\"2026-11-04T23:00:05Z\"}]}");
     gh("repos/o/r/actions/runs/72/jobs?per_page=100&page=1", "{\"jobs\":[]}");
-    gh_shas("repos/o/r/actions/workflows/build.yml/runs?head_sha=@f&per_page=100&page=1",
-            "{\"workflow_runs\":[{\"id\":73,\"event\":\"push\",\"status\":\"in_progress\","
-            "\"created_at\":\"2026-11-05T00:00:05Z\"}]}");
-    gh("repos/o/r/actions/runs/71/jobs?per_page=100&page=1", "{\"jobs\":[]}");
-    gh("repos/o/r/actions/runs/73/jobs?per_page=100&page=1", "{\"jobs\":[]}");
     /* the dry run: said, nothing done */
     edits_before = cd_edits;
     removes = cd_removes;
     CHECK(cd_fix(&c, FIX_SELF, 0) == 0);
-    CHECK(cd_edits == edits_before && cd_removes == removes && !sent_of(b)->removed && !sent_of(d)->removed);
-    HAS(sent_of(cc)->description, "Building main at");
-    /* done: the two inside pushes deleted, the two ended heads drawn again, the rest as they were */
+    CHECK(cd_edits == edits_before && cd_removes == removes && !sent_of(b)->removed);
+    HAS(sent_of(e)->description, "Building main at");
+    /* done: the push's card deleted, the nightly's drawn again, the rest as they were */
     CHECK(cd_fix(&c, FIX_SELF, 1) == 0);
-    CHECK(cd_removes == removes + 2 && cd_edits == edits_before + 2);
-    CHECK(sent_of(b)->removed && sent_of(d)->removed);
-    HAS(sent_of(cc)->description, "Not published: the build of [`ccccccc`]");
+    CHECK(cd_removes == removes + 1 && cd_edits == edits_before + 1);
+    CHECK(sent_of(b)->removed);
     HAS(sent_of(e)->description, "Built from main at [`eeeeeee`]");
-    CHECK(!sent_of(f)->removed && !sent_of(gg)->removed && !sent_of(h)->removed && !sent_of(one)->removed);
-    HAS(sent_of(f)->description, "Building main at");
-    HAS(sent_of(gg)->description, "Building main at");
     CHECK(!sent_of(theirs)->removed && !sent_of(built)->removed);
     /* again: nothing to do */
     CHECK(cd_fix(&c, FIX_SELF, 1) == 0);
-    CHECK(cd_removes == removes + 2 && cd_edits == edits_before + 2);
-    /* how a build that published nothing ended, in its words: failed, was cancelled, or GitHub's own */
-    {
-        static const char* const ended[][2] = {{"failure", "failed ([run]"},
-                                               {"cancelled", "was cancelled ([run]"},
-                                               {"timed_out", "ended as timed_out ([run]"}};
-        char* head = shas("@c");
-        int k;
-        for (k = 0; k < 3; ++k) {
-            char* run = rei_format("{\"workflow_runs\":[{\"id\":71,\"event\":\"push\",\"status\":\"completed\","
-                                   "\"conclusion\":\"%s\",\"created_at\":\"2026-11-04T22:00:05Z\"}]}",
-                                   ended[k][0]);
-            cJSON* drawn;
-            gh_shas("repos/o/r/actions/workflows/build.yml/runs?head_sha=@c&per_page=100&page=1", run);
-            drawn = cd_nightly(&c, head);
-            HAS(jstr(drawn, "description"), ended[k][1]);
-            cJSON_Delete(drawn);
-            free(run);
-        }
-        /* cancelled once a job of it had failed (ScarletNX's fail-fast): failed */
-        gh_shas("repos/o/r/actions/workflows/build.yml/runs?head_sha=@c&per_page=100&page=1",
-                "{\"workflow_runs\":[{\"id\":71,\"event\":\"push\",\"status\":\"completed\",\"conclusion\":"
-                "\"cancelled\",\"created_at\":\"2026-11-04T22:00:05Z\"}]}");
-        gh("repos/o/r/actions/runs/71/jobs?per_page=100&page=1",
-           "{\"jobs\":[{\"name\":\"Linux (aarch64)\",\"status\":\"completed\",\"conclusion\":\"failure\"},"
-           "{\"name\":\"Android APK\",\"status\":\"completed\",\"conclusion\":\"cancelled\"}]}");
-        {
-            cJSON* drawn = cd_nightly(&c, head);
-            HAS(jstr(drawn, "description"), "failed ([run]");
-            cJSON_Delete(drawn);
-        }
-        gh("repos/o/r/actions/runs/71/jobs?per_page=100&page=1", "{\"jobs\":[]}");
-        /* built, and older than the oldest nightly kept: none of it is kept now, which is all the card can know */
-        gh_shas("repos/o/r/actions/workflows/build.yml/runs?head_sha=@c&per_page=100&page=1",
-                "{\"workflow_runs\":[{\"id\":71,\"event\":\"push\",\"status\":\"completed\",\"conclusion\":"
-                "\"success\",\"created_at\":\"2026-11-04T22:00:05Z\"}]}");
-        gh_shas(
-            "repos/o/nightly/releases?per_page=100&page=1",
-            "[{\"tag_name\":\"nightly-2026-11-04-eeeeeee\",\"name\":\"Nightly 2026-11-04 (eeeeeee)\",\"html_url\":"
-            "\"https://n/e\",\"published_at\":\"2026-11-04T23:20:00Z\",\"body\":\"from /commits/@e\",\"assets\":[]}]");
-        gh_shas("repos/o/r/compare/@c...@e", "{\"status\":\"ahead\",\"commits\":[]}");
-        gh_shas("repos/o/r/compare/@e...@c", "{\"status\":\"behind\",\"commits\":[]}");
-        cJSON_Delete(c.nightlies);
-        c.nightlies = NULL;
-        {
-            cJSON* drawn = cd_nightly(&c, head);
-            char* all = cJSON_PrintUnformatted(drawn);
-            HAS(jstr(drawn, "description"), "; no nightly of it is kept now: o/nightly keeps the newest 30.");
-            /* a nightly's card lists every package, those only a nightly builds too */
-            HAS(all, "Linux PowerPC64 LE: ");
-            HAS(all, "Linux RISC-V 64: ");
-            HAS(all, "Linux LoongArch64: ");
-            free(all);
-            cJSON_Delete(drawn);
-        }
-        free(head);
-    }
+    CHECK(cd_removes == removes + 1 && cd_edits == edits_before + 1);
     /* the channel not answering: nothing done, said */
     {
         CdDiscord silent = {NULL, c_post, c_edit, c_remove, c_history, NULL};
@@ -1026,7 +993,7 @@ static void nightly_sweep(void) {
     CdDiscord dc = {NULL, c_post, c_edit, c_remove, c_history, c_messages};
     Buf state = {0};
     cJSON* saved;
-    int i, newest = 0, oldest = 0, most = 2 * CD_KEEP + 1;
+    int i, newest = 0, oldest = 0, most = CD_NIGHTLIES + 1;
     forget();
     rg_init(&g, "o/r", NULL, fake, NULL);
     cd_init(&c, &g, dc, 0, 0, 3);
@@ -1039,13 +1006,16 @@ static void nightly_sweep(void) {
     cd_load(&c, saved);
     CHECK(c.ncards == most && c.cards[0].message == (u64)(1000 + most));
     cards_fixtures("open", "null");
+    /* every card's nightly published (their commits all start 0000000) */
+    gh("repos/o/nightly/releases?per_page=100&page=1",
+       "[{\"tag_name\":\"nightly-2026-11-01-0000000\",\"body\":\"x\",\"assets\":[]}]");
     now_is += 30;
     cd_round(&c);
     for (i = 0; i < c.ncards; ++i) {
         newest |= c.cards[i].message == (u64)(1000 + most);
         oldest |= c.cards[i].message == 1001;
     }
-    CHECK(c.ncards == 2 * CD_KEEP && newest && !oldest);
+    CHECK(c.ncards == CD_NIGHTLIES && newest && !oldest);
     cJSON_Delete(saved);
     buf_free(&state);
     cd_free(&c);
@@ -1140,6 +1110,7 @@ static void pr_card(void) {
         "<:wimsy_linux:11> Linux ARM64: Built, being published\\n"
         "<:wimsy_linux:11> Linux PowerPC64 BE: [.AppImage](https://n/p) (Linux programs)\\n"
         "<:wimsy_windows:22> Windows x86-64: [.zip](https://n/w)\\n"
+        "<:wimsy_windows:22> Windows ARM64: Waiting\\n"
         "<:wimsy_android:33> Android: Failed ([log](https://j/2))\\n"
         "<:wimsy_macos:44> macOS ARM64: Waiting\\n<:wimsy_ios:55> iOS ARM64: Waiting\",\"inline\":false},"
         "{\"name\":\"Tests\",\"value\":\"<:wimsy_linux:11> Linux (x86_64, ASan + UBSan): Failed ([log](https://j/5))\","
@@ -1526,7 +1497,7 @@ int main(void) {
     github_tests();
     rest_tests();
     cards_tests();
-    nightly_pushes();
+    nightly_cards();
     nightly_sweep();
     fix_cards();
     pr_card();

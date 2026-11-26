@@ -29,9 +29,10 @@ On FreeBSD, `make -C tracer test CXXRT=-lc++` ([Build](./BUILD.md#tracer)). The 
 `rei/tests/test_rei.c`, no Concord: the parsing, the gateway's events (read from their JSON: Concord decodes none of
 them, as its decoder crashes on messages of 2 to 3 KB) and the messages waiting for an answer, the replies and their
 edits, GitHub's ETags and pages, Discord's waits and answers, and the state file. The cards: drawn, posted, edited,
-moved to the end at their activity, deleted a day after they close, posted again when deleted by hand, a nightly's for
-each push, the newest kept; and the fix of the cards left saying "Building" (a dry run, then each kind of card, then a
-run with nothing to do).
+moved to the end at their activity, deleted a day after they close, posted again when deleted by hand, a nightly's
+when its release has a package and none for a push or a nightly with none, a push's card from before deleted, the
+newest kept; `!nightly` with the nightly being built; and the fix of the cards left saying "Building" (a dry run, then
+each kind of card, then a run with nothing to do).
 
 ## AccordWimsy
 
@@ -181,7 +182,7 @@ In a job of its own, on each pull request and each push to main, the bots built 
   heartbeat intervals. `stalled` (ReiWimsy) the same, once the first connection is left each `GET /gateway/bot` held
   with no answer, which Concord also waits on forever.
 - `reiwimsy --fix-cards` on a nightly channel holding two cards that say "Building": its dry run changes nothing,
-  `--apply` deletes the one of a commit inside a push and redraws the push's head with its failed build, and a second
+  `--apply` deletes the one of a push with no nightly and redraws the one a nightly was published from, and a second
   `--apply` finds nothing to do.
 
 Linux only, with no network: the bot runs in a mount and network namespace of its own, and a user namespace when the

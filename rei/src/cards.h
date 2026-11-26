@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
    Copyright 2026 the ScarletNX contributors */
-/* The cards: a message for each open pull request (its channel's), each open issue, and each push to main (the
-   nightly's channel), drawn from what GitHub says now and edited as it changes: its state, its commits or its changes,
+/* The cards: a message for each open pull request (its channel's), each open issue, and each nightly published with its
+   packages (the nightly's channel), drawn from what GitHub says now and edited as it changes: its state, its commits or its changes,
    the latest comment a person wrote, and each package of its build. Its activity moves it to the end of its channel,
    posted again before the old one is deleted: a push, a person's comment, a change of state (draft, ready, closed,
    merged, reopened), and a pull request's builds published or failed; the rest is edited where it is. A pull request
@@ -10,17 +10,16 @@
    deletes the cards a webhook posted there before (the GitHub Actions ones), and a message of ours no card keeps,
    and posts one for each open pull request or issue.
    Each round (cd_round) asks GitHub what changed since the last: the issues and pull requests updated, the builds that
-   run, the nightly releases, main's head and the pushes that moved it. A card that could not be drawn whole (GitHub did
-   not answer) waits for the next round, as it was */
+   run and the nightly releases. A card that could not be drawn whole (GitHub did not answer) waits for the next round,
+   as it was */
 #ifndef REI_CARDS_H
 #define REI_CARDS_H
 #include "github.h"
 
 #define CD_DAY     86400
-#define CD_KEEP    30   /* the nightlies scarletnx/nightly keeps */
+#define CD_NIGHTLIES 30   /* the nightlies' cards the channel keeps, the newest */
 #define CD_RUNS    20   /* the newest builds a round looks at */
 #define CD_HISTORY 1000 /* a channel's messages the first round looks through */
-#define CD_PUSHES  10   /* the pushes to main a round makes nightlies' cards for, at most */
 
 /* Discord, as the cards use it */
 typedef struct {
@@ -66,7 +65,6 @@ typedef struct {
     CdRelease* releases;
     int nreleases, capreleases;
     char since[32]; /* the issues asked for were updated from then: GitHub's time, ISO 8601 */
-    char head[41];  /* main's head as last seen */
     int purged_prs, purged_issues;
     cJSON* nightlies; /* this round's releases of gh->nightly, the newest published first */
     int failed;       /* the card being drawn lacks something GitHub did not give */
@@ -95,13 +93,11 @@ char* cd_mascot(const char* repo);
 /* the hash of an embed without its time, as hex */
 void cd_hash(const cJSON* embed, char out[17]);
 
-/* the nightlies' cards that say "Building" for ever, which the rounds made before a push had one card: among the
-   CD_HISTORY newest messages of the nightly channel, those self (the bot's user id) sent that say "Building main at"
-   a commit. A commit no push's Build ran for (a commit inside a push) never gets one: its card is deleted. A push's
-   head is drawn again (cd_nightly) and edited when it says something else now. Left: main's head, a card under an hour
-   old, one older than the builds GitHub lists. Each card said in the log, then the counts; apply 0 does nothing but
-   say. The cards' list is not used. 0 when every change asked was made, 1 when one failed, -1 when the channel or
-   GitHub did not answer what the fix needs (nothing done) */
+/* the cards the rounds left saying "Building", from when each push to main had one: among the CD_HISTORY newest
+   messages of the nightly channel, those self (the bot's user id) sent that say "Building main at" a commit. One of a
+   commit a nightly was published from is drawn again (cd_nightly) and edited; the rest are deleted. Each card said in
+   the log, then the counts; apply 0 does nothing but say. The cards' list is not used. 0 when every change asked was
+   made, 1 when one failed, -1 when the channel or GitHub did not answer what the fix needs (nothing done) */
 int cd_fix(Cards* c, u64 self, int apply);
 
 /* what lasts across a restart: the cards, the builds and releases seen, since, head, the channels purged */

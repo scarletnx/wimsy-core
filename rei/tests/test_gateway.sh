@@ -13,8 +13,8 @@
 # frame once the bot identifies: its session never ready again, the bot has to end with 1 on its own, saying so, three
 # heartbeat intervals on. stalled (ReiWimsy) the same, its GET gateway/bot held with no answer once the first
 # connection is left. fix-cards: reiwimsy --fix-cards on a nightly channel with two cards saying "Building"
-# (fake_discord.py's cards): the dry run changes nothing, --apply deletes the one of a commit inside a push and redraws
-# the push's head with its failed build, and a second --apply finds nothing to do. Tracer answers only in its channel 6
+# (fake_discord.py's cards): the dry run changes nothing, --apply deletes the one of a push with no nightly and redraws
+# the one a nightly was published from, and a second --apply finds nothing to do. Tracer answers only in its channel 6
 # there, and a mention in channel 7 goes unanswered; tracer-all is the same with TRACER_CHANNELS=all, which answers
 # that one too.
 #
@@ -131,9 +131,9 @@ if [ "$program" = fix-cards ]; then
 	elif [ "$(changes 1)" != 0 ] ||
 		! totals 1 | grep -q '2 of ours saying Building: 1 would be deleted, 1 would be redrawn, 0 failed'; then
 		failed="the dry run did not say one to delete and one to redraw, changing nothing"
-	elif ! grep -q 'bbbbbbb, .*, would be deleted: no push.s build ran for it' "$tmp/bot1.log" ||
-		! grep -q 'ccccccc, .*, would be redrawn: Not published: the build of' "$tmp/bot1.log"; then
-		failed="the dry run did not name the card inside a push and the head whose build failed"
+	elif ! grep -q "bbbbbbb, .*, would be deleted: a push's card, of no nightly" "$tmp/bot1.log" ||
+		! grep -q 'ccccccc, .*, would be redrawn: Built from main at' "$tmp/bot1.log"; then
+		failed="the dry run did not name the push's card to delete and the nightly's to redraw"
 	elif [ "$(changes 2)" != 2 ] || ! totals 2 | grep -q '1 deleted, 1 redrawn, 0 failed'; then
 		failed="--apply did not delete one card and redraw the other"
 	elif [ "$(changes 3)" != 0 ] || ! totals 3 | grep -q '0 of ours saying Building: 0 deleted, 0 redrawn, 0 failed'; then
