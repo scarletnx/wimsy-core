@@ -22,7 +22,8 @@ request, each open issue and each nightly published with its packages, edited as
 
 A message that names `#160` (`issue #160`, `PR #160` too; a bare number is talk) gets one reply: each linked, with its
 title, issue or PR, its state and labels, in GitHub's colours; 5 numbers a message at most. `!nightly` links the newest
-nightly and its downloads, `!release` the newest version (the nightly while there is none), `!release #355` a pull
+nightly and its downloads, and above them the nightly being built while the newest scheduled Build of main has not
+ended (its run and when it began; when GitHub does not list them, it says so), `!release` the newest version (the nightly while there is none), `!release #355` a pull
 request's builds. With a GitHub token it edits a reply of the last week when what it links changes, looking every 10
 minutes.
 

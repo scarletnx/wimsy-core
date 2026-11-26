@@ -162,11 +162,43 @@ cJSON* lk_build(const cJSON* release, const char* said, const char* repo) {
 }
 cJSON* lk_note(const char* text) { return embed(text, GREY); }
 
+/* the nightly being built, when the newest scheduled Build of main has not ended: its run and when it began; NULL when
+   none is, and what GitHub did not answer when it did not. Owned */
+static char* nightly_building(Link* l) {
+    char* path =
+        rei_format("repos/%s/actions/workflows/build.yml/runs?event=schedule&branch=main&per_page=1", l->gh->repo);
+    cJSON* got = rg_get(l->gh, path, NULL);
+    const cJSON* run = cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(got, "workflow_runs"), 0);
+    const char *status = jstr(run, "status"), *began = jstr(run, "run_started_at");
+    char* said = NULL;
+    free(path);
+    if (!cJSON_IsArray(cJSON_GetObjectItemCaseSensitive(got, "workflow_runs")))
+        said = rei_strdup("Whether a nightly is being built is not known: GitHub did not list the scheduled builds.");
+    else if (run && status && strcmp(status, "completed")) {
+        if (!began || strlen(began) < 16) began = jstr(run, "created_at");
+        said = rei_format("A nightly is being built: [run %.0f](%s), begun %.10s %.5s UTC.", jnum(run, "id"),
+                          jstr(run, "html_url") ? jstr(run, "html_url") : "", began ? began : "",
+                          began && strlen(began) >= 16 ? began + 11 : "");
+    }
+    cJSON_Delete(got);
+    return said;
+}
+
 static cJSON* command(Link* l, int kind, int number) {
     const cJSON *found, *newest;
     if (kind == REI_NIGHTLY) {
+        char* building = nightly_building(l);
+        cJSON* e;
         found = lk_release(l, l->gh->nightly, "latest");
-        return found ? lk_build(found, NULL, l->gh->repo) : lk_note("No nightly is published yet.");
+        if (found)
+            e = lk_build(found, building ? building : NULL, l->gh->repo);
+        else {
+            char* said = rei_format("No nightly is published yet.%s%s", building ? " " : "", building ? building : "");
+            e = lk_note(said);
+            free(said);
+        }
+        free(building);
+        return e;
     }
     if (kind == REI_RELEASE_PR) {
         char *tag = rei_format("tags/pr-%d", number), *missing;

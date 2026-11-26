@@ -331,6 +331,8 @@ static void commands(void) {
     cJSON* e;
     link_start();
     gh("repos/o/nightly/releases/latest", NIGHTLY);
+    gh("repos/o/r/actions/workflows/build.yml/runs?event=schedule&branch=main&per_page=1",
+       "{\"workflow_runs\":[{\"id\":76,\"status\":\"completed\"}]}");
     gh("repos/o/nightly/releases/tags/pr-355",
        "{\"name\":\"PR #355: Android menu files\",\"tag_name\":\"pr-355\",\"html_url\":\"https://n/pr-355\","
        "\"prerelease\":true,\"assets\":[]}");
@@ -367,6 +369,23 @@ static void commands(void) {
     e = lk_answer(&l, "!nightly", numbers, &n);
     CHECK(times_asked("GET", "https://api.github.com/repos/o/nightly/releases/latest") == 1);
     cJSON_Delete(e);
+    /* a scheduled Build of main not ended: the nightly being built, its run and when it began, above the newest */
+    gh("repos/o/r/actions/workflows/build.yml/runs?event=schedule&branch=main&per_page=1",
+       "{\"workflow_runs\":[{\"id\":77,\"status\":\"in_progress\",\"html_url\":\"https://g/77\","
+       "\"run_started_at\":\"2026-11-26T00:23:11Z\"}]}");
+    e = lk_answer(&l, "!nightly", numbers, &n);
+    CHECK(e && !strncmp(jstr(e, "description"),
+                        "A nightly is being built: [run 77](https://g/77), begun 2026-11-26 00:23 UTC.\n", 78));
+    SAME(jstr(e, "url"), "https://n/nightly-2026-10-17-44aa300");
+    cJSON_Delete(e);
+    /* GitHub not listing the scheduled builds: said, the newest still given */
+    answer("GET",
+           "https://api.github.com/repos/o/r/actions/workflows/build.yml/runs?event=schedule&branch=main&per_page=1",
+           502, "{}");
+    e = lk_answer(&l, "!nightly", numbers, &n);
+    CHECK(e && !strncmp(jstr(e, "description"), "Whether a nightly is being built is not known", 45));
+    SAME(jstr(e, "url"), "https://n/nightly-2026-10-17-44aa300");
+    cJSON_Delete(e);
     e = lk_answer(&l, "!release", numbers, &n);
     CHECK(e && !strncmp(jstr(e, "description"), "No version is released yet. The newest nightly:", 47));
     SAME(jstr(e, "url"), "https://n/nightly-2026-10-17-44aa300");
@@ -387,6 +406,14 @@ static void commands(void) {
     e = lk_answer(&l, "  !Release ", numbers, &n);
     SAME(jstr(e, "url"), "https://x/v0.1.0");
     CHECK(jnum(e, "color") == REI_OPEN);
+    cJSON_Delete(e);
+    /* no nightly yet, one being built: both said */
+    gh("repos/o/r/actions/workflows/build.yml/runs?event=schedule&branch=main&per_page=1",
+       "{\"workflow_runs\":[{\"id\":78,\"status\":\"queued\",\"html_url\":\"https://g/78\","
+       "\"created_at\":\"2026-11-26T03:23:00Z\"}]}");
+    e = lk_answer(&l, "!nightly", numbers, &n);
+    SAME(jstr(e, "description"),
+         "No nightly is published yet. A nightly is being built: [run 78](https://g/78), begun 2026-11-26 03:23 UTC.");
     cJSON_Delete(e);
     link_end();
     rg_init(&g, "o/r", "p/builds", fake, NULL);

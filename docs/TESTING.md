@@ -31,7 +31,7 @@ them, as its decoder crashes on messages of 2 to 3 KB) and the messages waiting 
 edits, GitHub's ETags and pages, Discord's waits and answers, and the state file. The cards: drawn, posted, edited,
 moved to the end at their activity, deleted a day after they close, posted again when deleted by hand, a nightly's
 when its release has a package and none for a push or a nightly with none, a push's card from before deleted, the
-newest kept; and the fix of the cards left saying "Building" (a dry run, then
+newest kept; `!nightly` with the nightly being built; and the fix of the cards left saying "Building" (a dry run, then
 each kind of card, then a run with nothing to do).
 
 ## AccordWimsy
