@@ -118,7 +118,8 @@ static cJSON* forgejo_all(Aw* a, const char* path) {
    "comments": GitHub's id -> { "id": the Forgejo's, "at": the updated_at it was made or edited from, "native": a
    migration made it }; "releases": each release made here, by its tag: { "id": the Forgejo's, "at": GitHub's updated_at
    it was made or edited from, "assets": { file name: GitHub's id of the file sent }, "gone": since when GitHub has it
-   no more }; "ok": when the repository's last pass went through; "missing": since when GitHub has not listed it */
+   no more }; "ok": when the repository's last pass went through; "missing": since when GitHub has not listed it;
+   "blocked": since when GitHub has listed it disabled */
 static cJSON* child(cJSON* o, const char* key) {
     cJSON* c = cJSON_GetObjectItemCaseSensitive(o, key);
     if (!cJSON_IsObject(c)) {
@@ -1182,7 +1183,8 @@ static void write_fresh(Aw* a, const cJSON* list, const cJSON* repos) {
     }
     for (repo = list->child; repo; repo = repo->next) {
         const char* name = jstr(repo, "name");
-        if (name) buf_printf(&b, "%s %.0f\n", name, jnum(cJSON_GetObjectItemCaseSensitive(repos, name), "ok"));
+        if (name && !cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(repo, "disabled")))
+            buf_printf(&b, "%s %.0f\n", name, jnum(cJSON_GetObjectItemCaseSensitive(repos, name), "ok"));
     }
     failed = b.len && fwrite(b.text, 1, b.len, f) != b.len;
     if (fclose(f)) failed = 1;
@@ -1204,6 +1206,28 @@ static void missing(Aw* a, const cJSON* list, cJSON* repos) {
                 st->string);
     }
 }
+/* a repository GitHub lists disabled (repo): its access is blocked, as by a takedown notice, and its git and API
+   answer 403 or 451. It is said once and left out of the pass and of the freshness file, its copy here as it is, until
+   GitHub lists it enabled again; 1 while it is disabled */
+static int blocked(Aw* a, const cJSON* repo, cJSON* repos) {
+    const char* name = jstr(repo, "name");
+    cJSON* st = child(repos, name);
+    int was = cJSON_IsNumber(cJSON_GetObjectItemCaseSensitive(st, "blocked"));
+    if (!cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(repo, "disabled"))) {
+        if (was) {
+            aw_log("%s: enabled again on GitHub: mirrored from this pass on", name);
+            cJSON_DeleteItemFromObjectCaseSensitive(st, "blocked");
+        }
+        return 0;
+    }
+    if (!was) {
+        set_number(st, "blocked", a->now);
+        aw_warn("%s is disabled on GitHub (its access blocked, as by a takedown notice): its copy here stays as it is, "
+                "left out until GitHub enables it again",
+                name);
+    }
+    return 1;
+}
 /* each rule of ACCORDWIMSY_RELEASES naming a repository GitHub did not list (list), said on stderr: a name mistyped
    brings nothing */
 static void rules_listed(const Aw* a, const cJSON* list) {
@@ -1222,7 +1246,7 @@ int aw_sync(Aw* a) {
         return 1;
     }
     for (repo = list->child; repo; repo = repo->next) {
-        if (!jstr(repo, "name")) continue;
+        if (!jstr(repo, "name") || blocked(a, repo, repos)) continue;
         if (one(a, repo, repos)) {
             aw_log("%s: stopped, the rest of it on the next pass", jstr(repo, "name"));
             a->failures++;
@@ -1526,6 +1550,9 @@ void aw_status(const Aw* a) {
         if (cJSON_IsNumber(cJSON_GetObjectItemCaseSensitive(r, "missing"))) {
             when_of((long)jnum(r, "missing"), "%Y-%m-%d", at, sizeof at);
             printf("%s: not on GitHub since %s, its copy here left as it is\n", r->string, at);
+        } else if (cJSON_IsNumber(cJSON_GetObjectItemCaseSensitive(r, "blocked"))) {
+            when_of((long)jnum(r, "blocked"), "%Y-%m-%d", at, sizeof at);
+            printf("%s: disabled on GitHub since %s, its copy here left as it is\n", r->string, at);
         } else if (ok) {
             when_of(ok, "%Y-%m-%d %H:%M UTC", at, sizeof at);
             printf("%s: last good pass %s, %ld minute(s) ago\n", r->string, at, (a->now - ok) / 60);

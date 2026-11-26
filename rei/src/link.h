@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later
    Copyright 2026 the ScarletNX contributors */
 /* The replies to messages: the issues and pull requests a message names (#N), each linked with its title, its state and
-   its labels in GitHub's colours; !nightly, !release and !release #N, the builds. GitHub's answers are remembered, an
+   its labels in GitHub's colours; !nightly (the newest nightly, and the one being built while a scheduled Build of
+   main has not ended), !release and !release #N, the builds. GitHub's answers are remembered, an
    open one LK_CACHE seconds and a closed or merged one LK_SETTLED, and the replies of the last LK_AGE seconds (their
    channel, message and numbers, LK_TRACK of them at most) are edited when what they link changes */
 #ifndef REI_LINK_H

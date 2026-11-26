@@ -33,7 +33,7 @@ answer is a line naming the bot whose token posted it. GitHub answers issue 12. 
 80 and ReiWimsy 81 (or 30 s), the drop.
 
 cards, for reiwimsy --fix-cards: the nightly channel 5 holds two of the bot's cards saying "Building" from five hours
-ago, a commit inside a push (B) and that push's head (C), whose build failed; one of its cards saying something else,
+ago, a push's with no nightly (B) and one a nightly was published from (C); one of its cards saying something else,
 and someone else's. GitHub answers what drawing C asks; Discord's channel listing, PATCH and DELETE work on that
 channel. Each step is a line on stderr, each message a bot posts too.
 """
@@ -156,13 +156,6 @@ channel = [
     {"id": posted_id(NOW - 5 * 3600 + 60, 0), "author": ME, "embeds": [building(B)]},
 ]
 GITHUB = {
-    "/repos/owner/repo/commits/main": {"sha": A},
-    "/repos/owner/repo/actions/workflows/build.yml/runs?branch=main&event=push&per_page=100&page=1": {
-        "workflow_runs": [
-            {"head_sha": A, "created_at": iso(NOW - 3600)},
-            {"head_sha": C, "created_at": iso(NOW - 5 * 3600)},
-        ]
-    },
     f"/repos/owner/repo/commits/{C}": {"commit": {"committer": {"date": "2026-11-04T22:00:00Z"}}},
     f"/repos/owner/repo/actions/workflows/build.yml/runs?head_sha={C}&per_page=100&page=1": {
         "workflow_runs": [
@@ -170,14 +163,23 @@ GITHUB = {
                 "id": 71,
                 "event": "push",
                 "status": "completed",
-                "conclusion": "failure",
+                "conclusion": "success",
                 "created_at": iso(NOW - 5 * 3600),
                 "html_url": "https://r/71",
             }
         ]
     },
     "/repos/owner/repo/actions/runs/71/jobs?per_page=100&page=1": {"jobs": []},
-    "/repos/owner/nightly/releases?per_page=100&page=1": [],
+    "/repos/owner/nightly/releases?per_page=100&page=1": [
+        {
+            "tag_name": f"nightly-2026-11-04-{C[:7]}",
+            "name": f"Nightly 2026-11-04 ({C[:7]})",
+            "html_url": "https://n/c",
+            "published_at": "2026-11-04T23:20:00Z",
+            "body": f"Built from main at [`{C[:7]}`](https://github.com/owner/repo/commit/{C}).",
+            "assets": [],
+        }
+    ],
 }
 
 

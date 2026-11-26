@@ -10,11 +10,8 @@
 #include <time.h>
 
 #define SERVER       "https://github.com"
-/* a nightly's colours: building, published, a package failed, not published */
-#define BUILDING     0x1F6FEB
+/* a nightly's colour */
 #define SCARLET      0xB0102A
-#define AMBER        0xD29922
-#define CLOSED       0x6E7681
 /* the mascot beside each card */
 #define WIMSY        "https://raw.githubusercontent.com/%s/main/dist/icons/hicolor/128x128/apps/wimsy.png"
 /* what a card lists, at most, before "and N more": a nightly's changes, a pull request's commits; a text's letters */
@@ -29,21 +26,26 @@
 
 /* each release file, in the order the cards list them: the job of ScarletNX's build.yml that makes it (macOS's and
    iOS's share one runner), what it is for, as scripts/nightly-notes.py's SYSTEMS has it, what it holds where that is
-   not all, and the application's emoji beside it (Wimsy as its system, scarletnx/wimsy-dist's emoji/) */
+   not all, the application's emoji beside it (Wimsy as its system, scarletnx/wimsy-dist's emoji/), and 1 for a file
+   only a run a nightly can come of makes (build.yml's appimage-cross): a pull request's card lists it only when its
+   run has its job or its release the file */
 static const struct {
     const char *file, *job, *system, *arch, *note, *icon;
+    int nightly;
 } PACKAGES[] = {
-    {"ScarletNX-linux-x86_64.AppImage", "Linux AppImage (x86_64)", "Linux", "x86-64", "", "wimsy_linux"},
-    {"ScarletNX-linux-aarch64.AppImage", "Linux AppImage (aarch64)", "Linux", "ARM64", "", "wimsy_linux"},
-    {"ScarletNX-linux-ppc64le.AppImage", "Linux AppImage (ppc64le)", "Linux", "PowerPC64 LE", "", "wimsy_linux"},
+    {"ScarletNX-linux-x86_64.AppImage", "Linux AppImage (x86_64)", "Linux", "x86-64", "", "wimsy_linux", 0},
+    {"ScarletNX-linux-aarch64.AppImage", "Linux AppImage (aarch64)", "Linux", "ARM64", "", "wimsy_linux", 0},
+    {"ScarletNX-linux-ppc64le.AppImage", "Linux AppImage (ppc64le)", "Linux", "PowerPC64 LE", "", "wimsy_linux", 1},
     {"ScarletNX-linux-ppc64.AppImage", "Linux AppImage (ppc64)", "Linux", "PowerPC64 BE", " (Linux programs)",
-     "wimsy_linux"},
-    {"ScarletNX-linux-riscv64.AppImage", "Linux AppImage (riscv64)", "Linux", "RISC-V 64", "", "wimsy_linux"},
-    {"ScarletNX-linux-loongarch64.AppImage", "Linux AppImage (loongarch64)", "Linux", "LoongArch64", "", "wimsy_linux"},
-    {"ScarletNX-windows-x86_64.zip", "Windows (Clang + LLVM)", "Windows", "x86-64", "", "wimsy_windows"},
-    {"ScarletNX-android-universal.apk", "Android APK", "Android", "ARM64, x86-64", "", "wimsy_android"},
-    {"ScarletNX-macos-arm64.zip", "macOS and iOS (arm64)", "macOS", "ARM64", "", "wimsy_macos"},
-    {"ScarletNX-ios-arm64.ipa", "macOS and iOS (arm64)", "iOS", "ARM64", "", "wimsy_ios"},
+     "wimsy_linux", 0},
+    {"ScarletNX-linux-riscv64.AppImage", "Linux AppImage (riscv64)", "Linux", "RISC-V 64", "", "wimsy_linux", 1},
+    {"ScarletNX-linux-loongarch64.AppImage", "Linux AppImage (loongarch64)", "Linux", "LoongArch64", "", "wimsy_linux",
+     1},
+    {"ScarletNX-windows-x86_64.zip", "Windows (Clang + LLVM)", "Windows", "x86-64", "", "wimsy_windows", 0},
+    {"ScarletNX-windows-aarch64.zip", "Windows (Clang + LLVM, aarch64)", "Windows", "ARM64", "", "wimsy_windows", 0},
+    {"ScarletNX-android-universal.apk", "Android APK", "Android", "ARM64, x86-64", "", "wimsy_android", 0},
+    {"ScarletNX-macos-arm64.zip", "macOS and iOS (arm64)", "macOS", "ARM64", "", "wimsy_macos", 0},
+    {"ScarletNX-ios-arm64.ipa", "macOS and iOS (arm64)", "iOS", "ARM64", "", "wimsy_ios", 0},
 };
 #define NPACKAGES (int)(sizeof PACKAGES / sizeof *PACKAGES)
 /* a field's value Discord takes, in letters */
@@ -52,12 +54,6 @@ static const struct {
 #define GO_ON     "\xe2\x80\x8b"
 /* each package's emoji as a message writes it, <:name:id>; "" until cd_icons found it */
 static char g_icons[NPACKAGES][64];
-/* Build's jobs that make no release file whose state Tests always says: each job, as build.yml names it, and what it
-   tests. The others are said when they fail */
-static const struct {
-    const char *job, *label;
-} CHECKS[] = {{"Linux (ppc64, cross)", "Linux PowerPC64 BE ELFv1"}};
-#define NCHECKS (int)(sizeof CHECKS / sizeof *CHECKS)
 
 static const char* S(const char* s) { return s ? s : ""; }
 /* FNV-1a of text, as 16 hex digits */
@@ -347,8 +343,7 @@ void cd_icons(const cJSON* emojis) {
                     PACKAGES[i].icon, PACKAGES[i].system);
     }
 }
-/* the emoji cd_icons found for the system name names first (Linux, Windows...), as a job's name or a check's;
-   "" for none */
+/* the emoji cd_icons found for the system a job's name names first (Linux, Windows...); "" for none */
 static const char* icon_of(const char* name) {
     const char *first = NULL, *icon = "";
     int i;
@@ -364,6 +359,17 @@ static const char* icon_of(const char* name) {
 /* a job's failure as a conclusion says it; not a cancelled or skipped one */
 static int failure(const char* conclusion) {
     return !strcmp(conclusion, "failure") || !strcmp(conclusion, "timed_out") || !strcmp(conclusion, "startup_failure");
+}
+/* a run that ended failed: GitHub says so, or it was cancelled once one of its jobs had failed (ScarletNX's
+   scripts/fail-fast.py cancels the rest of a run at its first failed job) */
+static int run_failed(const cJSON* run, const cJSON* jobs) {
+    const char* ended = S(jstr(run, "conclusion"));
+    const cJSON* job;
+    if (failure(ended)) return 1;
+    if (strcmp(ended, "cancelled")) return 0;
+    cJSON_ArrayForEach(job, jobs) if (!strcmp(S(jstr(job, "status")), "completed") &&
+                                      failure(S(jstr(job, "conclusion")))) return 1;
+    return 0;
 }
 /* package i's line: its icon, its system and its architecture where it has one, then what */
 static void line_of(Buf* b, int i, const char* what) {
@@ -393,9 +399,9 @@ int cd_downloads(Buf* b, const cJSON* release) {
 }
 char* cd_mascot(const char* repo) { return rei_format(WIMSY, repo); }
 /* a line per release file in Downloads: published, its extension linked; else what its job does; built: what a built
-   one waits for. Then in Tests a line per job of CHECKS, what its tests did, and one per other job that makes no file
-   and failed */
-static void packages(cJSON* fields, const cJSON* jobs, const cJSON* release, const char* built) {
+   one waits for; pr: a pull request's card, which leaves out a nightly's file its run and release have nothing of.
+   Then in Tests a line per job that makes no file and failed */
+static void packages(cJSON* fields, const cJSON* jobs, const cJSON* release, const char* built, int pr) {
     Lines downloads = {fields, "Downloads", {0}}, tests = {fields, "Tests", {0}};
     const cJSON* job;
     int i;
@@ -404,6 +410,7 @@ static void packages(cJSON* fields, const cJSON* jobs, const cJSON* release, con
         const char *status, *conclusion;
         Buf v = {0}, one = {0};
         job = named(jobs, "name", PACKAGES[i].job);
+        if (pr && PACKAGES[i].nightly && !asset && !job) continue;
         status = S(jstr(job, "status"));
         conclusion = S(jstr(job, "conclusion"));
         if (asset)
@@ -425,34 +432,11 @@ static void packages(cJSON* fields, const cJSON* jobs, const cJSON* release, con
         buf_free(&v);
     }
     lines_end(&downloads);
-    for (i = 0; i < NCHECKS; ++i) {
-        const char *status, *conclusion, *icon = icon_of(CHECKS[i].label);
-        Buf one = {0};
-        job = named(jobs, "name", CHECKS[i].job);
-        status = S(jstr(job, "status"));
-        conclusion = S(jstr(job, "conclusion"));
-        if (*icon) buf_printf(&one, "%s ", icon);
-        buf_printf(&one, "%s: ", CHECKS[i].label);
-        if (!job || !strcmp(status, "queued") || !strcmp(status, "waiting") || !strcmp(status, "pending") ||
-            !strcmp(status, "requested"))
-            buf_add(&one, "Waiting");
-        else if (strcmp(status, "completed"))
-            buf_printf(&one, "Testing ([log](%s))", S(jstr(job, "html_url")));
-        else if (!strcmp(conclusion, "success"))
-            buf_add(&one, "Passed");
-        else if (!strcmp(conclusion, "cancelled") || !strcmp(conclusion, "skipped"))
-            capitalized(&one, conclusion);
-        else
-            buf_printf(&one, "Failed ([log](%s))", S(jstr(job, "html_url")));
-        lines_add(&tests, one.text);
-        buf_free(&one);
-    }
     cJSON_ArrayForEach(job, jobs) {
         const char* name = S(jstr(job, "name"));
         int listed = 0;
         Buf one = {0};
         for (i = 0; i < NPACKAGES; ++i) listed |= !strcmp(name, PACKAGES[i].job);
-        for (i = 0; i < NCHECKS; ++i) listed |= !strcmp(name, CHECKS[i].job);
         if (listed || strcmp(S(jstr(job, "status")), "completed") || !failure(S(jstr(job, "conclusion")))) continue;
         if (*icon_of(name)) buf_printf(&one, "%s ", icon_of(name));
         buf_printf(&one, "%s: Failed ([log](%s))", name, S(jstr(job, "html_url")));
@@ -460,18 +444,6 @@ static void packages(cJSON* fields, const cJSON* jobs, const cJSON* release, con
         buf_free(&one);
     }
     lines_end(&tests);
-}
-static int failed_jobs(const cJSON* jobs) {
-    const cJSON* j;
-    cJSON_ArrayForEach(j, jobs) {
-        int i, ours = 0;
-        const char* conclusion = S(jstr(j, "conclusion"));
-        for (i = 0; i < NPACKAGES; ++i) ours |= !strcmp(S(jstr(j, "name")), PACKAGES[i].job);
-        if (ours && !strcmp(S(jstr(j, "status")), "completed") && strcmp(conclusion, "success") &&
-            strcmp(conclusion, "skipped"))
-            return 1;
-    }
-    return 0;
 }
 /* the embed, its description cut by whole lines, the last first, to what Discord takes: what it lists gives way, the
    fields stay. Takes description, fields and author */
@@ -606,14 +578,12 @@ cJSON* cd_pr(Cards* c, int number, int* open, double* closed_at) {
         fork_name = rei_strdup(S(jstr(cJSON_GetObjectItemCaseSensitive(head_obj, "repo"), "full_name")));
         built = rei_strdup(strcmp(fork_name, c->gh->repo) && !labeled(pr, LABEL) ? "waits for the team's label"
                                                                                  : "being published");
-        packages(fields, jobs, current, built);
+        packages(fields, jobs, current, built, 1);
         /* the outcome that moves the card: published or failed, kept while its push's builds run again or are
            cancelled */
         if (current)
             snprintf(c->builds, sizeof c->builds, "published %s", head);
-        else if (run && !strcmp(S(jstr(run, "status")), "completed") &&
-                 (!strcmp(S(jstr(run, "conclusion")), "failure") || !strcmp(S(jstr(run, "conclusion")), "timed_out") ||
-                  !strcmp(S(jstr(run, "conclusion")), "startup_failure")))
+        else if (run && !strcmp(S(jstr(run, "status")), "completed") && run_failed(run, jobs))
             snprintf(c->builds, sizeof c->builds, "failed %s", head);
         else {
             char* mine = rei_format(" %s", head);
@@ -826,32 +796,16 @@ static int changes(Cards* c, const char* previous, const char* sha, char*** line
     cJSON_Delete(cmp);
     return n;
 }
-/* whether sha is an ancestor of newer, which is not sha */
-static int ancestor(Cards* c, const char* sha, const char* newer) {
-    char* path;
-    cJSON* cmp;
-    int is;
-    if (!strcmp(sha, newer)) return 0;
-    path = rei_format("repos/%s/compare/%s...%s", c->gh->repo, sha, newer);
-    cmp = need(c, rg_get(c->gh, path, NULL));
-    is = !strcmp(S(jstr(cmp, "status")), "ahead");
-    free(path);
-    cJSON_Delete(cmp);
-    return is;
-}
 cJSON* cd_nightly(Cards* c, const char* sha) {
     char *url = rei_format(SERVER "/%s", c->gh->repo), *commit = rei_format("%s/commit/%s", url, sha), tail[16],
-         previous[41] = "", oldest[41] = "", date[11] = "", *link, *title, *footer;
+         previous[41] = "", date[11] = "", *title, *footer;
     cJSON *head, *run, *jobs, *fields = cJSON_CreateArray(), *e;
-    const cJSON *r, *own = NULL, *older_first = NULL;
-    const char* built = "";
-    int color = BUILDING, past_own = 0, n, i;
+    const cJSON *r, *own = NULL;
+    int past_own = 0, n, i;
     char** lines;
     Buf b = {0};
     c->failed = 0;
     c->activity[0] = 0;
-    head = get(c, "repos/%s/commits/%s", c->gh->repo, sha);
-    snprintf(date, sizeof date, "%s", S(jstr(jpath(head, "commit.committer"), "date")));
     snprintf(tail, sizeof tail, "-%.7s", sha);
     nightlies(c);
     cJSON_ArrayForEach(r, c->nightlies) if (prefix(S(jstr(r, "tag_name")), "nightly-") &&
@@ -859,63 +813,32 @@ cJSON* cd_nightly(Cards* c, const char* sha) {
         own = r;
         break;
     }
-    /* the nightlies before its own (all of them while it has none): the commit the newest of them was built from */
+    if (!own) { /* no card without its nightly: the sweep deletes it */
+        if (c->nightlies) rei_log("nightly-%.7s: no nightly of it is published: its card goes", sha);
+        cJSON_Delete(fields);
+        free(url);
+        free(commit);
+        return NULL;
+    }
+    head = get(c, "repos/%s/commits/%s", c->gh->repo, sha);
+    snprintf(date, sizeof date, "%s", S(jstr(jpath(head, "commit.committer"), "date")));
+    /* the nightly before it: the commit it was built from */
     cJSON_ArrayForEach(r, c->nightlies) {
         char from[41];
         if (!prefix(S(jstr(r, "tag_name")), "nightly-")) continue;
-        if (own && !past_own) {
+        if (!past_own) {
             past_own = r == own;
             continue;
         }
-        if (!older_first) older_first = r;
         commit_in(jstr(r, "body"), from);
         if (*from && strcmp(from, sha)) {
             snprintf(previous, sizeof previous, "%s", from);
             break;
         }
     }
-    /* the commit of the oldest nightly kept: a commit before it may have had one, gone since */
-    cJSON_ArrayForEach(r, c->nightlies) if (prefix(S(jstr(r, "tag_name")), "nightly-")) {
-        char from[41];
-        commit_in(jstr(r, "body"), from);
-        if (*from) snprintf(oldest, sizeof oldest, "%s", from);
-    }
     run = build_of(c, sha);
     jobs = jobs_of(c, run);
-    link = rei_strdup(commit);
-    if (own) {
-        buf_printf(&b, "Built from main at [`%.7s`](%s), committed %s.", sha, commit, date);
-        free(link);
-        link = rei_strdup(S(jstr(own, "html_url")));
-        color = SCARLET;
-    } else if (!run || strcmp(S(jstr(run, "status")), "completed"))
-        buf_printf(&b, "Building main at [`%.7s`](%s), committed %s.", sha, commit, date);
-    else if (strcmp(S(jstr(run, "conclusion")), "success")) {
-        const char* ended = S(jstr(run, "conclusion"));
-        char* how = !strcmp(ended, "failure")     ? rei_strdup("failed")
-                    : !strcmp(ended, "cancelled") ? rei_strdup("was cancelled")
-                                                  : rei_format("ended as %s", *ended ? ended : "nothing GitHub said");
-        buf_printf(&b, "Not published: the build of [`%.7s`](%s) %s ([run](%s)).", sha, commit, how,
-                   S(jstr(run, "html_url")));
-        free(how);
-        color = AMBER;
-        built = "not published";
-    } else if (*oldest && ancestor(c, sha, oldest)) {
-        buf_printf(&b,
-                   "Built from main at [`%.7s`](%s), committed %s; no nightly of it is kept now: %s keeps the newest "
-                   "%d.",
-                   sha, commit, date, c->gh->nightly, CD_KEEP);
-        color = CLOSED;
-        built = "no nightly kept";
-    } else if (*previous && older_first && ancestor(c, sha, previous)) {
-        buf_printf(&b, "Not published: [%s](%s), of a newer commit, came first.", S(jstr(older_first, "name")),
-                   S(jstr(older_first, "html_url")));
-        color = CLOSED;
-        built = "not published";
-    } else {
-        buf_printf(&b, "Built from main at [`%.7s`](%s), committed %s: being published.", sha, commit, date);
-        built = "being published";
-    }
+    buf_printf(&b, "Built from main at [`%.7s`](%s), committed %s.", sha, commit, date);
     n = *previous ? changes(c, previous, sha, &lines) : -1;
     if (n > 0) {
         char* compare = rei_format("%s/compare/%s...%s", url, previous, sha);
@@ -925,7 +848,7 @@ cJSON* cd_nightly(Cards* c, const char* sha) {
     }
     for (i = 0; i < n; ++i) free(lines[i]);
     if (n >= 0) free(lines);
-    packages(fields, jobs, own, built);
+    packages(fields, jobs, own, "", 0);
     {
         char *source = rei_format("[`%.7s`](%s)", sha, commit),
              *every = rei_format("[%s](" SERVER "/%s/releases)", c->gh->nightly, c->gh->nightly);
@@ -934,13 +857,11 @@ cJSON* cd_nightly(Cards* c, const char* sha) {
         free(source);
         free(every);
     }
-    if (failed_jobs(jobs) && !own) color = AMBER;
-    title = rei_format("Nightly %s (%.7s)", date, sha);
-    footer = rei_format("The newest %d nightlies are kept", CD_KEEP);
-    e = embed(c, title, link, buf_take(&b), fields, color, footer, NULL);
+    title = rei_strdup(S(jstr(own, "name")));
+    footer = rei_format("Every nightly stays in %s", c->gh->nightly);
+    e = embed(c, title, S(jstr(own, "html_url")), buf_take(&b), fields, SCARLET, footer, NULL);
     free(title);
     free(footer);
-    free(link);
     free(url);
     free(commit);
     cJSON_Delete(head);
@@ -1092,15 +1013,12 @@ static void run_sig(const cJSON* run, const cJSON* jobs, char out[17]) {
         cJSON_Delete(wrap);
     }
 }
-/* the card a Build run's packages go on: pr-N or nightly-SHA, "" for none */
+/* the card a Build run's packages go on: pr-N, "" for none (a nightly's card is its release's) */
 static void target_of(Cards* c, const cJSON* run, char key[56]) {
     const char *event = S(jstr(run, "event")), *sha = S(jstr(run, "head_sha"));
     const cJSON* pulls = cJSON_GetObjectItemCaseSensitive(run, "pull_requests");
     key[0] = 0;
-    if (!strcmp(event, "push") && !strcmp(S(jstr(run, "head_branch")), "main") &&
-        !strcmp(S(jstr(cJSON_GetObjectItemCaseSensitive(run, "head_repository"), "full_name")), c->gh->repo))
-        snprintf(key, 56, "nightly-%s", sha);
-    else if (!strcmp(event, "pull_request")) {
+    if (!strcmp(event, "pull_request")) {
         if (cJSON_GetArraySize(pulls))
             snprintf(key, 56, "pr-%d", (int)jnum(cJSON_GetArrayItem(pulls, 0), "number"));
         else { /* a fork's run names none */
@@ -1184,10 +1102,14 @@ static void mark_releases(Cards* c, int first) {
             if (prefix(tag, "pr-") && c->prs) {
                 snprintf(key, sizeof key, "%s", tag);
                 if (card_of(c, key, 0)) dirty(c, key);
-            } else if (prefix(tag, "nightly-")) {
-                const char* sha7 = strrchr(tag, '-') + 1;
-                for (i = 0; i < c->ncards; ++i)
-                    if (prefix(c->cards[i].key, "nightly-") && prefix(c->cards[i].key + 8, sha7)) c->cards[i].dirty = 1;
+            } else if (prefix(tag, "nightly-") && cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(r, "assets"))) {
+                char sha[41];
+                commit_in(jstr(r, "body"), sha);
+                if (*sha) { /* a nightly published with its packages: its card, made or drawn again */
+                    snprintf(key, sizeof key, "nightly-%s", sha);
+                    dirty(c, key);
+                } else
+                    rei_log("%s: its notes name no commit: no card", tag);
             }
         }
         snprintf(now[n].tag, sizeof now->tag, "%s", tag);
@@ -1196,45 +1118,6 @@ static void mark_releases(Cards* c, int first) {
     free(c->releases);
     c->releases = now;
     c->nreleases = c->capreleases = n;
-}
-
-/* the pushes to main since the last round, each its head's nightly card, the oldest first: GitHub's activity of main
-   (each push, the commit it moved main to), newest first, back to the head last seen, CD_PUSHES at most. The head now
-   has its card before the activity lists its push. A commit inside a push gets none: only a push's head is built, and
-   its card would say "Building" for ever */
-static void mark_head(Cards* c) {
-    char *path, heads[CD_PUSHES][41], key[56];
-    cJSON* got;
-    const char* sha;
-    int n = 0, i;
-    if (!c->nightly) return;
-    path = rei_format("repos/%s/commits/main", c->gh->repo);
-    got = rg_get(c->gh, path, NULL);
-    free(path);
-    sha = S(jstr(got, "sha"));
-    if (strlen(sha) == 40 && *c->head && strcmp(sha, c->head)) {
-        cJSON* pushes;
-        const cJSON* p;
-        path = rei_format("repos/%s/activity?ref=refs/heads/main&per_page=%d", c->gh->repo, CD_PUSHES);
-        pushes = rg_get(c->gh, path, NULL);
-        free(path);
-        snprintf(heads[n++], sizeof *heads, "%s", sha);
-        cJSON_ArrayForEach(p, pushes) {
-            const char* after = S(jstr(p, "after"));
-            int seen = 0;
-            if (!strcmp(after, c->head) || n == CD_PUSHES) break;
-            for (i = 0; i < n; ++i) seen |= !strcmp(heads[i], after);
-            if (strlen(after) == 40 && strspn(after, "0") < 40 && !seen)
-                snprintf(heads[n++], sizeof *heads, "%s", after);
-        }
-        cJSON_Delete(pushes);
-        for (i = n - 1; i >= 0; --i) {
-            snprintf(key, sizeof key, "nightly-%s", heads[i]);
-            dirty(c, key);
-        }
-    }
-    if (strlen(sha) == 40) snprintf(c->head, sizeof c->head, "%s", sha);
-    cJSON_Delete(got);
 }
 
 /* a card's message from before its move deleted: 1 when it is gone */
@@ -1326,26 +1209,51 @@ static int newer_message(const void* a, const void* b) {
     u64 x = *(const u64*)a, y = *(const u64*)b;
     return x < y ? 1 : x > y ? -1 : 0;
 }
-/* the oldest message of the 2 * CD_KEEP newest nightlies' cards, 0 while there are no more: by Discord's ids, which grow
-   with time, as the cards' order says nothing (a card forgotten takes the place of the last one) */
+/* the oldest message of the CD_NIGHTLIES newest nightlies' cards, 0 while there are no more: by Discord's ids, which
+   grow with time, as the cards' order says nothing (a card forgotten takes the place of the last one) */
 static u64 nightly_least(const Cards* c) {
     u64 *ids = malloc(((size_t)c->ncards + 1) * sizeof *ids), least = 0;
     int n = 0, i;
     if (!ids) abort();
     for (i = 0; i < c->ncards; ++i)
         if (prefix(c->cards[i].key, "nightly-")) ids[n++] = c->cards[i].message;
-    if (n > 2 * CD_KEEP) {
+    if (n > CD_NIGHTLIES) {
         qsort(ids, (size_t)n, sizeof *ids, newer_message);
-        least = ids[2 * CD_KEEP - 1];
+        least = ids[CD_NIGHTLIES - 1];
     }
     free(ids);
     return least;
 }
-/* the cards of pull requests and issues closed over a day ago deleted; what is left of a week ago forgotten, and the
-   nightlies' past the newest 2 * CD_KEEP */
+/* a nightly of sha is published, as this round's releases say */
+static int published_nightly(Cards* c, const char* sha) {
+    char tail[16];
+    const cJSON* r;
+    snprintf(tail, sizeof tail, "-%.7s", sha);
+    cJSON_ArrayForEach(r, c->nightlies) if (prefix(S(jstr(r, "tag_name")), "nightly-") &&
+                                            suffix(S(jstr(r, "tag_name")), tail)) return 1;
+    return 0;
+}
+/* the cards of pull requests and issues closed over a day ago deleted; what is left of a week ago forgotten, the
+   nightlies' past the newest CD_NIGHTLIES, and a nightly's card whose nightly this round's releases lack deleted and
+   forgotten (a push's card from before: a push has none) */
 static void sweep(Cards* c, double now) {
     u64 least;
     int i;
+    for (i = c->ncards - 1; c->nightlies && i >= 0; --i) {
+        CdCard* card = &c->cards[i];
+        if (!prefix(card->key, "nightly-") || published_nightly(c, card->key + 8)) continue;
+        if (card->message) {
+            int said = c->dc.remove(c->dc.ctx, c->nightly, card->message);
+            if (said && said != 404) {
+                rei_log(
+                    "%s: no nightly of it, its message %llu not deleted: Discord answered %d: tried again next round",
+                    card->key, (unsigned long long)card->message, said);
+                continue;
+            }
+        }
+        rei_log("%s: no nightly of it is published: its card deleted", card->key);
+        c->cards[i] = c->cards[--c->ncards];
+    }
     for (i = 0; i < c->ncards; ++i) {
         CdCard* card = &c->cards[i];
         if (card->stale && !card->dirty) unstale(c, card, channel_of(c, card->key)); /* a dirty one: by its draw */
@@ -1378,16 +1286,12 @@ void cd_round(Cards* c) {
     mark_updated(c, start);
     mark_builds(c, first);
     mark_releases(c, first);
-    mark_head(c);
     for (i = 0; i < c->ncards; ++i)
         if (c->cards[i].dirty) draw(c, &c->cards[i], start);
     sweep(c, start);
 }
 
 /* ---- the cards left saying "Building" ---- */
-#define FIX_PAGES 10   /* the pages of 100 builds of main's pushes cd_fix reads, at most */
-#define FIX_YOUNG 3600 /* a card younger than this may be a push whose build GitHub does not list yet */
-
 typedef struct {
     u64 message;
     char sha[41];
@@ -1402,40 +1306,10 @@ static void building(const char* description, char out[41]) {
     if (prefix(S(description), "Building main at ") && at && strspn(at + 8, "0123456789abcdef") >= 40)
         snprintf(out, 41, "%.40s", at + 8);
 }
-/* the Build runs of the pushes to main, newest first, back past since or FIX_PAGES pages: an array (owned), or NULL;
-   *from the time of the oldest one when there may be older, 0 when GitHub listed them all */
-static cJSON* pushes_of(Cards* c, double since, double* from) {
-    cJSON* all = cJSON_CreateArray();
-    int page, n = 0;
-    *from = 0;
-    for (page = 1; page <= FIX_PAGES; ++page) {
-        char* path = rei_format("repos/%s/actions/workflows/build.yml/runs?branch=main&event=push&per_page=100&page=%d",
-                                c->gh->repo, page);
-        cJSON* got = rg_get(c->gh, path, NULL);
-        cJSON* runs = cJSON_GetObjectItemCaseSensitive(got, "workflow_runs");
-        free(path);
-        if (!cJSON_IsArray(runs)) {
-            cJSON_Delete(got);
-            cJSON_Delete(all);
-            return NULL;
-        }
-        n = cJSON_GetArraySize(runs);
-        if (n) *from = seconds_of(jstr(cJSON_GetArrayItem(runs, n - 1), "created_at"));
-        while (cJSON_GetArraySize(runs)) cJSON_AddItemToArray(all, cJSON_DetachItemFromArray(runs, 0));
-        cJSON_Delete(got);
-        if (n < 100 || *from < since) break;
-    }
-    if (n < 100) *from = 0;
-    return all;
-}
 int cd_fix(Cards* c, u64 self, int apply) {
     Stuck* stuck = NULL;
-    int nstuck = 0, cap = 0, read = 0, i, deleted = 0, redrawn = 0, failed = 0, head_now = 0, young = 0, old = 0,
-        building_still = 0, result;
+    int nstuck = 0, cap = 0, read = 0, i, deleted = 0, redrawn = 0, failed = 0, result;
     u64 before = 0;
-    double now = rei_now(), oldest = now, from;
-    char head[41], when[32];
-    cJSON *got, *pushes;
     const char* would = apply ? "" : "would be ";
     if (!c->nightly || !c->dc.messages) {
         rei_log("fix-cards: no nightly channel (REIWIMSY_CARDS_NIGHTLY), nothing to look through");
@@ -1468,7 +1342,6 @@ int cd_fix(Cards* c, u64 self, int apply) {
                 stuck[nstuck].message = before;
                 snprintf(stuck[nstuck].sha, sizeof stuck->sha, "%s", sha);
                 stuck[nstuck].posted = posted_at(before);
-                if (stuck[nstuck].posted < oldest) oldest = stuck[nstuck].posted;
                 ++nstuck;
             }
             if (read == CD_HISTORY) break;
@@ -1476,45 +1349,20 @@ int cd_fix(Cards* c, u64 self, int apply) {
         cJSON_Delete(list);
         if (n < 100) break;
     }
-    {
-        char* path = rei_format("repos/%s/commits/main", c->gh->repo);
-        got = rg_get(c->gh, path, NULL);
-        free(path);
-    }
-    snprintf(head, sizeof head, "%s", S(jstr(got, "sha")));
-    cJSON_Delete(got);
-    pushes = strlen(head) == 40 ? pushes_of(c, oldest, &from) : NULL;
-    if (!pushes) {
-        rei_log("fix-cards: GitHub did not give main's head or its pushes' builds: nothing done of %d cards saying "
-                "Building",
+    cJSON_Delete(c->nightlies);
+    c->nightlies = NULL;
+    if (!nightlies(c)) {
+        rei_log("fix-cards: GitHub did not give the nightly releases: nothing done of %d cards saying Building",
                 nstuck);
         free(stuck);
         return -1;
     }
-    cJSON_Delete(c->nightlies);
-    c->nightlies = NULL;
-    iso_of(from, when);
     for (i = 0; i < nstuck; ++i) {
         const Stuck* k = &stuck[i];
-        const cJSON* p;
         char posted[32];
-        int pushed = 0, said;
+        int said;
         iso_of(k->posted, posted);
-        cJSON_ArrayForEach(p, pushes) pushed |= !strcmp(S(jstr(p, "head_sha")), k->sha);
-        if (!strcmp(k->sha, head)) {
-            ++head_now;
-            rei_log("fix-cards: nightly %.7s, message %llu of %s, still says Building: main's head now", k->sha,
-                    (unsigned long long)k->message, posted);
-        } else if (now - k->posted < FIX_YOUNG) {
-            ++young;
-            rei_log("fix-cards: nightly %.7s, message %llu of %s, still says Building: under an hour old", k->sha,
-                    (unsigned long long)k->message, posted);
-        } else if (k->posted < from + FIX_YOUNG) {
-            ++old;
-            rei_log("fix-cards: nightly %.7s, message %llu of %s, still says Building: older than the builds GitHub "
-                    "lists, from %s",
-                    k->sha, (unsigned long long)k->message, posted, when);
-        } else if (!pushed) {
+        if (!published_nightly(c, k->sha)) {
             said = apply ? c->dc.remove(c->dc.ctx, c->nightly, k->message) : 0;
             if (said && said != 404) {
                 ++failed;
@@ -1522,9 +1370,8 @@ int cd_fix(Cards* c, u64 self, int apply) {
                         (unsigned long long)k->message, posted, said);
             } else {
                 ++deleted;
-                rei_log("fix-cards: nightly %.7s, message %llu of %s, %sdeleted: no push's build ran for it, a "
-                        "commit inside a push",
-                        k->sha, (unsigned long long)k->message, posted, would);
+                rei_log("fix-cards: nightly %.7s, message %llu of %s, %sdeleted: a push's card, of no nightly", k->sha,
+                        (unsigned long long)k->message, posted, would);
             }
         } else {
             cJSON* e = cd_nightly(c, k->sha);
@@ -1532,10 +1379,6 @@ int cd_fix(Cards* c, u64 self, int apply) {
             if (!e) {
                 ++failed;
                 rei_log("fix-cards: nightly %.7s, message %llu of %s, not drawn: GitHub did not give all it shows",
-                        k->sha, (unsigned long long)k->message, posted);
-            } else if (prefix(S(text), "Building main at ")) {
-                ++building_still;
-                rei_log("fix-cards: nightly %.7s, message %llu of %s, still says Building: its build has not ended",
                         k->sha, (unsigned long long)k->message, posted);
             } else if ((said = apply ? c->dc.edit(c->dc.ctx, c->nightly, k->message, e) : 0) && said != 404) {
                 ++failed;
@@ -1550,10 +1393,8 @@ int cd_fix(Cards* c, u64 self, int apply) {
         }
     }
     result = failed ? 1 : 0;
-    rei_log("fix-cards: %d messages read, %d of ours saying Building: %d %sdeleted, %d %sredrawn, %d failed; still "
-            "saying Building: %d main's head, %d under an hour old, %d older than the builds listed, %d still building",
-            read, nstuck, deleted, would, redrawn, would, failed, head_now, young, old, building_still);
-    cJSON_Delete(pushes);
+    rei_log("fix-cards: %d messages read, %d of ours saying Building: %d %sdeleted, %d %sredrawn, %d failed", read,
+            nstuck, deleted, would, redrawn, would, failed);
     free(stuck);
     return result;
 }
@@ -1594,7 +1435,6 @@ cJSON* cd_save(const Cards* c) {
         cJSON_AddItemToArray(releases, one);
     }
     cJSON_AddStringToObject(saved, "since", c->since);
-    cJSON_AddStringToObject(saved, "head", c->head);
     cJSON_AddBoolToObject(saved, "purged_prs", c->purged_prs);
     cJSON_AddBoolToObject(saved, "purged_issues", c->purged_issues);
     return saved;
@@ -1633,7 +1473,6 @@ void cd_load(Cards* c, const cJSON* saved) {
         snprintf(c->releases[c->nreleases++].sig, sizeof c->releases->sig, "%s", S(jstr(one, "sig")));
     }
     snprintf(c->since, sizeof c->since, "%s", S(jstr(saved, "since")));
-    snprintf(c->head, sizeof c->head, "%s", S(jstr(saved, "head")));
     c->purged_prs = jbool(saved, "purged_prs");
     c->purged_issues = jbool(saved, "purged_issues");
 }
