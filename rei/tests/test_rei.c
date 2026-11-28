@@ -1082,6 +1082,34 @@ static void nightly_channel(void) {
         "is being built: its downloads appear here as each one is ready. Until then, use the nightly");
     HAS(each[1]->description, "Building ([log](https://g/98/lin))");
     HAS(each[1]->description, "\"color\":2060267");
+    /* it ended well, its downloads not published yet; then stopped with no job failed: each said */
+    gh_shas("repos/o/r/actions/workflows/build.yml/runs?branch=main&event=push&per_page=1",
+            "{\"workflow_runs\":[{\"id\":98,\"event\":\"push\",\"head_branch\":\"main\",\"head_sha\":\"@9\","
+            "\"status\":\"completed\",\"conclusion\":\"success\",\"html_url\":\"https://g/98\"}]}");
+    gh("repos/o/r/actions/runs/98/jobs?per_page=100&page=1",
+       "{\"jobs\":[{\"name\":\"Linux AppImage (x86_64)\",\"status\":\"completed\",\"conclusion\":\"success\","
+       "\"html_url\":\"https://g/98/lin\"}]}");
+    gh_shas("repos/o/r/actions/workflows/build.yml/runs?per_page=20",
+            "{\"workflow_runs\":[{\"id\":98,\"event\":\"push\",\"head_branch\":\"main\",\"head_sha\":\"@9\","
+            "\"status\":\"queued\",\"head_repository\":{\"full_name\":\"o/r\"}}]}");
+    now_is += 30;
+    cd_round(&c);
+    HAS(each[1]->description,
+        "is built: its downloads appear here in a few minutes. Until then, use the nightly above.");
+    HAS(each[1]->description, "\"color\":2060267");
+    gh_shas("repos/o/r/actions/workflows/build.yml/runs?branch=main&event=push&per_page=1",
+            "{\"workflow_runs\":[{\"id\":98,\"event\":\"push\",\"head_branch\":\"main\",\"head_sha\":\"@9\","
+            "\"status\":\"completed\",\"conclusion\":\"cancelled\",\"html_url\":\"https://g/98\"}]}");
+    gh("repos/o/r/actions/runs/98/jobs?per_page=100&page=1",
+       "{\"jobs\":[{\"name\":\"Linux AppImage (x86_64)\",\"status\":\"completed\",\"conclusion\":\"cancelled\","
+       "\"html_url\":\"https://g/98/lin\"}]}");
+    gh_shas("repos/o/r/actions/workflows/build.yml/runs?per_page=20",
+            "{\"workflow_runs\":[{\"id\":98,\"event\":\"push\",\"head_branch\":\"main\",\"head_sha\":\"@9\","
+            "\"status\":\"in_progress\",\"head_repository\":{\"full_name\":\"o/r\"}}]}");
+    now_is += 30;
+    cd_round(&c);
+    HAS(each[1]->description, "was stopped before it made any download: use the nightly above.");
+    HAS(each[1]->description, "\"color\":13801762");
     gh_shas("repos/o/r/actions/workflows/build.yml/runs?branch=main&event=push&per_page=1",
             "{\"workflow_runs\":[{\"id\":97,\"event\":\"push\",\"head_branch\":\"main\",\"head_sha\":\"@f\","
             "\"status\":\"completed\",\"conclusion\":\"failure\",\"html_url\":\"https://g/97\"}]}");
