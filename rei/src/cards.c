@@ -10,8 +10,13 @@
 #include <time.h>
 
 #define SERVER       "https://github.com"
-/* a nightly's colour */
-#define SCARLET      0xB0102A
+/* the nightly channel's cards: the nightly's colour, main's, and main's when its newest build failed; their titles,
+   which tell anyone which to take */
+#define SCARLET       0xB0102A
+#define MAIN_BLUE     0x1F6FEB
+#define AMBER         0xD29922
+#define NIGHTLY_TITLE "Nightly (recommended)"
+#define MAIN_TITLE    "Latest development build (main): newer, may be less stable"
 /* the mascot beside each card */
 #define WIMSY        "https://raw.githubusercontent.com/%s/main/dist/icons/hicolor/128x128/apps/wimsy.png"
 /* what a card lists, at most, before "and N more": a nightly's changes, a pull request's commits; a text's letters */
@@ -112,10 +117,10 @@ static int newer_published(const void* a, const void* b) {
                *y = S(jstr(*(const cJSON* const*)b, "published_at"));
     return strcmp(y, x);
 }
-/* the nightly repository's releases, the newest published first, once a round */
-static const cJSON* nightlies(Cards* c) {
-    if (!c->nightlies) {
-        char* path = rei_format("repos/%s/releases", c->gh->nightly);
+/* repo's releases, the newest published first, kept in *kept for the round */
+static const cJSON* releases_of(Cards* c, const char* repo, cJSON** kept) {
+    if (!*kept) {
+        char* path = rei_format("repos/%s/releases", repo);
         cJSON *all = pages(c, path, NULL), *sorted = cJSON_CreateArray();
         int n = cJSON_GetArraySize(all), i = 0;
         const cJSON** list = malloc((size_t)(n ? n : 1) * sizeof *list);
@@ -131,10 +136,12 @@ static const cJSON* nightlies(Cards* c) {
         for (i = 0; i < n; ++i) cJSON_AddItemToArray(sorted, cJSON_Duplicate(list[i], 1));
         free(list);
         cJSON_Delete(all);
-        c->nightlies = sorted;
+        *kept = sorted;
     }
-    return c->nightlies;
+    return *kept;
 }
+/* the nightly repository's releases, once a round */
+static const cJSON* nightlies(Cards* c) { return releases_of(c, c->gh->nightly, &c->nightlies); }
 static const cJSON* release_tagged(Cards* c, const char* tag) {
     const cJSON* r;
     cJSON_ArrayForEach(r, nightlies(c)) if (!strcmp(S(jstr(r, "tag_name")), tag)) return r;
@@ -796,30 +803,41 @@ static int changes(Cards* c, const char* previous, const char* sha, char*** line
     cJSON_Delete(cmp);
     return n;
 }
-cJSON* cd_nightly(Cards* c, const char* sha) {
-    char *url = rei_format(SERVER "/%s", c->gh->repo), *commit = rei_format("%s/commit/%s", url, sha), tail[16],
-         previous[41] = "", date[11] = "", *title, *footer;
-    cJSON *head, *run, *jobs, *fields = cJSON_CreateArray(), *e;
-    const cJSON *r, *own = NULL;
+/* the newest release of list (newest published first) whose tag starts with start and whose notes name the commit
+   it was built from, *sha; one with its packages alone when packaged. NULL for none */
+static const cJSON* newest_tagged(const cJSON* list, const char* start, int packaged, char sha[41]) {
+    const cJSON* r;
+    sha[0] = 0;
+    cJSON_ArrayForEach(r, list) {
+        if (!prefix(S(jstr(r, "tag_name")), start) ||
+            (packaged && !cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(r, "assets"))))
+            continue;
+        commit_in(jstr(r, "body"), sha);
+        if (*sha) return r;
+    }
+    return NULL;
+}
+/* a nightly's day, as its tag nightly-YYYY-MM-DD-COMMIT says it, into day; "" for a tag of another form */
+static void day_of(const char* tag, char day[11]) {
+    int i, ok = prefix(S(tag), "nightly-") && strlen(tag) >= 18;
+    for (i = 0; ok && i < 10; ++i) ok = i == 4 || i == 7 ? tag[8 + i] == '-' : isdigit((unsigned char)tag[8 + i]) != 0;
+    snprintf(day, 11, "%.*s", ok ? 10 : 0, ok ? tag + 8 : "");
+}
+cJSON* cd_nightly(Cards* c) {
+    char sha[41], previous[41] = "", date[11] = "", day[11], *url, *commit, *name, *footer;
+    cJSON *head, *run, *jobs, *fields, *e;
+    const cJSON *r, *own;
     int past_own = 0, n, i;
     char** lines;
     Buf b = {0};
     c->failed = 0;
     c->activity[0] = 0;
-    snprintf(tail, sizeof tail, "-%.7s", sha);
-    nightlies(c);
-    cJSON_ArrayForEach(r, c->nightlies) if (prefix(S(jstr(r, "tag_name")), "nightly-") &&
-                                            suffix(S(jstr(r, "tag_name")), tail)) {
-        own = r;
-        break;
-    }
-    if (!own) { /* no card without its nightly: the sweep deletes it */
-        if (c->nightlies) rei_log("nightly-%.7s: no nightly of it is published: its card goes", sha);
-        cJSON_Delete(fields);
-        free(url);
-        free(commit);
-        return NULL;
-    }
+    c->shown[0] = 0;
+    if (!nightlies(c) || !(own = newest_tagged(c->nightlies, "nightly-", 1, sha))) return NULL;
+    snprintf(c->shown, sizeof c->shown, "%s", S(jstr(own, "published_at")));
+    url = rei_format(SERVER "/%s", c->gh->repo);
+    commit = rei_format("%s/commit/%s", url, sha);
+    fields = cJSON_CreateArray();
     head = get(c, "repos/%s/commits/%s", c->gh->repo, sha);
     snprintf(date, sizeof date, "%s", S(jstr(jpath(head, "commit.committer"), "date")));
     /* the nightly before it: the commit it was built from */
@@ -838,11 +856,16 @@ cJSON* cd_nightly(Cards* c, const char* sha) {
     }
     run = build_of(c, sha);
     jobs = jobs_of(c, run);
-    buf_printf(&b, "Built from main at [`%.7s`](%s), committed %s.", sha, commit, date);
+    day_of(jstr(own, "tag_name"), day);
+    name = *day ? rei_format("Nightly %s", day) : rei_strdup(S(jstr(own, "name")));
+    buf_printf(&b,
+               "The one to download if you are not sure: [%s](%s), made once a day from main at [`%.7s`](%s), "
+               "committed %s.",
+               name, S(jstr(own, "html_url")), sha, commit, date);
     n = *previous ? changes(c, previous, sha, &lines) : -1;
     if (n > 0) {
         char* compare = rei_format("%s/compare/%s...%s", url, previous, sha);
-        buf_printf(&b, "\n\n**Changes** ([`%.7s...%.7s`](%s))", previous, sha, compare);
+        buf_printf(&b, "\n\n**Changes since the nightly before** ([`%.7s...%.7s`](%s))", previous, sha, compare);
         listed(&b, lines, n, compare, MOST_LINES);
         free(compare);
     }
@@ -857,14 +880,102 @@ cJSON* cd_nightly(Cards* c, const char* sha) {
         free(source);
         free(every);
     }
-    title = rei_strdup(S(jstr(own, "name")));
     footer = rei_format("Every nightly stays in %s", c->gh->nightly);
-    e = embed(c, title, S(jstr(own, "html_url")), buf_take(&b), fields, SCARLET, footer, NULL);
-    free(title);
+    e = embed(c, NIGHTLY_TITLE, S(jstr(own, "html_url")), buf_take(&b), fields, SCARLET, footer, NULL);
+    free(name);
     free(footer);
     free(url);
     free(commit);
     cJSON_Delete(head);
+    cJSON_Delete(run);
+    cJSON_Delete(jobs);
+    if (c->failed) {
+        cJSON_Delete(e);
+        return NULL;
+    }
+    return e;
+}
+
+/* the newest push to main's Build run: owned; NULL when GitHub lists none, or did not answer (c->failed) */
+static cJSON* newest_push(Cards* c) {
+    char* path = rei_format("repos/%s/actions/workflows/build.yml/runs?branch=main&event=push&per_page=1", c->gh->repo);
+    cJSON *got = need(c, rg_get(c->gh, path, NULL)), *run;
+    free(path);
+    run = cJSON_Duplicate(cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(got, "workflow_runs"), 0), 1);
+    cJSON_Delete(got);
+    return run;
+}
+cJSON* cd_main(Cards* c) {
+    char sha[41], nightly[41] = "", date[11] = "", *url, *commit, *source;
+    const cJSON* own;
+    cJSON *run, *jobs, *fields, *e;
+    const char* link;
+    int color = MAIN_BLUE;
+    Buf b = {0};
+    c->failed = 0;
+    c->activity[0] = 0;
+    if (!releases_of(c, c->gh->repo, &c->repo_releases) || !nightlies(c)) return NULL;
+    newest_tagged(c->nightlies, "nightly-", 1, nightly);
+    own = newest_tagged(c->repo_releases, "main-", 0, sha);
+    if (own) { /* main's prerelease, which publish-builds.py keeps of the newest build that has a package */
+        cJSON* head = get(c, "repos/%s/commits/%s", c->gh->repo, sha);
+        int n = -1, i;
+        char** lines;
+        snprintf(date, sizeof date, "%s", S(jstr(jpath(head, "commit.committer"), "date")));
+        cJSON_Delete(head);
+        url = rei_format(SERVER "/%s", c->gh->repo);
+        commit = rei_format("%s/commit/%s", url, sha);
+        run = build_of(c, sha);
+        jobs = jobs_of(c, run);
+        if (*nightly && strcmp(nightly, sha)) n = changes(c, nightly, sha, &lines);
+        buf_printf(&b, "The newest build of main, made from [`%.7s`](%s), committed %s", sha, commit, date);
+        if (!*nightly)
+            buf_add(&b, ". It may have new bugs.");
+        else if (!strcmp(nightly, sha))
+            buf_add(&b, ": the same commit as the nightly above.");
+        else if (n > 0)
+            buf_add(&b, ": the nightly above and the changes below. Newer, and it may have new bugs: if something "
+                        "breaks, go back to the nightly.");
+        else /* the nightly was made from a newer commit than this build's (main's newest push still building) */
+            buf_add(&b, ". The nightly above is newer: take the nightly.");
+        if (n > 0) {
+            char* compare = rei_format("%s/compare/%s...%s", url, nightly, sha);
+            buf_printf(&b, "\n\n**Changes since the nightly** ([`%.7s...%.7s`](%s))", nightly, sha, compare);
+            listed(&b, lines, n, compare, MOST_LINES);
+            free(compare);
+        }
+        for (i = 0; i < n; ++i) free(lines[i]);
+        if (n >= 0) free(lines);
+        free(url);
+        link = jstr(own, "html_url");
+    } else { /* none: the newest push's build, being built, or ended with no package to publish */
+        const char *ended, *how;
+        int building;
+        if (!(run = newest_push(c))) return NULL;
+        snprintf(sha, sizeof sha, "%s", S(jstr(run, "head_sha")));
+        commit = rei_format(SERVER "/%s/commit/%s", c->gh->repo, sha);
+        link = jstr(run, "html_url");
+        jobs = jobs_of(c, run);
+        ended = S(jstr(run, "conclusion"));
+        building = strcmp(S(jstr(run, "status")), "completed") != 0;
+        if (building)
+            how = "is being built: its downloads appear here as each one is ready. Until then, use the nightly above.";
+        else if (!strcmp(ended, "success"))
+            how = "is built: its downloads appear here in a few minutes. Until then, use the nightly above.";
+        else if (run_failed(run, jobs) || strcmp(ended, "cancelled"))
+            how = "failed, so it has no downloads: use the nightly above.";
+        else
+            how = "was stopped before it made any download: use the nightly above.";
+        if (!building && strcmp(ended, "success")) color = AMBER;
+        buf_printf(&b, "The newest build of main, from [`%.7s`](%s), %s ([Its build](%s))", sha, commit, how, S(link));
+    }
+    fields = cJSON_CreateArray();
+    packages(fields, jobs, own, "", 0);
+    source = rei_format("[`%.7s`](%s)", sha, commit);
+    field(fields, "Source", source);
+    e = embed(c, MAIN_TITLE, S(link), buf_take(&b), fields, color, "Each push to main brings a newer one", NULL);
+    free(source);
+    free(commit);
     cJSON_Delete(run);
     cJSON_Delete(jobs);
     if (c->failed) {
@@ -893,11 +1004,15 @@ void cd_init(Cards* c, Rg* gh, CdDiscord dc, u64 prs, u64 issues, u64 nightly) {
     c->prs = prs;
     c->issues = issues;
     c->nightly = nightly;
+    snprintf(c->newest[CD_NIGHTLY].key, sizeof c->newest->key, "nightly");
+    snprintf(c->newest[CD_MAIN].key, sizeof c->newest->key, "main");
 }
 void cd_free(Cards* c) {
     free(c->cards);
     free(c->releases);
+    free(c->drop);
     cJSON_Delete(c->nightlies);
+    cJSON_Delete(c->repo_releases);
     memset(c, 0, sizeof *c);
 }
 static CdCard* card_of(Cards* c, const char* key, int make) {
@@ -924,13 +1039,17 @@ static int kept(const Cards* c, u64 message) {
     int i;
     for (i = 0; i < c->ncards; ++i)
         if (c->cards[i].message == message) return 1;
+    for (i = 0; i < CD_NEWEST; ++i)
+        if (c->newest[i].message == message) return 1;
     return 0;
 }
 
-/* the first round on a channel: the cards a webhook posted there, and our messages no card keeps, deleted */
-static void purge(Cards* c, u64 channel, int* done) {
+/* the first round on a channel: the cards a webhook posted there, and our messages no card keeps, deleted, among its
+   most newest messages (0: all of them); looked through again next round when Discord failed a delete it did not
+   refuse */
+static void purge(Cards* c, u64 channel, int* done, int most) {
     u64 before = 0, ids[100];
-    int webhook[100], mine[100], seen = 0, deleted = 0, n, i;
+    int webhook[100], mine[100], seen = 0, deleted = 0, failed = 0, again = 0, n, i;
     if (!channel || *done) return;
     do {
         n = c->dc.history(c->dc.ctx, channel, before, ids, webhook, mine, 100);
@@ -945,15 +1064,20 @@ static void purge(Cards* c, u64 channel, int* done) {
             said = c->dc.remove(c->dc.ctx, channel, ids[i]);
             if (!said || said == 404)
                 ++deleted;
-            else
-                rei_log("channel %llu: message %llu could not be deleted: Discord answered %d (Manage Messages?)",
-                        (unsigned long long)channel, (unsigned long long)ids[i], said);
+            else {
+                ++failed;
+                again |= said != 403;
+                rei_log("channel %llu: message %llu could not be deleted: Discord answered %d%s",
+                        (unsigned long long)channel, (unsigned long long)ids[i], said,
+                        said == 403 ? " (Manage Messages?)" : "");
+            }
         }
         seen += n;
         if (n) before = ids[n - 1];
-    } while (n == 100 && seen < CD_HISTORY);
-    *done = 1;
-    rei_log("channel %llu: %d old cards deleted of the %d newest messages", (unsigned long long)channel, deleted, seen);
+    } while (n == 100 && (!most || seen < most));
+    *done = !again;
+    rei_log("channel %llu: %d old cards deleted of the %d newest messages, %d not deleted%s",
+            (unsigned long long)channel, deleted, seen, failed, again ? ": looked through again next round" : "");
 }
 
 /* a pull request's or an issue's card key, when its channel is set; "" otherwise */
@@ -1013,12 +1137,16 @@ static void run_sig(const cJSON* run, const cJSON* jobs, char out[17]) {
         cJSON_Delete(wrap);
     }
 }
-/* the card a Build run's packages go on: pr-N, "" for none (a nightly's card is its release's) */
+/* the card a Build run's packages go on: pr-N, main for a push to main, "" for none (a nightly's card is its
+   release's) */
 static void target_of(Cards* c, const cJSON* run, char key[56]) {
     const char *event = S(jstr(run, "event")), *sha = S(jstr(run, "head_sha"));
     const cJSON* pulls = cJSON_GetObjectItemCaseSensitive(run, "pull_requests");
     key[0] = 0;
-    if (!strcmp(event, "pull_request")) {
+    if (!strcmp(event, "push") && !strcmp(S(jstr(run, "head_branch")), "main") &&
+        !strcmp(S(jstr(cJSON_GetObjectItemCaseSensitive(run, "head_repository"), "full_name")), c->gh->repo))
+        snprintf(key, 56, "main");
+    else if (!strcmp(event, "pull_request")) {
         if (cJSON_GetArraySize(pulls))
             snprintf(key, 56, "pr-%d", (int)jnum(cJSON_GetArrayItem(pulls, 0), "number"));
         else { /* a fork's run names none */
@@ -1063,7 +1191,10 @@ static void mark_builds(Cards* c, int first) {
         if (!strcmp(S(jstr(run, "status")), "completed")) sig[0] = 'Z'; /* ended, no hex digit: never looked at again */
         if (!first && (!before || strcmp(before, sig))) {
             target_of(c, run, key);
-            if (*key && channel_of(c, key) && (prefix(key, "pr-") || card_of(c, key, 0))) dirty(c, key);
+            if (!strcmp(key, "main"))
+                c->newest[CD_MAIN].dirty = c->nightly != 0;
+            else if (*key && channel_of(c, key) && (prefix(key, "pr-") || card_of(c, key, 0)))
+                dirty(c, key);
         }
         now[n].id = id;
         snprintf(now[n++].sig, sizeof now->sig, "%s", sig);
@@ -1073,7 +1204,7 @@ static void mark_builds(Cards* c, int first) {
     cJSON_Delete(got);
 }
 
-/* the nightly releases changed since the last round: their pull requests' and nightlies' cards */
+/* the nightly releases changed since the last round: their pull requests' cards, and the nightly's */
 static void mark_releases(Cards* c, int first) {
     const cJSON* r;
     CdRelease* now;
@@ -1105,19 +1236,48 @@ static void mark_releases(Cards* c, int first) {
             } else if (prefix(tag, "nightly-") && cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(r, "assets"))) {
                 char sha[41];
                 commit_in(jstr(r, "body"), sha);
-                if (*sha) { /* a nightly published with its packages: its card, made or drawn again */
-                    snprintf(key, sizeof key, "nightly-%s", sha);
-                    dirty(c, key);
-                } else
+                if (!*sha)
                     rei_log("%s: its notes name no commit: no card", tag);
+                else if (c->nightly) /* a nightly published with its packages: the nightly's card, drawn again */
+                    c->newest[CD_NIGHTLY].dirty = 1;
             }
         }
         snprintf(now[n].tag, sizeof now->tag, "%s", tag);
         snprintf(now[n++].sig, sizeof now->sig, "%s", sig);
     }
+    for (i = 0; c->nightly && i < c->nreleases; ++i) { /* a nightly gone (the newest deleted?): the card drawn again */
+        int j, kept_now = 0;
+        for (j = 0; j < n; ++j) kept_now |= !strcmp(now[j].tag, c->releases[i].tag);
+        if (!kept_now && prefix(c->releases[i].tag, "nightly-")) c->newest[CD_NIGHTLY].dirty = 1;
+    }
     free(c->releases);
     c->releases = now;
     c->nreleases = c->capreleases = n;
+}
+/* main's prereleases changed since the last round: its card */
+static void mark_main(Cards* c) {
+    const cJSON* r;
+    cJSON *wrap, *all;
+    char sig[17];
+    if (!c->nightly || !releases_of(c, c->gh->repo, &c->repo_releases)) return;
+    wrap = cJSON_CreateObject();
+    all = cJSON_AddArrayToObject(wrap, "main");
+    cJSON_ArrayForEach(r, c->repo_releases) if (prefix(S(jstr(r, "tag_name")), "main-")) {
+        const cJSON* a;
+        cJSON_AddItemToArray(all, cJSON_CreateString(S(jstr(r, "tag_name"))));
+        cJSON_AddItemToArray(all, cJSON_CreateString(S(jstr(r, "body"))));
+        cJSON_ArrayForEach(a, cJSON_GetObjectItemCaseSensitive(r, "assets")) {
+            char* one = rei_format("%s %.0f", S(jstr(a, "name")), jnum(a, "size"));
+            cJSON_AddItemToArray(all, cJSON_CreateString(one));
+            free(one);
+        }
+    }
+    cd_hash(wrap, sig);
+    cJSON_Delete(wrap);
+    if (strcmp(sig, c->main_sig)) {
+        c->newest[CD_MAIN].dirty = 1;
+        snprintf(c->main_sig, sizeof c->main_sig, "%s", sig);
+    }
 }
 
 /* a card's message from before its move deleted: 1 when it is gone */
@@ -1130,6 +1290,29 @@ static int unstale(Cards* c, CdCard* card, u64 channel) {
     }
     card->stale = 0;
     return 1;
+}
+/* main's card's activity: the nightly's card's message, so the nightly's card posted again moves main's under it */
+static void main_activity(const Cards* c, char out[17]) {
+    char id[24];
+    snprintf(id, sizeof id, "%llu", (unsigned long long)c->newest[CD_NIGHTLY].message);
+    fnv(id, out);
+}
+/* a card of the nightly channel with nothing to show (no nightly published, main with no build): its message deleted */
+static void unshown(Cards* c, CdCard* card, u64 channel) {
+    if (card->message) {
+        int said = c->dc.remove(c->dc.ctx, channel, card->message);
+        if (said && said != 404) {
+            rei_log("%s: nothing to show, its message %llu not deleted: Discord answered %d: tried again next round",
+                    card->key, (unsigned long long)card->message, said);
+            return;
+        }
+        rei_log("%s: nothing to show (%s): its card deleted", card->key,
+                card == &c->newest[CD_NIGHTLY] ? "no nightly is published with its packages"
+                                               : "main has no prerelease, and GitHub lists no build of a push to it");
+    }
+    card->message = 0;
+    card->drawn[0] = card->moved[0] = 0;
+    card->dirty = 0;
 }
 /* each card to draw, posted, edited, or left as it is */
 static void draw(Cards* c, CdCard* card, double now) {
@@ -1148,8 +1331,22 @@ static void draw(Cards* c, CdCard* card, double now) {
         if (e) snprintf(card->builds, sizeof card->builds, "%s", c->builds);
     } else if (prefix(card->key, "issue-"))
         e = cd_issue(c, atoi(card->key + 6), &open, &closed_at);
-    else
-        e = cd_nightly(c, card->key + 8);
+    else if (card == &c->newest[CD_NIGHTLY]) {
+        e = cd_nightly(c);
+        /* only a nightly newer than any it showed moves it to the end: an older one (the newest deleted, or a listing
+           that lacks it) is edited where it is */
+        if (strcmp(c->shown, card->shown) > 0)
+            fnv(c->shown, c->activity);
+        else
+            snprintf(c->activity, sizeof c->activity, "%s", card->moved);
+    } else {
+        e = cd_main(c);
+        main_activity(c, c->activity);
+    }
+    if (!e && !c->failed && (card == &c->newest[CD_NIGHTLY] || card == &c->newest[CD_MAIN])) {
+        unshown(c, card, channel);
+        return;
+    }
     if (!e) {
         rei_log("%s: not drawn, GitHub did not give all it shows: tried again next round", card->key);
         return;
@@ -1202,58 +1399,52 @@ static void draw(Cards* c, CdCard* card, double now) {
         snprintf(card->moved, sizeof card->moved, "%s", c->activity);
     }
     snprintf(card->drawn, sizeof card->drawn, "%s", hash);
+    if (card == &c->newest[CD_NIGHTLY] && strcmp(c->shown, card->shown) > 0)
+        snprintf(card->shown, sizeof card->shown, "%s", c->shown);
     card->dirty = 0;
     cJSON_Delete(e);
 }
-static int newer_message(const void* a, const void* b) {
-    u64 x = *(const u64*)a, y = *(const u64*)b;
-    return x < y ? 1 : x > y ? -1 : 0;
-}
-/* the oldest message of the CD_NIGHTLIES newest nightlies' cards, 0 while there are no more: by Discord's ids, which
-   grow with time, as the cards' order says nothing (a card forgotten takes the place of the last one) */
-static u64 nightly_least(const Cards* c) {
-    u64 *ids = malloc(((size_t)c->ncards + 1) * sizeof *ids), least = 0;
-    int n = 0, i;
-    if (!ids) abort();
-    for (i = 0; i < c->ncards; ++i)
-        if (prefix(c->cards[i].key, "nightly-")) ids[n++] = c->cards[i].message;
-    if (n > CD_NIGHTLIES) {
-        qsort(ids, (size_t)n, sizeof *ids, newer_message);
-        least = ids[CD_NIGHTLIES - 1];
-    }
-    free(ids);
-    return least;
-}
-/* a nightly of sha is published, as this round's releases say */
-static int published_nightly(Cards* c, const char* sha) {
-    char tail[16];
-    const cJSON* r;
-    snprintf(tail, sizeof tail, "-%.7s", sha);
-    cJSON_ArrayForEach(r, c->nightlies) if (prefix(S(jstr(r, "tag_name")), "nightly-") &&
-                                            suffix(S(jstr(r, "tag_name")), tail)) return 1;
-    return 0;
-}
-/* the cards of pull requests and issues closed over a day ago deleted; what is left of a week ago forgotten, the
-   nightlies' past the newest CD_NIGHTLIES, and a nightly's card whose nightly this round's releases lack deleted and
-   forgotten (a push's card from before: a push has none) */
-static void sweep(Cards* c, double now) {
-    u64 least;
-    int i;
-    for (i = c->ncards - 1; c->nightlies && i >= 0; --i) {
-        CdCard* card = &c->cards[i];
-        if (!prefix(card->key, "nightly-") || published_nightly(c, card->key + 8)) continue;
-        if (card->message) {
-            int said = c->dc.remove(c->dc.ctx, c->nightly, card->message);
-            if (said && said != 404) {
-                rei_log(
-                    "%s: no nightly of it, its message %llu not deleted: Discord answered %d: tried again next round",
-                    card->key, (unsigned long long)card->message, said);
-                continue;
-            }
+/* the messages of a state from before deleted; one Discord did not delete is tried again next round */
+static void drop_old(Cards* c) {
+    int i, left = 0, deleted = 0;
+    for (i = 0; i < c->ndrop; ++i) {
+        int said = c->dc.remove(c->dc.ctx, c->nightly, c->drop[i]);
+        if (!said || said == 404)
+            ++deleted;
+        else {
+            rei_log("message %llu, a card of a state from before, not deleted: Discord answered %d: tried again next "
+                    "round",
+                    (unsigned long long)c->drop[i], said);
+            c->drop[left++] = c->drop[i];
         }
-        rei_log("%s: no nightly of it is published: its card deleted", card->key);
-        c->cards[i] = c->cards[--c->ncards];
     }
+    if (deleted)
+        rei_log("channel %llu: %d message%s of the cards of a state from before deleted",
+                (unsigned long long)c->nightly, deleted, deleted == 1 ? "" : "s");
+    c->ndrop = left;
+}
+/* the nightly channel's two cards drawn, in its order, main's after the nightly's: the nightly's posted again moves
+   main's under it. Once both are up, the messages of a state from before deleted, and in each run once every other
+   message of ours and every webhook's there */
+static void latest(Cards* c, double now) {
+    CdCard *nightly = &c->newest[CD_NIGHTLY], *dev = &c->newest[CD_MAIN];
+    char activity[17];
+    int redraw;
+    if (!c->nightly) return;
+    if (!nightly->message) nightly->dirty = 1;
+    if (!dev->message) dev->dirty = 1;
+    redraw = nightly->dirty; /* main's card lists the changes since the nightly */
+    if (nightly->dirty) draw(c, nightly, now);
+    main_activity(c, activity);
+    if (redraw || dev->dirty || (dev->message && strcmp(activity, dev->moved))) draw(c, dev, now);
+    if (nightly->dirty || dev->dirty) return;
+    drop_old(c);
+    purge(c, c->nightly, &c->purged_nightly, 0);
+}
+/* the cards of pull requests and issues closed over a day ago deleted, and what is left of them a week ago forgotten;
+   a card's message from before its move deleted, where that failed */
+static void sweep(Cards* c, double now) {
+    int i;
     for (i = 0; i < c->ncards; ++i) {
         CdCard* card = &c->cards[i];
         if (card->stale && !card->dirty) unstale(c, card, channel_of(c, card->key)); /* a dirty one: by its draw */
@@ -1267,12 +1458,12 @@ static void sweep(Cards* c, double now) {
                         (unsigned long long)card->message, said);
         }
     }
-    least = nightly_least(c);
+    for (i = 0; i < CD_NEWEST; ++i)
+        if (c->newest[i].stale && !c->newest[i].dirty) unstale(c, &c->newest[i], c->nightly);
     for (i = c->ncards - 1; i >= 0; --i) {
         CdCard* card = &c->cards[i];
-        int forget = card->closed && !card->message && now - card->closed >= CD_DAY + 7 * 86400;
-        if (prefix(card->key, "nightly-") && !card->dirty && card->message < least) forget = 1;
-        if (forget) c->cards[i] = c->cards[--c->ncards];
+        if (card->closed && !card->message && now - card->closed >= CD_DAY + 7 * 86400)
+            c->cards[i] = c->cards[--c->ncards];
     }
 }
 
@@ -1280,146 +1471,44 @@ void cd_round(Cards* c) {
     double start = rei_now();
     int first = !*c->since && !c->nruns && !c->nreleases, i;
     cJSON_Delete(c->nightlies);
-    c->nightlies = NULL;
-    purge(c, c->prs, &c->purged_prs);
-    purge(c, c->issues, &c->purged_issues);
+    cJSON_Delete(c->repo_releases);
+    c->nightlies = c->repo_releases = NULL;
+    purge(c, c->prs, &c->purged_prs, CD_HISTORY);
+    purge(c, c->issues, &c->purged_issues, CD_HISTORY);
     mark_updated(c, start);
     mark_builds(c, first);
     mark_releases(c, first);
+    mark_main(c);
     for (i = 0; i < c->ncards; ++i)
         if (c->cards[i].dirty) draw(c, &c->cards[i], start);
+    latest(c, start);
     sweep(c, start);
 }
 
-/* ---- the cards left saying "Building" ---- */
-typedef struct {
-    u64 message;
-    char sha[41];
-    double posted;
-} Stuck;
-/* when a Discord message was posted, from its id */
-static double posted_at(u64 message) { return (double)((message >> 22) + 1420070400000ULL) / 1000; }
-/* the commit a nightly's card says it is building, the 40 hex digits of its link; "" for a card saying anything else */
-static void building(const char* description, char out[41]) {
-    const char* at = strstr(S(description), "/commit/");
-    out[0] = 0;
-    if (prefix(S(description), "Building main at ") && at && strspn(at + 8, "0123456789abcdef") >= 40)
-        snprintf(out, 41, "%.40s", at + 8);
+static cJSON* card_saved(const CdCard* k) {
+    cJSON* one = cJSON_CreateObject();
+    char id[24];
+    snprintf(id, sizeof id, "%llu", (unsigned long long)k->message);
+    cJSON_AddStringToObject(one, "key", k->key);
+    cJSON_AddStringToObject(one, "message", id);
+    cJSON_AddStringToObject(one, "drawn", k->drawn);
+    cJSON_AddStringToObject(one, "moved", k->moved);
+    cJSON_AddStringToObject(one, "builds", k->builds);
+    cJSON_AddStringToObject(one, "shown", k->shown);
+    snprintf(id, sizeof id, "%llu", (unsigned long long)k->stale);
+    cJSON_AddStringToObject(one, "stale", id);
+    cJSON_AddNumberToObject(one, "closed", k->closed);
+    cJSON_AddBoolToObject(one, "gone", k->gone);
+    cJSON_AddBoolToObject(one, "dirty", k->dirty);
+    return one;
 }
-int cd_fix(Cards* c, u64 self, int apply) {
-    Stuck* stuck = NULL;
-    int nstuck = 0, cap = 0, read = 0, i, deleted = 0, redrawn = 0, failed = 0, result;
-    u64 before = 0;
-    const char* would = apply ? "" : "would be ";
-    if (!c->nightly || !c->dc.messages) {
-        rei_log("fix-cards: no nightly channel (REIWIMSY_CARDS_NIGHTLY), nothing to look through");
-        return -1;
-    }
-    while (read < CD_HISTORY) { /* the channel's newest messages, ours that say "Building main at" a commit */
-        cJSON* list = c->dc.messages(c->dc.ctx, c->nightly, before, 100);
-        const cJSON* m;
-        int n = cJSON_GetArraySize(list);
-        if (!list) {
-            rei_log("fix-cards: the nightly channel's messages did not come (after %d read): nothing done", read);
-            free(stuck);
-            return -1;
-        }
-        cJSON_ArrayForEach(m, list) {
-            const cJSON* e = cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(m, "embeds"), 0);
-            u64 author = strtoull(S(jstr(cJSON_GetObjectItemCaseSensitive(m, "author"), "id")), NULL, 10);
-            char sha[41];
-            before = strtoull(S(jstr(m, "id")), NULL, 10);
-            ++read;
-            building(jstr(e, "description"), sha);
-            if (author == self && *sha && before) {
-                if (nstuck == cap) {
-                    Stuck* more;
-                    cap = cap ? 2 * cap : 64;
-                    more = realloc(stuck, (size_t)cap * sizeof *more);
-                    if (!more) abort();
-                    stuck = more;
-                }
-                stuck[nstuck].message = before;
-                snprintf(stuck[nstuck].sha, sizeof stuck->sha, "%s", sha);
-                stuck[nstuck].posted = posted_at(before);
-                ++nstuck;
-            }
-            if (read == CD_HISTORY) break;
-        }
-        cJSON_Delete(list);
-        if (n < 100) break;
-    }
-    cJSON_Delete(c->nightlies);
-    c->nightlies = NULL;
-    if (!nightlies(c)) {
-        rei_log("fix-cards: GitHub did not give the nightly releases: nothing done of %d cards saying Building",
-                nstuck);
-        free(stuck);
-        return -1;
-    }
-    for (i = 0; i < nstuck; ++i) {
-        const Stuck* k = &stuck[i];
-        char posted[32];
-        int said;
-        iso_of(k->posted, posted);
-        if (!published_nightly(c, k->sha)) {
-            said = apply ? c->dc.remove(c->dc.ctx, c->nightly, k->message) : 0;
-            if (said && said != 404) {
-                ++failed;
-                rei_log("fix-cards: nightly %.7s, message %llu of %s, not deleted: Discord answered %d", k->sha,
-                        (unsigned long long)k->message, posted, said);
-            } else {
-                ++deleted;
-                rei_log("fix-cards: nightly %.7s, message %llu of %s, %sdeleted: a push's card, of no nightly", k->sha,
-                        (unsigned long long)k->message, posted, would);
-            }
-        } else {
-            cJSON* e = cd_nightly(c, k->sha);
-            const char* text = jstr(e, "description");
-            if (!e) {
-                ++failed;
-                rei_log("fix-cards: nightly %.7s, message %llu of %s, not drawn: GitHub did not give all it shows",
-                        k->sha, (unsigned long long)k->message, posted);
-            } else if ((said = apply ? c->dc.edit(c->dc.ctx, c->nightly, k->message, e) : 0) && said != 404) {
-                ++failed;
-                rei_log("fix-cards: nightly %.7s, message %llu of %s, not edited: Discord answered %d", k->sha,
-                        (unsigned long long)k->message, posted, said);
-            } else {
-                ++redrawn;
-                rei_log("fix-cards: nightly %.7s, message %llu of %s, %sredrawn: %.*s", k->sha,
-                        (unsigned long long)k->message, posted, would, (int)strcspn(S(text), "\n"), S(text));
-            }
-            cJSON_Delete(e);
-        }
-    }
-    result = failed ? 1 : 0;
-    rei_log("fix-cards: %d messages read, %d of ours saying Building: %d %sdeleted, %d %sredrawn, %d failed", read,
-            nstuck, deleted, would, redrawn, would, failed);
-    free(stuck);
-    return result;
-}
-
 cJSON* cd_save(const Cards* c) {
     cJSON *saved = cJSON_CreateObject(), *cards = cJSON_AddArrayToObject(saved, "cards"),
-          *runs = cJSON_AddArrayToObject(saved, "runs"), *releases = cJSON_AddArrayToObject(saved, "releases");
+          *runs = cJSON_AddArrayToObject(saved, "runs"), *releases = cJSON_AddArrayToObject(saved, "releases"),
+          *drop = cJSON_AddArrayToObject(saved, "drop");
     int i;
-    for (i = 0; i < c->ncards; ++i) {
-        const CdCard* k = &c->cards[i];
-        cJSON* one = cJSON_CreateObject();
-        char id[24];
-        snprintf(id, sizeof id, "%llu", (unsigned long long)k->message);
-        cJSON_AddStringToObject(one, "key", k->key);
-        cJSON_AddStringToObject(one, "message", id);
-        cJSON_AddStringToObject(one, "drawn", k->drawn);
-        cJSON_AddStringToObject(one, "moved", k->moved);
-        cJSON_AddStringToObject(one, "builds", k->builds);
-        snprintf(id, sizeof id, "%llu", (unsigned long long)k->stale);
-        cJSON_AddStringToObject(one, "stale", id);
-        cJSON_AddNumberToObject(one, "closed", k->closed);
-        cJSON_AddBoolToObject(one, "gone", k->gone);
-        cJSON_AddBoolToObject(one, "dirty", k->dirty);
-        cJSON_AddItemToArray(cards, one);
-    }
+    for (i = 0; i < c->ncards; ++i) cJSON_AddItemToArray(cards, card_saved(&c->cards[i]));
+    for (i = 0; i < CD_NEWEST; ++i) cJSON_AddItemToArray(cards, card_saved(&c->newest[i]));
     for (i = 0; i < c->nruns; ++i) {
         cJSON* one = cJSON_CreateObject();
         char id[24];
@@ -1434,27 +1523,62 @@ cJSON* cd_save(const Cards* c) {
         cJSON_AddStringToObject(one, "sig", c->releases[i].sig);
         cJSON_AddItemToArray(releases, one);
     }
+    for (i = 0; i < c->ndrop; ++i) {
+        char id[24];
+        snprintf(id, sizeof id, "%llu", (unsigned long long)c->drop[i]);
+        cJSON_AddItemToArray(drop, cJSON_CreateString(id));
+    }
     cJSON_AddStringToObject(saved, "since", c->since);
+    cJSON_AddStringToObject(saved, "main_sig", c->main_sig);
     cJSON_AddBoolToObject(saved, "purged_prs", c->purged_prs);
     cJSON_AddBoolToObject(saved, "purged_issues", c->purged_issues);
     return saved;
 }
+/* message, of ours in the nightly channel, to delete */
+static void to_drop(Cards* c, u64 message) {
+    if (!message) return;
+    if (c->ndrop == c->capdrop) {
+        int cap = c->capdrop ? 2 * c->capdrop : 64;
+        u64* more = realloc(c->drop, (size_t)cap * sizeof *more);
+        if (!more) abort();
+        c->drop = more;
+        c->capdrop = cap;
+    }
+    c->drop[c->ndrop++] = message;
+}
 void cd_load(Cards* c, const cJSON* saved) {
     const cJSON* one;
+    int old = 0;
     cJSON_ArrayForEach(one, cJSON_GetObjectItemCaseSensitive(saved, "cards")) {
+        const char* key = jstr(one, "key");
         CdCard* k;
-        if (!jstr(one, "key")) continue;
-        k = card_of(c, jstr(one, "key"), 1);
+        if (!key) continue;
+        if (prefix(key, "nightly-")) { /* a card per nightly, from before the channel's two: its messages go */
+            ++old;
+            to_drop(c, strtoull(S(jstr(one, "message")), NULL, 10));
+            to_drop(c, strtoull(S(jstr(one, "stale")), NULL, 10));
+            continue;
+        }
+        k = !strcmp(key, "nightly") ? &c->newest[CD_NIGHTLY]
+            : !strcmp(key, "main")  ? &c->newest[CD_MAIN]
+                                    : card_of(c, key, 1);
         k->message = strtoull(S(jstr(one, "message")), NULL, 10);
         snprintf(k->drawn, sizeof k->drawn, "%s", S(jstr(one, "drawn")));
         snprintf(k->moved, sizeof k->moved, "%s", S(jstr(one, "moved")));
         snprintf(k->builds, sizeof k->builds, "%s", S(jstr(one, "builds")));
+        snprintf(k->shown, sizeof k->shown, "%s", S(jstr(one, "shown")));
         k->stale = strtoull(S(jstr(one, "stale")), NULL, 10);
         k->closed = jnum(one, "closed");
         k->gone = jbool(one, "gone");
         /* a card kept before its activity was: drawn again once, to learn it, so its next activity moves it */
-        k->dirty = jbool(one, "dirty") || (k->message && !*k->moved && !prefix(k->key, "nightly-"));
+        k->dirty = jbool(one, "dirty") || (k->message && !*k->moved);
     }
+    if (old)
+        rei_log("%d card%s of a state from before, one per nightly: the nightly channel keeps two now, the newest "
+                "nightly's and main's; their %d message%s deleted once both are up",
+                old, old == 1 ? "" : "s", c->ndrop, c->ndrop == 1 ? " is" : "s are");
+    cJSON_ArrayForEach(one, cJSON_GetObjectItemCaseSensitive(saved, "drop"))
+        to_drop(c, strtoull(S(cJSON_GetStringValue(one)), NULL, 10));
     cJSON_ArrayForEach(one, cJSON_GetObjectItemCaseSensitive(saved, "runs")) {
         if (c->nruns == CD_RUNS || !jstr(one, "id")) continue;
         c->runs[c->nruns].id = strtoll(jstr(one, "id"), NULL, 10);
@@ -1473,6 +1597,7 @@ void cd_load(Cards* c, const cJSON* saved) {
         snprintf(c->releases[c->nreleases++].sig, sizeof c->releases->sig, "%s", S(jstr(one, "sig")));
     }
     snprintf(c->since, sizeof c->since, "%s", S(jstr(saved, "since")));
+    snprintf(c->main_sig, sizeof c->main_sig, "%s", S(jstr(saved, "main_sig")));
     c->purged_prs = jbool(saved, "purged_prs");
     c->purged_issues = jbool(saved, "purged_issues");
 }

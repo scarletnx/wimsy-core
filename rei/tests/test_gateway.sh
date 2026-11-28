@@ -12,9 +12,9 @@
 # and tracer-unready: a heartbeat a second, the first connection's unanswered, each later one closed with no CLOSE
 # frame once the bot identifies: its session never ready again, the bot has to end with 1 on its own, saying so, three
 # heartbeat intervals on. stalled (ReiWimsy) the same, its GET gateway/bot held with no answer once the first
-# connection is left. fix-cards: reiwimsy --fix-cards on a nightly channel with two cards saying "Building"
-# (fake_discord.py's cards): the dry run changes nothing, --apply deletes the one of a push with no nightly and redraws
-# the one a nightly was published from, and a second --apply finds nothing to do. Tracer answers only in its channel 6
+# connection is left. nightly: reiwimsy's first round on a nightly channel as cards of one per nightly left it, its
+# state keeping one of them (fake_discord.py's nightly): it has to leave the newest nightly's card, then main's, and
+# someone's message, deleting the old cards, the one its state keeps among them, and a webhook's. Tracer answers only in its channel 6
 # there, and a mention in channel 7 goes unanswered; tracer-all is the same with TRACER_CHANNELS=all, which answers
 # that one too. both: reiwimsy with TRACER_TOKEN, two bots in one process (fake_discord.py's both): each answers with
 # its own token, Tracer "@Tracer delete #12" and ReiWimsy "see #12", and ReiWimsy leaves the first to Tracer; the
@@ -22,7 +22,7 @@
 #
 #   sh rei/tests/test_gateway.sh PROGRAM BINARY
 #
-# PROGRAM: reiwimsy, tracer, tracer-all, zombie, tracer-zombie, unready, tracer-unready, stalled, fix-cards or both.
+# PROGRAM: reiwimsy, tracer, tracer-all, zombie, tracer-zombie, unready, tracer-unready, stalled, nightly or both.
 #
 # Linux, no network: the bot runs in a mount and network namespace of its own, and in a user namespace too when not run
 # by root (a machine that keeps those from users runs the test as root), whose /etc/hosts sends Discord and GitHub to
@@ -38,11 +38,11 @@ tracer-zombie) drop_after=zombie bot=tracer ;;
 unready) drop_after=unready bot=reiwimsy ;;
 stalled) drop_after=stalled bot=reiwimsy ;;
 tracer-unready) drop_after=unready bot=tracer ;;
-fix-cards) drop_after=cards bot=reiwimsy ;;
+nightly) drop_after=nightly bot=reiwimsy ;;
 both) drop_after=both bot='\(reiwimsy\|tracer\)' ;;
 *)
 	echo "usage: sh test_gateway.sh PROGRAM BINARY, PROGRAM one of reiwimsy, tracer, tracer-all, zombie," \
-		"tracer-zombie, unready, tracer-unready, stalled, fix-cards, both (program \"$program\")" >&2
+		"tracer-zombie, unready, tracer-unready, stalled, nightly, both (program \"$program\")" >&2
 	exit 2
 	;;
 esac
@@ -76,8 +76,12 @@ if [ "$program" = reiwimsy ]; then
 		REIWIMSY_STATE="$tmp/state.json"
 elif [ "$program" = zombie ] || [ "$program" = unready ] || [ "$program" = stalled ]; then
 	set -- REIWIMSY_TOKEN=$token REIWIMSY_REPO=owner/repo REIWIMSY_STATE="$tmp/state.json"
-elif [ "$program" = fix-cards ]; then
-	set -- REIWIMSY_TOKEN=$token REIWIMSY_REPO=owner/repo GITHUB_TOKEN=fake REIWIMSY_CARDS_NIGHTLY=5
+elif [ "$program" = nightly ]; then
+	# a state from before the channel's two cards: one card per nightly, this one's message fake_discord.py's
+	printf '{"cards":{"cards":[{"key":"nightly-%s","message":"1500000000000000200","drawn":"x","dirty":false}]}}\n' \
+		cccccccccccccccccccccccccccccccccccccccc > "$tmp/state.json"
+	set -- REIWIMSY_TOKEN=$token REIWIMSY_REPO=owner/repo GITHUB_TOKEN=fake REIWIMSY_CARDS_NIGHTLY=5 \
+		REIWIMSY_STATE="$tmp/state.json"
 elif [ "$program" = both ]; then
 	set -- REIWIMSY_TOKEN=$token REIWIMSY_REPO=owner/repo REIWIMSY_STATE="$tmp/state.json" \
 		TRACER_TOKEN=$tracer_token TRACER_URL=http://127.0.0.1:8 TRACER_DB="$tmp/tracer.db" TRACER_SITE="$tmp/site" \
@@ -109,52 +113,11 @@ unshare $namespaces sh -c '
 		sleep 0.1
 	done
 	set +e
-	if [ "$drop_after" = cards ]; then
-		n=0
-		for apply in "" --apply --apply; do
-			n=$((n + 1))
-			echo "--- run $n" >> "$tmp/fake.log"
-			env -i PATH=/usr/bin:/bin "$@" timeout 60 "$binary" --fix-cards $apply 2> "$tmp/bot$n.log"
-			echo $? > "$tmp/status$n"
-		done
-	else
-		env -i PATH=/usr/bin:/bin "$@" timeout 60 "$binary" 2> "$tmp/bot.log"
-		echo $? > "$tmp/status"
-	fi
+	env -i PATH=/usr/bin:/bin "$@" timeout 60 "$binary" 2> "$tmp/bot.log"
+	echo $? > "$tmp/status"
 	kill $fake
 ' sh "$tmp" "$ca" "$here" "$drop_after" "$binary" "$@"
 
-if [ "$program" = fix-cards ]; then
-	# what each run changed on Discord, from the fake's steps between its markers
-	changes() { sed -n "/^--- run $1\$/,/^--- run/p" "$tmp/fake.log" | grep -c '^discord: \(DELETE\|PATCH\)' || true; }
-	totals() { grep 'fix-cards: [0-9]* messages read' "$tmp/bot$1.log"; }
-	failed=
-	for n in 1 2 3; do
-		[ "$(cat "$tmp/status$n")" = 0 ] || failed="run $n ended with $(cat "$tmp/status$n"), not 0"
-	done
-	if [ -n "$failed" ]; then
-		:
-	elif grep -q 'no answer here' "$tmp/fake.log"; then
-		failed="it asked GitHub for what the fake has no answer to"
-	elif [ "$(changes 1)" != 0 ] ||
-		! totals 1 | grep -q '2 of ours saying Building: 1 would be deleted, 1 would be redrawn, 0 failed'; then
-		failed="the dry run did not say one to delete and one to redraw, changing nothing"
-	elif ! grep -q "bbbbbbb, .*, would be deleted: a push's card, of no nightly" "$tmp/bot1.log" ||
-		! grep -q 'ccccccc, .*, would be redrawn: Built from main at' "$tmp/bot1.log"; then
-		failed="the dry run did not name the push's card to delete and the nightly's to redraw"
-	elif [ "$(changes 2)" != 2 ] || ! totals 2 | grep -q '1 deleted, 1 redrawn, 0 failed'; then
-		failed="--apply did not delete one card and redraw the other"
-	elif [ "$(changes 3)" != 0 ] || ! totals 3 | grep -q '0 of ours saying Building: 0 deleted, 0 redrawn, 0 failed'; then
-		failed="a second --apply found something to do"
-	fi
-	if [ -n "$failed" ]; then
-		echo "test_gateway.sh: fix-cards: $failed. The fake's steps, then each run's log:" >&2
-		cat "$tmp/fake.log" "$tmp/bot1.log" "$tmp/bot2.log" "$tmp/bot3.log" >&2
-		exit 1
-	fi
-	echo "fix-cards: the dry run changed nothing, --apply deleted 1 and redrew 1, again 0: $(totals 2)"
-	exit 0
-fi
 status=$(cat "$tmp/status")
 # the line Concord's failed GET gateway/bot ends with, Discord asked again: the fake closes the connection unanswered
 said="^$bot: the gateway stopped: Concord's GET gateway/bot failed, .*; asked again, Discord answers 0: GET "
@@ -202,6 +165,19 @@ elif ! grep -q 'gateway: closed with 1001' "$tmp/fake.log"; then
 	failed="the fake gateway never closed under it"
 elif ! grep -q "$said" "$tmp/bot.log"; then
 	failed="it never said its GET gateway/bot failed and what Discord answers it now"
+elif [ "$drop_after" = nightly ]; then
+	left="nightly channel, oldest first: someone: nice | FakeBot: Nightly (recommended) | FakeBot: Latest development"
+	left="$left build (main): newer, may be less stable"
+	if grep -q 'no answer here' "$tmp/fake.log"; then
+		failed="it asked GitHub for what the fake has no answer to"
+	elif ! grep -qxF "$left" "$tmp/fake.log"; then
+		failed="the nightly channel was not left holding someone's message, then the nightly's card, then main's"
+	elif ! grep -q '^reiwimsy: 1 card of a state from before, one per nightly: .*; their 1 message is deleted' "$tmp/bot.log" ||
+		! grep -q '^reiwimsy: channel 5: 1 message of the cards of a state from before deleted$' "$tmp/bot.log"; then
+		failed="it did not say it deletes the card its state kept, nor that it did"
+	elif ! grep -q '^reiwimsy: channel 5: 2 old cards deleted of the 5 newest messages, 0 not deleted$' "$tmp/bot.log"; then
+		failed="it did not delete the forgotten card and the webhook's, of the 5 messages then"
+	fi
 elif [ "$drop_after" = both ]; then
 	if ! grep -q '^reiwimsy: Tracer: beside ReiWimsy, with its own token; .* (user 200)' "$tmp/bot.log"; then
 		failed="it never said Tracer runs beside ReiWimsy as user 200"

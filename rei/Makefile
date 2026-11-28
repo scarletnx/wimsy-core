@@ -44,7 +44,7 @@ test-gateway: reiwimsy
 	sh tests/test_gateway.sh zombie ./reiwimsy
 	sh tests/test_gateway.sh unready ./reiwimsy
 	sh tests/test_gateway.sh stalled ./reiwimsy
-	sh tests/test_gateway.sh fix-cards ./reiwimsy
+	sh tests/test_gateway.sh nightly ./reiwimsy
 	sh tests/test_gateway.sh both ./reiwimsy
 
 tests/test_rei: $(LOGIC) tests/test_rei.c

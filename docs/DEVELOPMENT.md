@@ -58,7 +58,7 @@ is built for (`REI_NAME`), and the gateway's watch follows each Concord client o
   headers, `sh scripts/test-install.sh`, `python3 scripts/test-check-docs.py` and `python3 scripts/check-docs.py`.
 - **The bots against a fake Discord**: Concord at the commits `build.sh` pins, with its fixes, and its tests
   `CONCORD_TESTS` names; `reiwimsy` and `tracer` built with it; `rei/tests/test_gateway.sh` for ReiWimsy, its
-  `--fix-cards` and Tracer, as root.
+  nightly channel and Tracer, as root.
 
 What each covers: [Testing](./TESTING.md). The FreeBSD packages are built by hand on the jails' host
 ([Build](./BUILD.md#the-freebsd-packages)).

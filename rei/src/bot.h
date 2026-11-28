@@ -10,8 +10,6 @@
 
 /* the settings read, the program stopped through end (with why on stderr) on one the bot refuses */
 void rb_settings(void (*end)(void));
-/* --fix-cards (cards.h's cd_fix) with these settings, applied or only said: the program's exit status */
-int rb_fix_cards(int apply);
 /* the bot made: its clients, what it kept (REIWIMSY_STATE) and its Concord client, which the caller runs
    (discord_run); end on what fails */
 struct discord* rb_start(void);

@@ -147,9 +147,6 @@ static int card_remove(void* ctx, u64 channel, u64 message) { return dc_remove(c
 static int card_history(void* ctx, u64 channel, u64 before, u64* ids, int* webhook, int* mine, int max) {
     return dc_history(ctx, channel, before, ids, webhook, mine, max);
 }
-static cJSON* card_messages(void* ctx, u64 channel, u64 before, int max) {
-    return dc_messages(ctx, channel, before, max);
-}
 static int reply_edit(void* ctx, u64 channel, u64 message, const cJSON* embed) {
     (void)ctx;
     return dc_edit(&dc, channel, message, embed);
@@ -282,17 +279,8 @@ static void clients_made(void) {
         cdd.edit = card_edit;
         cdd.remove = card_remove;
         cdd.history = card_history;
-        cdd.messages = card_messages;
         cd_init(&cards, &cards_gh, cdd, env.prs, env.issues, env.nightlies);
     }
-}
-
-int rb_fix_cards(int apply) {
-    u64 self;
-    clients_made(); /* drawn as the rounds draw, with the icons, and none of the rest: no state, no gateway */
-    self = dc_self(&dc);
-    if (!self) stop("--fix-cards: Discord did not give the bot's own user id (GET users/@me)%s", "");
-    return cd_fix(&cards, self, apply) ? 1 : 0;
 }
 
 void rb_leave_to(u64 user) { leave_to = user; }
