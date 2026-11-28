@@ -522,13 +522,17 @@ typedef struct {
     u64 channel, message;
     char* description; /* the embed, as JSON */
     int removed;
-    u64 author; /* 0: the bot */
+    u64 author;  /* 0: the bot, or a webhook */
+    int webhook; /* a webhook's */
 } Sent;
-static Sent sent[256];
-static int nsent, cd_edits, cd_removes, edit_gone, remove_fails;
+static Sent sent[1024];
+static int nsent, cd_edits, cd_removes, edit_gone, remove_fails, post_fails;
 static u64 next_id = 1000;
 static u64 c_post(void* ctx, u64 channel, const cJSON* embed) {
     (void)ctx;
+    if (post_fails) return 0;
+    sent[nsent].removed = sent[nsent].webhook = 0;
+    sent[nsent].author = 0;
     sent[nsent].channel = channel;
     sent[nsent].message = ++next_id;
     sent[nsent].description = cJSON_PrintUnformatted(embed);
@@ -559,45 +563,38 @@ static int c_remove(void* ctx, u64 channel, u64 message) {
     if (s) s->removed = 1;
     return 0;
 }
-/* the channel's messages as Discord gives them, from those sent there and not removed, the newest first; the bot's
-   own user id FIX_SELF */
-#define FIX_SELF 4242
-static cJSON* c_messages(void* ctx, u64 channel, u64 before, int max) {
-    cJSON* list = cJSON_CreateArray();
+/* a channel's messages as Discord lists them: channel 1's an old webhook card and someone talking; any other's those
+   sent there and not removed, the newest first, older than before. history_calls counts channel 1's */
+static int history_calls;
+static int c_history(void* ctx, u64 channel, u64 before, u64* ids, int* webhook, int* mine, int max) {
+    int n = 0;
     u64 last = before ? before : (u64)-1;
     (void)ctx;
-    while (cJSON_GetArraySize(list) < max) {
+    if (channel == 1) {
+        ++history_calls;
+        if (before) return 0;
+        ids[0] = 51; /* an old webhook card */
+        webhook[0] = 1;
+        mine[0] = 0;
+        ids[1] = 52; /* someone talking */
+        webhook[1] = 0;
+        mine[1] = 0;
+        return 2;
+    }
+    while (n < max) {
         int i, best = -1;
         for (i = 0; i < nsent; ++i)
             if (sent[i].channel == channel && !sent[i].removed && sent[i].message < last &&
                 (best < 0 || sent[i].message > sent[best].message))
                 best = i;
         if (best < 0) break;
-        {
-            char* json = rei_format("{\"id\":\"%llu\",\"author\":{\"id\":\"%llu\"},\"embeds\":[%s]}",
-                                    (unsigned long long)sent[best].message,
-                                    (unsigned long long)(sent[best].author ? sent[best].author : FIX_SELF),
-                                    sent[best].description);
-            cJSON_AddItemToArray(list, cJSON_Parse(json));
-            free(json);
-        }
+        ids[n] = sent[best].message;
+        webhook[n] = sent[best].webhook;
+        mine[n] = !sent[best].author && !sent[best].webhook;
         last = sent[best].message;
+        ++n;
     }
-    return list;
-}
-static int history_calls;
-static int c_history(void* ctx, u64 channel, u64 before, u64* ids, int* webhook, int* mine, int max) {
-    (void)ctx;
-    (void)max;
-    ++history_calls;
-    if (channel != 1 || before) return 0;
-    ids[0] = 51; /* an old webhook card */
-    webhook[0] = 1;
-    mine[0] = 0;
-    ids[1] = 52; /* someone talking */
-    webhook[1] = 0;
-    mine[1] = 0;
-    return 2;
+    return n;
 }
 static const char* issue_label = "kind: bug";
 static void cards_fixtures(const char* issue_state, const char* closed_at) {
@@ -620,8 +617,9 @@ static void cards_fixtures(const char* issue_state, const char* closed_at) {
     free(issue);
     free(listing);
     gh("repos/o/nightly/releases?per_page=100&page=1", "[]");
+    gh("repos/o/r/releases?per_page=100&page=1", "[]");
+    gh("repos/o/r/actions/workflows/build.yml/runs?branch=main&event=push&per_page=1", "{\"workflow_runs\":[]}");
     gh("repos/o/r/actions/workflows/build.yml/runs?per_page=20", "{\"workflow_runs\":[]}");
-    gh("repos/o/r/commits/main", "{\"sha\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}");
 }
 #define COMMENTS_DAN                                                                                                   \
     "[{\"user\":{\"login\":\"bia\",\"type\":\"User\"},\"body\":\"Same\",\"html_url\":\"https://c/1\","                 \
@@ -646,7 +644,7 @@ static void updated(Cards* c, const char* listed) {
 }
 static void cards_tests(void) {
     Cards c;
-    CdDiscord dc = {NULL, c_post, c_edit, c_remove, c_history, c_messages};
+    CdDiscord dc = {NULL, c_post, c_edit, c_remove, c_history};
     char* listing;
     forget();
     now_is = 1760954400; /* 2025-10-20T10:00:00Z */
@@ -793,7 +791,7 @@ static void cards_tests(void) {
         cJSON_Delete(saved);
     }
     /* cards kept before their activity was: an issue's drawn again once, where it is, to learn what moves it; a
-       nightly's of no nightly (a push's, from when each had one) deleted and forgotten */
+       nightly's, of a state from before the nightly channel's two cards, not kept, its message deleted */
     {
         int before = nsent, removes = cd_removes;
         char* old = rei_format("{\"cards\":[{\"key\":\"issue-12\",\"message\":\"%llu\",\"drawn\":\"x\",\"closed\":0,"
@@ -805,7 +803,7 @@ static void cards_tests(void) {
         Cards again;
         cd_init(&again, &g, dc, 0, 1, 3);
         cd_load(&again, saved);
-        CHECK(again.ncards == 2 && again.cards[0].dirty && !*again.cards[0].moved && !again.cards[1].dirty);
+        CHECK(again.ncards == 1 && again.cards[0].dirty && !*again.cards[0].moved);
         cards_fixtures("open", "null");
         updated(&again, "[]");
         CHECK(nsent == before && cd_removes == removes + 1 && again.cards[0].message == c.cards[0].message);
@@ -836,198 +834,371 @@ static void gh_shas(const char* path, const char* body) {
     free(p);
     free(b);
 }
-/* the nightly releases as the rounds read them: the one before, @c, with a package, always as it is; the day's, @e,
-   with assets, when they are given */
-static void releases_with(const char* assets) {
-    const char* before =
-        "{\"tag_name\":\"nightly-2026-11-25-ccccccc\",\"name\":\"Nightly 2026-11-25 (ccccccc)\","
-        "\"html_url\":\"https://n/c\",\"published_at\":\"2026-11-25T03:00:00Z\",\"body\":\"Built from "
-        "main at [`ccccccc`](https://github.com/o/r/commit/@c).\",\"assets\":[{\"name\":"
-        "\"ScarletNX-linux-x86_64.AppImage\",\"size\":1,\"browser_download_url\":\"https://n/c/lin\"}]}";
-    char* list = assets
-                     ? rei_format("[{\"tag_name\":\"nightly-2026-11-26-eeeeeee\",\"name\":\"Nightly 2026-11-26 "
-                                  "(eeeeeee)\",\"html_url\":\"https://n/e\",\"published_at\":\"2026-11-26T03:00:00Z\","
-                                  "\"body\":\"Built from main at [`eeeeeee`](https://github.com/o/r/commit/@e).\","
-                                  "\"assets\":%s},%s]",
-                                  assets, before)
-                     : rei_format("[%s]", before);
-    gh_shas("repos/o/nightly/releases?per_page=100&page=1", list);
+/* ---- the nightly channel ---- */
+#define NC 3 /* its id */
+/* a nightly's release, @x its commit, published on day at 03:00 with one package */
+static char* nightly_of(char x, const char* day) {
+    return rei_format(
+        "{\"tag_name\":\"nightly-%s-%c%c%c%c%c%c%c\",\"name\":\"Nightly %s (%c%c%c%c%c%c%c)\",\"html_url\":"
+        "\"https://n/%c\",\"published_at\":\"%sT03:00:00Z\",\"body\":\"Built from main at "
+        "[`%c%c%c%c%c%c%c`](https://github.com/o/r/commit/@%c).\",\"assets\":[{\"name\":"
+        "\"ScarletNX-linux-x86_64.AppImage\",\"size\":1,\"browser_download_url\":\"https://n/%c/lin\"}]}",
+        day, x, x, x, x, x, x, x, day, x, x, x, x, x, x, x, x, day, x, x, x, x, x, x, x, x, x);
+}
+/* the nightly repository's releases: list, the nightlies (x day) separated by spaces, listed oldest first as GitHub
+   may */
+static void nightlies_are(const char* list) {
+    Buf b = {0};
+    const char* p;
+    buf_add(&b, "[");
+    for (p = list; *p; p += *p == ' ') {
+        char day[11], *one;
+        snprintf(day, sizeof day, "%.10s", p + 2);
+        one = nightly_of(*p, day);
+        buf_printf(&b, "%s%s", b.len > 1 ? "," : "", one);
+        free(one);
+        p += 12;
+    }
+    buf_add(&b, "]");
+    gh_shas("repos/o/nightly/releases?per_page=100&page=1", b.text);
+    buf_free(&b);
+}
+/* the repository's releases: a version, and main's prerelease of @x when x is not 0 */
+static void main_is(char x) {
+    char* list =
+        x ? rei_format("[{\"tag_name\":\"v1.0.0\",\"name\":\"v1.0.0\",\"published_at\":\"2026-10-01T00:00:00Z\","
+                       "\"body\":\"The first.\",\"assets\":[]},{\"tag_name\":\"main-%c%c%c%c%c%c%c\",\"name\":"
+                       "\"main (%c%c%c%c%c%c%c)\",\"html_url\":\"https://g/main-%c\",\"prerelease\":true,"
+                       "\"published_at\":\"2026-11-26T10:00:00Z\",\"body\":\"The build of `main` at "
+                       "[`%c%c%c%c%c%c%c`](https://github.com/o/r/commit/@%c).\",\"assets\":[{\"name\":"
+                       "\"ScarletNX-linux-x86_64.AppImage\",\"size\":2,\"browser_download_url\":"
+                       "\"https://g/main-%c/lin\"}]}]",
+                       x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x)
+          : rei_strdup("[{\"tag_name\":\"v1.0.0\",\"name\":\"v1.0.0\",\"published_at\":"
+                       "\"2026-10-01T00:00:00Z\",\"body\":\"The first.\",\"assets\":[]}]");
+    gh_shas("repos/o/r/releases?per_page=100&page=1", list);
     free(list);
 }
-/* the nightly's channel: no card for a push to main, its build running or not, nor for a nightly with no package yet;
-   one for a nightly published with its packages, titled as its release, with its changes since the one before; a
-   push's card from before, of no nightly, deleted and forgotten */
-static void nightly_cards(void) {
-    Cards c;
-    CdDiscord dc = {NULL, c_post, c_edit, c_remove, c_history, c_messages};
-    int before, removes;
-    forget();
-    rg_init(&g, "o/r", NULL, fake, NULL);
-    cd_init(&c, &g, dc, 0, 0, 3);
-    cards_fixtures("open", "null");
-    releases_with(NULL);
-    now_is += 30;
-    cd_round(&c); /* the first round learns what is there */
-    CHECK(c.ncards == 0);
-    gh_shas("repos/o/r/actions/workflows/build.yml/runs?per_page=20",
-            "{\"workflow_runs\":[{\"id\":90,\"event\":\"push\",\"head_branch\":\"main\",\"head_sha\":\"@e\","
-            "\"status\":\"in_progress\",\"head_repository\":{\"full_name\":\"o/r\"}}]}");
-    gh("repos/o/r/actions/runs/90/jobs?per_page=100&page=1", "{\"jobs\":[]}");
-    before = nsent;
-    now_is += 30;
-    cd_round(&c);
-    CHECK(nsent == before && c.ncards == 0); /* a push to main and its build: no card */
-    releases_with("[]");
-    now_is += 30;
-    cd_round(&c);
-    CHECK(nsent == before && c.ncards == 0); /* the day's nightly with no package yet: none */
-    gh_shas("repos/o/r/commits/@e", "{\"commit\":{\"committer\":{\"date\":\"2026-11-26T00:10:00Z\"}}}");
-    gh_shas("repos/o/r/actions/workflows/build.yml/runs?head_sha=@e&per_page=100&page=1", "{\"workflow_runs\":[]}");
-    gh_shas("repos/o/r/compare/@c...@e",
-            "{\"status\":\"ahead\",\"commits\":[{\"sha\":\"@d\",\"parents\":[{\"sha\":"
-            "\"@c\"}],\"commit\":{\"message\":\"[vk] a fix\"}},{\"sha\":\"@e\",\"parents\":"
-            "[{\"sha\":\"@d\"}],\"commit\":{\"message\":\"[gui] a row\"}}]}");
-    releases_with("[{\"name\":\"ScarletNX-linux-x86_64.AppImage\",\"size\":52428800,\"browser_download_url\":"
-                  "\"https://n/e/lin\"}]");
-    now_is += 30;
-    cd_round(&c);
-    CHECK(nsent == before + 1 && c.ncards == 1);
-    HAS(sent[before].description, "\"title\":\"Nightly 2026-11-26 (eeeeeee)\"");
-    HAS(sent[before].description, "Built from main at [`eeeeeee`]");
-    HAS(sent[before].description, "a row");
-    HAS(sent[before].description, "Every nightly stays in o/nightly");
-    HAS(sent[before].description, "Windows ARM64");
-    /* a push's card from before, of no nightly: deleted at the next round, and forgotten */
-    {
-        char* old = shas("{\"cards\":[{\"key\":\"nightly-@d\",\"message\":\"777\",\"drawn\":\"x\",\"dirty\":false}],"
-                         "\"head\":\"@a\"}");
-        cJSON* saved = cJSON_Parse(old);
-        Cards again;
-        cd_init(&again, &g, dc, 0, 0, 3);
-        cd_load(&again, saved);
-        removes = cd_removes;
-        now_is += 30;
-        cd_round(&again);
-        CHECK(cd_removes == removes + 1 && again.ncards == 0);
-        cd_free(&again);
-        cJSON_Delete(saved);
-        free(old);
-    }
-    cd_free(&c);
-    rg_free(&g);
-    forget();
+/* what drawing @x asks GitHub: its commit, the comparison from @from with a change subject, its builds (run, when
+   not 0, a push's that succeeded, with no job) */
+static void commit_is(char x, char from, const char* subject, int run) {
+    char *path = rei_format("repos/o/r/commits/@%c", x), *cmp = rei_format("repos/o/r/compare/@%c...@%c", from, x),
+         *runs = rei_format("repos/o/r/actions/workflows/build.yml/runs?head_sha=@%c&per_page=100&page=1", x),
+         *changed = rei_format("{\"status\":\"ahead\",\"commits\":[{\"sha\":\"@%c\",\"parents\":[{\"sha\":\"@%c\"}],"
+                               "\"commit\":{\"message\":\"%s\"}}]}",
+                               x, from, subject),
+         *listed = run ? rei_format("{\"workflow_runs\":[{\"id\":%d,\"event\":\"push\",\"status\":\"completed\","
+                                    "\"conclusion\":\"success\",\"created_at\":\"2026-11-26T09:00:00Z\"}]}",
+                                    run)
+                       : rei_strdup("{\"workflow_runs\":[]}"),
+         *jobs = rei_format("repos/o/r/actions/runs/%d/jobs?per_page=100&page=1", run);
+    gh_shas(path, "{\"commit\":{\"committer\":{\"date\":\"2026-11-26T00:10:00Z\"}}}");
+    gh_shas(cmp, changed);
+    gh_shas(runs, listed);
+    if (run) gh(jobs, "{\"jobs\":[]}");
+    free(path);
+    free(cmp);
+    free(runs);
+    free(changed);
+    free(listed);
+    free(jobs);
 }
-
-/* a Discord message id for a message posted at when (seconds), n apart from others of that second */
+/* a message in the nightly channel, posted at when (seconds), n apart from others of that second, by the bot (author
+   0), a webhook or a person, its embed's JSON with each @x a commit; its id */
 static u64 posted_id(double when, int n) { return (((u64)(when * 1000) - 1420070400000ULL) << 22) + (u64)n; }
-/* a message in channel 5, by author (0: the bot), its embed's JSON with each @x a commit (shas); its id */
-static u64 card_posted(double when, int n, u64 author, const char* embed) {
-    sent[nsent].channel = 5;
+static u64 in_channel(double when, int n, u64 author, int webhook, const char* embed) {
+    sent[nsent].channel = NC;
     sent[nsent].message = posted_id(when, n);
     sent[nsent].description = shas(embed);
     sent[nsent].removed = 0;
     sent[nsent].author = author;
+    sent[nsent].webhook = webhook;
     return sent[nsent++].message;
 }
-static u64 building_card(double when, int n, char x) {
-    char* embed = rei_format("{\"title\":\"Nightly 2026-11-04 (%c%c%c%c%c%c%c)\",\"description\":\"Building main at "
-                             "[`%c%c%c%c%c%c%c`](https://github.com/o/r/commit/@%c), committed 2026-11-04.\"}",
-                             x, x, x, x, x, x, x, x, x, x, x, x, x, x, x);
-    u64 id = card_posted(when, n, 0, embed);
-    free(embed);
-    return id;
+/* the nightly channel's cards left, the bot's and the webhooks', in its order (oldest first), into each: their
+   count */
+static int cards_left(Sent** each, int most) {
+    int n = 0, i, j;
+    for (i = 0; i < nsent; ++i)
+        if (sent[i].channel == NC && !sent[i].removed && !sent[i].author) {
+            for (j = n; j > 0 && each[j - 1]->message > sent[i].message; --j)
+                if (j < most) each[j] = each[j - 1];
+            if (j < most) each[j] = &sent[i];
+            ++n;
+        }
+    return n;
 }
-/* the cards the rounds left saying "Building", from when each push had one: one of a commit a nightly was published
-   from drawn again, the rest deleted, another's and one saying something else left; a dry run first does nothing, and
-   a second run finds nothing to do */
-static void fix_cards(void) {
-    Cards c;
-    CdDiscord dc = {NULL, c_post, c_edit, c_remove, c_history, c_messages};
-    double now = 1793847600; /* 2026-11-05T03:00:00Z */
-    u64 b, e, theirs, built;
-    int edits_before, removes;
-    forget();
-    now_is = now;
-    rg_init(&g, "o/r", NULL, fake, NULL);
-    cd_init(&c, &g, dc, 0, 0, 5);
-    b = building_card(now - 5 * 3600 + 60, 0, 'b'); /* a push's, of no nightly */
-    e = building_card(now - 4 * 3600 + 62, 0, 'e'); /* a nightly was published from it */
-    theirs = card_posted(now - 4 * 3600 + 70, 0, 9999,
-                         "{\"description\":\"Building main at [`2222222`](https://github.com/o/r/commit/@2)\"}");
-    built = card_posted(now - 4 * 3600 + 80, 0, 0,
-                        "{\"description\":\"Built from main at [`3333333`](https://github.com/o/r/commit/@3)\"}");
-    /* GitHub not giving the nightlies: nothing done */
-    removes = cd_removes;
-    CHECK(cd_fix(&c, FIX_SELF, 1) == -1 && cd_removes == removes);
-    gh_shas("repos/o/nightly/releases?per_page=100&page=1",
-            "[{\"tag_name\":\"nightly-2026-11-04-eeeeeee\",\"name\":\"Nightly 2026-11-04 (eeeeeee)\",\"html_url\":"
-            "\"https://n/e\",\"published_at\":\"2026-11-04T23:20:00Z\",\"body\":\"[`eeeeeee`]"
-            "(https://github.com/o/r/commit/@e)\",\"assets\":[]}]");
-    gh_shas("repos/o/r/commits/@e", "{\"commit\":{\"committer\":{\"date\":\"2026-11-04T22:00:00Z\"}}}");
-    gh_shas("repos/o/r/actions/workflows/build.yml/runs?head_sha=@e&per_page=100&page=1",
-            "{\"workflow_runs\":[{\"id\":72,\"event\":\"schedule\",\"status\":\"completed\",\"conclusion\":\"success\","
-            "\"created_at\":\"2026-11-04T23:00:05Z\"}]}");
-    gh("repos/o/r/actions/runs/72/jobs?per_page=100&page=1", "{\"jobs\":[]}");
-    /* the dry run: said, nothing done */
-    edits_before = cd_edits;
-    removes = cd_removes;
-    CHECK(cd_fix(&c, FIX_SELF, 0) == 0);
-    CHECK(cd_edits == edits_before && cd_removes == removes && !sent_of(b)->removed);
-    HAS(sent_of(e)->description, "Building main at");
-    /* done: the push's card deleted, the nightly's drawn again, the rest as they were */
-    CHECK(cd_fix(&c, FIX_SELF, 1) == 0);
-    CHECK(cd_removes == removes + 1 && cd_edits == edits_before + 1);
-    CHECK(sent_of(b)->removed);
-    HAS(sent_of(e)->description, "Built from main at [`eeeeeee`]");
-    CHECK(!sent_of(theirs)->removed && !sent_of(built)->removed);
-    /* again: nothing to do */
-    CHECK(cd_fix(&c, FIX_SELF, 1) == 0);
-    CHECK(cd_removes == removes + 1 && cd_edits == edits_before + 1);
-    /* the channel not answering: nothing done, said */
-    {
-        CdDiscord silent = {NULL, c_post, c_edit, c_remove, c_history, NULL};
-        Cards none;
-        cd_init(&none, &g, silent, 0, 0, 5);
-        CHECK(cd_fix(&none, FIX_SELF, 1) == -1);
-        cd_free(&none);
-    }
-    cd_free(&c);
-    rg_free(&g);
-    forget();
+#define NIGHTLY_TITLE_IS "\"title\":\"Nightly (recommended)\""
+#define MAIN_TITLE_IS    "\"title\":\"Latest development build (main): newer, may be less stable\""
+/* the channel holds the nightly's card and main's, in that order, and nothing else of the bot's or a webhook's: 1 */
+static int two_cards(Sent** each) {
+    return cards_left(each, 4) == 2 && strstr(each[0]->description, NIGHTLY_TITLE_IS) &&
+           strstr(each[1]->description, MAIN_TITLE_IS);
 }
-
-/* more nightlies' cards than are kept, the newest first in the array as forgotten cards' places leave them: the oldest
-   messages go, the newest stay */
-static void nightly_sweep(void) {
+/* The nightly channel, from a state of one card per nightly: two cards left, the newest nightly's then main's newest
+   build's, every other message of the bot's and of a webhook deleted, a person's kept. Main's new build edits its card
+   where it is; a new nightly posts both again, in order, and deletes the old two; main's newest build failing with no
+   package says so on its card, pointing at the nightly; a post that fails deletes nothing; an older nightly than the
+   one shown (the newest missing from a listing) edits the card where it is; the nightly's card deleted by hand is
+   posted again with main's under it; an old message not deleted at a move is deleted by a later round */
+static void nightly_channel(void) {
     Cards c;
-    CdDiscord dc = {NULL, c_post, c_edit, c_remove, c_history, c_messages};
-    Buf state = {0};
-    cJSON* saved;
-    int i, newest = 0, oldest = 0, most = CD_NIGHTLIES + 1;
+    CdDiscord dc = {NULL, c_post, c_edit, c_remove, c_history};
+    Sent* each[4];
+    u64 hook, person, old_c, old_a, old_b, lost_a, nightly_card, main_card;
+    int removes, edits_at, posts;
+    char *old, *text;
+    cJSON *state, *saved;
     forget();
+    now_is = 1795000000;
     rg_init(&g, "o/r", NULL, fake, NULL);
-    cd_init(&c, &g, dc, 0, 0, 3);
-    buf_add(&state, "{\"cards\":[");
-    for (i = most; i >= 1; --i)
-        buf_printf(&state, "%s{\"key\":\"nightly-%040d\",\"message\":\"%d\",\"drawn\":\"x\",\"dirty\":false}",
-                   i == most ? "" : ",", i, 1000 + i);
-    buf_add(&state, "],\"head\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}");
-    saved = cJSON_Parse(state.text);
-    cd_load(&c, saved);
-    CHECK(c.ncards == most && c.cards[0].message == (u64)(1000 + most));
-    cards_fixtures("open", "null");
-    /* every card's nightly published (their commits all start 0000000) */
-    gh("repos/o/nightly/releases?per_page=100&page=1",
-       "[{\"tag_name\":\"nightly-2026-11-01-0000000\",\"body\":\"x\",\"assets\":[]}]");
+    cd_init(&c, &g, dc, 0, 0, NC);
+    gh("repos/o/r/actions/workflows/build.yml/runs?per_page=20", "{\"workflow_runs\":[]}");
+    nightlies_are("a 2026-11-24 b 2026-11-25 c 2026-11-26");
+    main_is('d');
+    commit_is('c', 'b', "[gui] a row", 0);
+    commit_is('d', 'c', "[vk] a fix", 95);
+    /* the channel as the cards of one per nightly left it: a webhook's old card, someone talking, the newest
+       nightly's card at the top, older ones below it, one of them twice (forgotten, posted again) */
+    hook = in_channel(now_is - 9000, 0, 0, 1, "{\"title\":\"Nightly from the workflow\"}");
+    person = in_channel(now_is - 8000, 0, 7777, 0, "{\"description\":\"nice\"}");
+    old_c = in_channel(now_is - 7000, 0, 0, 0, "{\"title\":\"Nightly 2026-11-26 (ccccccc)\"}");
+    old_a = in_channel(now_is - 6000, 0, 0, 0, "{\"title\":\"Nightly 2026-11-24 (aaaaaaa)\"}");
+    old_b = in_channel(now_is - 5000, 0, 0, 0, "{\"title\":\"Nightly 2026-11-25 (bbbbbbb)\"}");
+    lost_a = in_channel(now_is - 4000, 0, 0, 0, "{\"title\":\"Nightly 2026-11-24 (aaaaaaa)\"}");
+    old = rei_format("{\"cards\":[{\"key\":\"nightly-%s\",\"message\":\"%llu\",\"drawn\":\"x\",\"dirty\":false},"
+                     "{\"key\":\"nightly-%s\",\"message\":\"%llu\",\"drawn\":\"x\",\"dirty\":false},"
+                     "{\"key\":\"nightly-%s\",\"message\":\"%llu\",\"drawn\":\"x\",\"dirty\":false}]}",
+                     "cccccccccccccccccccccccccccccccccccccccc", (unsigned long long)old_c,
+                     "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", (unsigned long long)old_a,
+                     "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", (unsigned long long)old_b);
+    state = cJSON_Parse(old);
+    cd_load(&c, state);
+    cJSON_Delete(state);
+    free(old);
+    removes = cd_removes;
     now_is += 30;
     cd_round(&c);
-    for (i = 0; i < c.ncards; ++i) {
-        newest |= c.cards[i].message == (u64)(1000 + most);
-        oldest |= c.cards[i].message == 1001;
+    /* two cards, in order, every old one and the webhook's deleted, the person's kept */
+    CHECK(two_cards(each));
+    CHECK(sent_of(hook)->removed && sent_of(old_c)->removed && sent_of(old_a)->removed && sent_of(old_b)->removed &&
+          sent_of(lost_a)->removed && !sent_of(person)->removed && cd_removes == removes + 5);
+    if (cards_left(each, 4) != 2) {
+        cd_free(&c);
+        rg_free(&g);
+        forget();
+        return; /* the rest stands on these two */
     }
-    CHECK(c.ncards == CD_NIGHTLIES && newest && !oldest);
+    nightly_card = each[0]->message;
+    main_card = each[1]->message;
+    HAS(each[0]->description, "The one to download if you are not sure: [Nightly 2026-11-26](https://n/c)");
+    HAS(each[0]->description, "made once a day from main at [`ccccccc`]");
+    HAS(each[0]->description, "**Changes since the nightly before**");
+    HAS(each[0]->description, "a row");
+    HAS(each[0]->description, "https://n/c/lin");
+    HAS(each[1]->description, "The newest build of main, made from [`ddddddd`]");
+    HAS(each[1]->description, "the nightly above and the changes below. Newer, and it may have new bugs");
+    HAS(each[1]->description, "**Changes since the nightly** ([`ccccccc...ddddddd`]");
+    HAS(each[1]->description, "a fix");
+    HAS(each[1]->description, "https://g/main-d/lin");
+    HAS(each[1]->description, "\"color\":2060267"); /* 0x1F6FEB */
+    /* what lasts: both cards, by their keys */
+    saved = cd_save(&c);
+    text = cJSON_PrintUnformatted(saved);
+    {
+        char* want = rei_format("\"key\":\"nightly\",\"message\":\"%llu\"", (unsigned long long)nightly_card);
+        HAS(text, want);
+        free(want);
+        want = rei_format("\"key\":\"main\",\"message\":\"%llu\"", (unsigned long long)main_card);
+        HAS(text, want);
+        free(want);
+    }
+    CHECK(!strstr(text, "\"key\":\"nightly-"));
+    free(text);
     cJSON_Delete(saved);
-    buf_free(&state);
+    /* nothing new: nothing posted, edits_at or deleted, the channel not read again */
+    posts = nsent;
+    edits_at = cd_edits;
+    removes = cd_removes;
+    now_is += 30;
+    cd_round(&c);
+    CHECK(nsent == posts && cd_edits == edits_at && cd_removes == removes);
+    /* main's newer build: its card edits_at where it is */
+    main_is('e');
+    commit_is('e', 'c', "[cpu] faster", 96);
+    now_is += 30;
+    cd_round(&c);
+    CHECK(nsent == posts && cd_edits == edits_at + 1 && cd_removes == removes && two_cards(each));
+    CHECK(each[0]->message == nightly_card && each[1]->message == main_card);
+    HAS(each[1]->description, "made from [`eeeeeee`]");
+    HAS(each[1]->description, "faster");
+    /* a newer nightly: posted at the end, main's posted again under it, the old two deleted */
+    nightlies_are("a 2026-11-24 b 2026-11-25 c 2026-11-26 e 2026-11-27");
+    now_is += 30;
+    cd_round(&c);
+    CHECK(nsent == posts + 2 && cd_removes == removes + 2 && two_cards(each));
+    CHECK(each[0]->message > main_card && each[1]->message > each[0]->message);
+    CHECK(sent_of(nightly_card)->removed && sent_of(main_card)->removed);
+    HAS(each[0]->description, "[Nightly 2026-11-27](https://n/e)");
+    HAS(each[0]->description, "faster");
+    HAS(each[1]->description, "made from [`eeeeeee`](https://github.com/o/r/commit/");
+    HAS(each[1]->description, "the same commit as the nightly above.");
+    nightly_card = each[0]->message;
+    main_card = each[1]->message;
+    /* main's newest build failed with no package (its prerelease gone): said on its card, where it is */
+    main_is(0);
+    gh_shas("repos/o/r/actions/workflows/build.yml/runs?branch=main&event=push&per_page=1",
+            "{\"workflow_runs\":[{\"id\":97,\"event\":\"push\",\"head_branch\":\"main\",\"head_sha\":\"@f\","
+            "\"status\":\"completed\",\"conclusion\":\"failure\",\"html_url\":\"https://g/97\"}]}");
+    gh("repos/o/r/actions/runs/97/jobs?per_page=100&page=1",
+       "{\"jobs\":[{\"name\":\"Linux AppImage (x86_64)\",\"status\":\"completed\",\"conclusion\":\"failure\","
+       "\"html_url\":\"https://g/97/lin\"}]}");
+    posts = nsent;
+    edits_at = cd_edits;
+    removes = cd_removes;
+    now_is += 30;
+    cd_round(&c);
+    CHECK(nsent == posts && cd_edits == edits_at + 1 && cd_removes == removes && two_cards(each));
+    CHECK(each[0]->message == nightly_card && each[1]->message == main_card);
+    HAS(each[1]->description, "The newest build of main, from [`fffffff`]");
+    HAS(each[1]->description, "failed, so it has no downloads: use the nightly above. ([Its build](https://g/97))");
+    HAS(each[1]->description, "Failed ([log](https://g/97/lin))");
+    HAS(each[1]->description, "\"color\":13801762"); /* 0xD29922 */
+    /* the next push's build running, main still with no prerelease: said too */
+    gh_shas("repos/o/r/actions/workflows/build.yml/runs?branch=main&event=push&per_page=1",
+            "{\"workflow_runs\":[{\"id\":98,\"event\":\"push\",\"head_branch\":\"main\",\"head_sha\":\"@9\","
+            "\"status\":\"in_progress\",\"html_url\":\"https://g/98\"}]}");
+    gh("repos/o/r/actions/runs/98/jobs?per_page=100&page=1",
+       "{\"jobs\":[{\"name\":\"Linux AppImage (x86_64)\",\"status\":\"in_progress\",\"html_url\":"
+       "\"https://g/98/lin\"}]}");
+    gh_shas("repos/o/r/actions/workflows/build.yml/runs?per_page=20",
+            "{\"workflow_runs\":[{\"id\":98,\"event\":\"push\",\"head_branch\":\"main\",\"head_sha\":\"@9\","
+            "\"status\":\"in_progress\",\"head_repository\":{\"full_name\":\"o/r\"}}]}");
+    now_is += 30;
+    cd_round(&c);
+    CHECK(nsent == posts && cd_edits == edits_at + 2 && two_cards(each) && each[1]->message == main_card);
+    HAS(each[1]->description, "from [`9999999`](https://github.com/o/r/commit/");
+    HAS(each[1]->description,
+        "is being built: its downloads appear here as each one is ready. Until then, use the nightly");
+    HAS(each[1]->description, "Building ([log](https://g/98/lin))");
+    HAS(each[1]->description, "\"color\":2060267");
+    /* it ended well, its downloads not published yet; then stopped with no job failed: each said */
+    gh_shas("repos/o/r/actions/workflows/build.yml/runs?branch=main&event=push&per_page=1",
+            "{\"workflow_runs\":[{\"id\":98,\"event\":\"push\",\"head_branch\":\"main\",\"head_sha\":\"@9\","
+            "\"status\":\"completed\",\"conclusion\":\"success\",\"html_url\":\"https://g/98\"}]}");
+    gh("repos/o/r/actions/runs/98/jobs?per_page=100&page=1",
+       "{\"jobs\":[{\"name\":\"Linux AppImage (x86_64)\",\"status\":\"completed\",\"conclusion\":\"success\","
+       "\"html_url\":\"https://g/98/lin\"}]}");
+    gh_shas("repos/o/r/actions/workflows/build.yml/runs?per_page=20",
+            "{\"workflow_runs\":[{\"id\":98,\"event\":\"push\",\"head_branch\":\"main\",\"head_sha\":\"@9\","
+            "\"status\":\"queued\",\"head_repository\":{\"full_name\":\"o/r\"}}]}");
+    now_is += 30;
+    cd_round(&c);
+    HAS(each[1]->description,
+        "is built: its downloads appear here in a few minutes. Until then, use the nightly above.");
+    HAS(each[1]->description, "\"color\":2060267");
+    gh_shas("repos/o/r/actions/workflows/build.yml/runs?branch=main&event=push&per_page=1",
+            "{\"workflow_runs\":[{\"id\":98,\"event\":\"push\",\"head_branch\":\"main\",\"head_sha\":\"@9\","
+            "\"status\":\"completed\",\"conclusion\":\"cancelled\",\"html_url\":\"https://g/98\"}]}");
+    gh("repos/o/r/actions/runs/98/jobs?per_page=100&page=1",
+       "{\"jobs\":[{\"name\":\"Linux AppImage (x86_64)\",\"status\":\"completed\",\"conclusion\":\"cancelled\","
+       "\"html_url\":\"https://g/98/lin\"}]}");
+    gh_shas("repos/o/r/actions/workflows/build.yml/runs?per_page=20",
+            "{\"workflow_runs\":[{\"id\":98,\"event\":\"push\",\"head_branch\":\"main\",\"head_sha\":\"@9\","
+            "\"status\":\"in_progress\",\"head_repository\":{\"full_name\":\"o/r\"}}]}");
+    now_is += 30;
+    cd_round(&c);
+    HAS(each[1]->description, "was stopped before it made any download: use the nightly above.");
+    HAS(each[1]->description, "\"color\":13801762");
+    gh_shas("repos/o/r/actions/workflows/build.yml/runs?branch=main&event=push&per_page=1",
+            "{\"workflow_runs\":[{\"id\":97,\"event\":\"push\",\"head_branch\":\"main\",\"head_sha\":\"@f\","
+            "\"status\":\"completed\",\"conclusion\":\"failure\",\"html_url\":\"https://g/97\"}]}");
+    gh_shas("repos/o/r/actions/workflows/build.yml/runs?per_page=20",
+            "{\"workflow_runs\":[{\"id\":98,\"event\":\"push\",\"head_branch\":\"main\",\"head_sha\":\"@9\","
+            "\"status\":\"completed\",\"conclusion\":\"failure\",\"head_repository\":{\"full_name\":\"o/r\"}}]}");
+    now_is += 30;
+    cd_round(&c);
+    HAS(each[1]->description, "failed, so it has no downloads");
+    /* a newer nightly whose post fails: nothing deleted; posted at the next round */
+    nightlies_are("a 2026-11-24 b 2026-11-25 c 2026-11-26 e 2026-11-27 7 2026-11-28");
+    commit_is('7', 'e', "[audio] louder", 0);
+    post_fails = 1;
+    now_is += 30;
+    cd_round(&c);
+    post_fails = 0;
+    CHECK(nsent == posts && cd_removes == removes && two_cards(each));
+    CHECK(each[0]->message == nightly_card && each[1]->message == main_card);
+    now_is += 30;
+    cd_round(&c);
+    CHECK(nsent == posts + 2 && cd_removes == removes + 2 && two_cards(each));
+    HAS(each[0]->description, "[Nightly 2026-11-28](https://n/7)");
+    HAS(each[1]->description, "failed, so it has no downloads");
+    nightly_card = each[0]->message;
+    main_card = each[1]->message;
+    /* the newest missing from a listing: the older one shown where it is, and the newest again the same way */
+    posts = nsent;
+    removes = cd_removes;
+    nightlies_are("a 2026-11-24 b 2026-11-25 c 2026-11-26 e 2026-11-27");
+    now_is += 30;
+    cd_round(&c);
+    CHECK(nsent == posts && cd_removes == removes && two_cards(each) && each[0]->message == nightly_card);
+    HAS(each[0]->description, "[Nightly 2026-11-27](https://n/e)");
+    nightlies_are("a 2026-11-24 b 2026-11-25 c 2026-11-26 e 2026-11-27 7 2026-11-28");
+    now_is += 30;
+    cd_round(&c);
+    CHECK(nsent == posts && cd_removes == removes && two_cards(each) && each[0]->message == nightly_card);
+    HAS(each[0]->description, "[Nightly 2026-11-28](https://n/7)");
+    /* the nightly's card deleted by hand: posted again at its next change, and main's moved under it */
+    sent_of(nightly_card)->removed = 1;
+    gh_shas("repos/o/nightly/releases?per_page=100&page=1",
+            "[{\"tag_name\":\"nightly-2026-11-28-7777777\",\"name\":\"Nightly 2026-11-28 (7777777)\",\"html_url\":"
+            "\"https://n/7\",\"published_at\":\"2026-11-28T03:00:00Z\",\"body\":\"Built from main at "
+            "[`7777777`](https://github.com/o/r/commit/@7). A note.\",\"assets\":[{\"name\":"
+            "\"ScarletNX-linux-x86_64.AppImage\",\"size\":1,\"browser_download_url\":\"https://n/7/lin\"}]}]");
+    now_is += 30;
+    cd_round(&c);
+    CHECK(nsent == posts + 2 && two_cards(each) && sent_of(main_card)->removed);
+    CHECK(each[0]->message > main_card && each[1]->message > each[0]->message);
+    nightly_card = each[0]->message;
+    main_card = each[1]->message;
+    /* the old two not deleted at a move: left, and deleted by a later round */
+    nightlies_are("a 2026-11-24 b 2026-11-25 c 2026-11-26 e 2026-11-27 7 2026-11-28 8 2026-11-29");
+    commit_is('8', '7', "[ci] green", 0);
+    remove_fails = 500;
+    now_is += 30;
+    cd_round(&c);
+    remove_fails = 0;
+    CHECK(cards_left(each, 4) == 4 && !sent_of(nightly_card)->removed && !sent_of(main_card)->removed);
+    now_is += 30;
+    cd_round(&c);
+    CHECK(two_cards(each) && sent_of(nightly_card)->removed && sent_of(main_card)->removed);
+    HAS(each[0]->description, "[Nightly 2026-11-29](https://n/8)");
+    main_card = each[1]->message;
+    /* main's prerelease of a commit older than the nightly's (its newest push still building): the nightly to take */
+    main_is('d');
+    gh_shas("repos/o/r/compare/@8...@d", "{\"status\":\"behind\",\"commits\":[]}");
+    now_is += 30;
+    cd_round(&c);
+    CHECK(two_cards(each) && each[1]->message == main_card);
+    HAS(each[1]->description, "made from [`ddddddd`]");
+    HAS(each[1]->description, ". The nightly above is newer: take the nightly.");
+    CHECK(!strstr(each[1]->description, "Changes since the nightly"));
+    /* a start with no state, its deletes failing on Discord's side (no refusal): the channel looked through again at
+       the next round, the cards of before and a stray one deleted then */
+    {
+        Cards again;
+        u64 stray = in_channel(now_is - 100, 0, 0, 0, "{\"title\":\"Nightly 2026-11-24 (aaaaaaa)\"}");
+        cd_init(&again, &g, dc, 0, 0, NC);
+        remove_fails = 500;
+        now_is += 30;
+        cd_round(&again);
+        remove_fails = 0;
+        CHECK(cards_left(each, 4) == 5 && !sent_of(stray)->removed);
+        now_is += 30;
+        cd_round(&again);
+        CHECK(two_cards(each) && sent_of(stray)->removed && each[0]->message > main_card);
+        cd_free(&again);
+    }
     cd_free(&c);
     rg_free(&g);
     forget();
@@ -1055,7 +1226,7 @@ static void run_is(Cards* c, const char* status) {
 /* a pull request's card: its state, its commits, its builds */
 static void pr_card(void) {
     Cards c;
-    CdDiscord dc = {NULL, c_post, c_edit, c_remove, c_history, c_messages};
+    CdDiscord dc = {NULL, c_post, c_edit, c_remove, c_history};
     cJSON* e;
     int open;
     double closed;
@@ -1517,9 +1688,7 @@ int main(void) {
     github_tests();
     rest_tests();
     cards_tests();
-    nightly_cards();
-    nightly_sweep();
-    fix_cards();
+    nightly_channel();
     pr_card();
     state_tests();
     event_tests();

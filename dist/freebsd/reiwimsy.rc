@@ -9,10 +9,6 @@
 # runs Tracer beside it: Tracer's database in reiwimsy_tracer_db's folder, which only it reads, the site it draws in
 # reiwimsy_tracer_site, which anyone may read (a web server's jail mounts it read-only), its files from
 # reiwimsy_tracer_assets.
-#
-#   service reiwimsy fixcards         says what reiwimsy --fix-cards would do of the nightly channel's cards that still
-#                                     say "Building", as the reiwimsy user, with the env file; changes nothing
-#   service reiwimsy fixcards apply   does it (beside the running bot: the fix keeps no state)
 
 . /etc/rc.subr
 
@@ -31,9 +27,6 @@ pidfile=/var/run/${name}.pid
 command=/usr/sbin/daemon
 command_args="-f -r -R 30 -S -T ${name} -u ${name} -P ${pidfile} /usr/local/libexec/${name}"
 start_precmd="${name}_precmd"
-extra_commands="fixcards"
-fixcards_cmd="${name}_fixcards"
-fixcards_precmd="${name}_precmd"
 
 reiwimsy_precmd()
 {
@@ -49,19 +42,6 @@ reiwimsy_precmd()
 		export TRACER_DB="${reiwimsy_tracer_db}" TRACER_SITE="${reiwimsy_tracer_site}" \
 			TRACER_ASSETS="${reiwimsy_tracer_assets}"
 	fi
-}
-
-reiwimsy_fixcards()
-{
-	case "$*" in
-	'') _apply= ;;
-	apply) _apply=--apply ;;
-	*)
-		echo "fixcards takes apply or nothing (a dry run), not: $*"
-		return 1
-		;;
-	esac
-	su -m reiwimsy -c "/usr/local/libexec/${name} --fix-cards ${_apply}"
 }
 
 run_rc_command "$@"

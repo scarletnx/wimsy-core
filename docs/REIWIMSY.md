@@ -6,7 +6,7 @@
 
 * [Replies](#replies)
 * [Cards](#cards)
-  * [Cards left saying "Building"](#cards-left-saying-building)
+  * [The nightly channel](#the-nightly-channel)
 * [Tracer beside it](#tracer-beside-it)
 * [Settings](#settings)
 * [What it keeps](#what-it-keeps)
@@ -17,7 +17,8 @@
 [cJSON](https://github.com/DaveGamble/cJSON) 1.7.19 (`rei/third_party/cjson`), and Tracer's code beside it:
 ScarletNX's Discord bot. It answers a
 message that names an issue or a pull request with a link to each, and keeps a card on Discord for each open pull
-request, each open issue and each nightly published with its packages, edited as GitHub changes. Installing it:
+request and each open issue, and two in the nightly channel, the newest nightly's and main's newest build's, edited as
+GitHub changes. Installing it:
 [Install](./INSTALL.md#reiwimsy).
 
 ## Replies
@@ -35,33 +36,43 @@ and logs nothing said, and pings no one.
 
 ## Cards
 
-A message for each open pull request, each open issue and each nightly published with its packages, in channels of
-their own, drawn from what GitHub says now and edited as it changes: its state, its commits or changes, the latest
-comment a person wrote, each package of its build (a pull request's leaves out those only a nightly builds, unless its
-run made them). A push to main, its build, and a nightly with no package yet have none. Its
-activity (a push, a person's comment, a change of state, a pull request's builds published or failed) moves it to the
-end of its channel, posted again before the old one is deleted; a pull request or an issue closed keeps its card a
-day, as it closed, then the card is deleted.
+A message for each open pull request and each open issue, in channels of their own, drawn from what GitHub says now
+and edited as it changes: its state, its commits, the latest comment a person wrote, each package of its build (a pull
+request's leaves out those only a nightly builds, unless its run made them). Its activity (a push, a person's comment,
+a change of state, a pull request's builds published or failed) moves it to the end of its channel, posted again
+before the old one is deleted; a pull request or an issue closed keeps its card a day, as it closed, then the card is
+deleted.
 
 The bot asks GitHub's API every 30 s, with ETags (an unchanged answer costs nothing of GitHub's 5000 an hour): the
-issues and pull requests updated, the builds that run and their jobs, and the nightly releases: a nightly's card
-comes when its release has its first package. A card that could not be drawn whole waits for the next round, as it
-was. It follows the 30 newest nightlies' cards; an older one stays as it was last drawn. A nightly's card whose
-nightly the releases lack (one of a push, from when each push had one) is deleted. The first round on the pull requests' and the issues' channels deletes the cards a webhook
-posted there before, and messages of its own no card keeps; people's messages stay.
+issues and pull requests updated, the builds that run and their jobs, the nightly releases and main's prerelease. A
+card that could not be drawn whole waits for the next round, as it was. The first round on the pull requests' and the
+issues' channels deletes the cards a webhook posted there before, and messages of its own no card keeps; people's
+messages stay.
 
-### Cards left saying "Building"
+### The nightly channel
 
-A card that says "Building main at" a commit is one of a push, from when each push had one, that no round follows
-any more. `fixcards` finds them:
+Two cards, for anyone who wants a build, in this order:
 
-    service -j discordbots reiwimsy fixcards          # says what it would do of each, and the counts; changes nothing
-    service -j discordbots reiwimsy fixcards apply    # does it
+1. **Nightly (recommended)**: the newest nightly published with its packages, the one to download when unsure: its
+   day, the commit it was made from, its changes since the nightly before, a link per package.
+2. **Latest development build (main): newer, may be less stable**: main's prerelease (`main-<commit>`, ScarletNX's
+   `publish.yml` keeps one, of the newest push to main that built a package): the commit, its changes since the
+   nightly, each package's link or state (waiting, building, failed with its log). While main has none, the newest
+   push's build, said in plain words: being built, or failed, so it has no downloads and the nightly above is the
+   one to take, with a link to the build.
 
-It runs `reiwimsy --fix-cards [--apply]` as the bot's user with its env file, beside the running bot (it keeps no
-state): among the nightly channel's 1000 newest messages, the bot's own cards that say "Building main at" a commit.
-One of a commit a nightly was published from is drawn again and edited; the others are deleted, each said with why,
-and the last line counts each kind. A second run finds nothing to do.
+A newer nightly is posted at the end and main's card posted again under it, and the old two are deleted, each after
+its new one is up: the channel shows a nightly came out, and the order holds. Anything else edits a card where it is:
+main's newer builds (a push to main comes many times a day), a package joining, a job failing, and a nightly older
+than the newest it showed (the newest deleted, or missing from a listing). A card deleted by hand is posted again at
+its next change, main's under it. A post that fails changes nothing, tried again the next round; an old message not
+deleted is tried again each round.
+
+Each start's first round, once both cards are up, deletes every other message of its own and every webhook's in the
+channel, all of its history, and says how many, and how many Discord did not let it delete (a webhook's needs Manage
+Messages); a delete that failed on Discord's side has the next round look through the channel again. People's messages
+stay. A state from before the two cards kept a card per nightly: those are read once, said in the log, and their
+messages deleted.
 
 ## Tracer beside it
 
@@ -91,7 +102,7 @@ to fill in; an empty value stops the service):
 | `GITHUB_TOKEN` | none: 60 questions an hour | a fine-grained token with read-only access to public repositories: 5000 an hour; the cards need it, and so does the editing of the replies |
 | `REIWIMSY_CARDS_PRS` | none: no pull request cards | the channel id of the pull requests' cards |
 | `REIWIMSY_CARDS_ISSUES` | none: no issue cards | the channel id of the issues' cards |
-| `REIWIMSY_CARDS_NIGHTLY` | none: no nightly cards | the channel id of the nightlies' cards |
+| `REIWIMSY_CARDS_NIGHTLY` | none: no nightly cards | the channel id of the nightly channel's two cards |
 | `TRACER_TOKEN` | none: no Tracer | Tracer's Discord bot's token, another application's: with it the program runs Tracer beside ReiWimsy, and reads Tracer's other keys ([Tracer beside it](#tracer-beside-it)) |
 | `REIWIMSY_STATE` | none: nothing kept between runs | the file its replies' and cards' ids are kept in; the service sets it from `reiwimsy_state` |
 
@@ -104,7 +115,7 @@ without `GITHUB_TOKEN`. A channel's id: Developer Mode in Discord, right click, 
 its replies' and its cards' ids, with no text and no author. Written after each round and each reply, and read at the
 start; a file it cannot read is said in the log, and the bot starts with no cards and no replies kept: its first round
 then deletes its own messages no card keeps on the pull requests' and the issues' channels and posts their cards again,
-while a nightly's card posted before stays as it was.
+and posts the nightly channel's two again before deleting the rest of its messages there.
 
 ## The service
 
@@ -123,7 +134,6 @@ user `reiwimsy` and starts it again 30 s after it stops, its output in syslog (t
 | `reiwimsy_tracer_assets` | `/usr/local/share/reiwimsy/tracer` | the site's files the package holds, exported as `TRACER_ASSETS` |
 
     service -j discordbots reiwimsy start|stop|restart|status
-    service -j discordbots reiwimsy fixcards [apply]
 
 ## When it stops
 

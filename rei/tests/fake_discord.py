@@ -4,7 +4,7 @@
 test_gateway.sh, which runs a bot in a network namespace whose /etc/hosts sends discord.com, gateway.discord.gg,
 cdn.discordapp.com and api.github.com here.
 
-    python3 -I fake_discord.py CERT KEY DROP_AFTER|cards
+    python3 -I fake_discord.py CERT KEY DROP_AFTER
 
 The gateway sends HELLO, answers IDENTIFY with READY and each heartbeat with its ACK. Half a second after DROP_AFTER
 (github: the first GitHub request, which is held open, never answered; ready: READY; replies: Tracer's answers to two
@@ -32,10 +32,11 @@ a message to every bot that reads the channel: 80, "<@200> delete #12", which me
 answer is a line naming the bot whose token posted it. GitHub answers issue 12. Two seconds after Tracer has answered
 80 and ReiWimsy 81 (or 30 s), the drop.
 
-cards, for reiwimsy --fix-cards: the nightly channel 5 holds two of the bot's cards saying "Building" from five hours
-ago, a push's with no nightly (B) and one a nightly was published from (C); one of its cards saying something else,
-and someone else's. GitHub answers what drawing C asks; Discord's channel listing, PATCH and DELETE work on that
-channel. Each step is a line on stderr, each message a bot posts too.
+nightly: the nightly channel 5 as cards of one per nightly left it: a webhook's old card, the bot's card of nightly C
+(the one test_gateway.sh's state keeps), the same card again (one the state forgot), and someone talking. GitHub answers
+what drawing the nightly's card (C) and main's (its prerelease, D) asks; Discord's channel listing, POST, PATCH and
+DELETE work on that channel. Once it holds two messages of the bot's and someone's alone, a line says what it holds,
+oldest first, and DROP_AFTER is that. Each step is a line on stderr.
 """
 
 import asyncio
@@ -48,7 +49,7 @@ import sys
 import time
 
 CERT, KEY, DROP_AFTER = sys.argv[1], sys.argv[2], sys.argv[3]
-MODES = ("github", "ready", "replies", "cards", "zombie", "unready", "stalled", "both")
+MODES = ("github", "ready", "replies", "nightly", "zombie", "unready", "stalled", "both")
 if DROP_AFTER not in MODES:
     sys.exit(f"fake_discord.py: DROP_AFTER is {DROP_AFTER!r}, not one of {', '.join(MODES)}")
 ME = {"id": "100", "username": "FakeBot", "discriminator": "0", "bot": True}
@@ -127,71 +128,81 @@ def answer(writer, obj, status="200 OK", kind="application/json"):
     )
 
 
-# ---- the cards scenario ----
-NOW = time.time()
-B, C, A = "b" * 40, "c" * 40, "a" * 40
-
-
-def iso(when):
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(when))
-
-
-def posted_id(when, n):
-    return str(((int(when * 1000) - 1420070400000) << 22) + n)
-
-
-def building(sha):
-    return {
-        "title": f"Nightly 2026-11-04 ({sha[:7]})",
-        "description": f"Building main at [`{sha[:7]}`]"
-        f"(https://github.com/owner/repo/commit/{sha}), committed 2026-11-04.",
-    }
-
-
-# the channel, newest first
+# ---- the nightly channel ----
+C, D = "c" * 40, "d" * 40
+HOOK = {"id": "777", "username": "GitHub Actions", "bot": True}
+PERSON = {"id": "999", "username": "someone"}
+# the channel, newest first; test_gateway.sh's state keeps 1500000000000000200 as nightly C's card
 channel = [
-    {"id": posted_id(NOW - 5 * 3600 + 80, 0), "author": {"id": "999"}, "embeds": [building("2" * 40)]},
-    {"id": posted_id(NOW - 5 * 3600 + 70, 0), "author": ME, "embeds": [{"description": "Built from main at x."}]},
-    {"id": posted_id(NOW - 5 * 3600 + 62, 0), "author": ME, "embeds": [building(C)]},
-    {"id": posted_id(NOW - 5 * 3600 + 60, 0), "author": ME, "embeds": [building(B)]},
-]
-GITHUB = {
-    f"/repos/owner/repo/commits/{C}": {"commit": {"committer": {"date": "2026-11-04T22:00:00Z"}}},
-    f"/repos/owner/repo/actions/workflows/build.yml/runs?head_sha={C}&per_page=100&page=1": {
-        "workflow_runs": [
-            {
-                "id": 71,
-                "event": "push",
-                "status": "completed",
-                "conclusion": "success",
-                "created_at": iso(NOW - 5 * 3600),
-                "html_url": "https://r/71",
-            }
-        ]
+    {"id": "1500000000000000400", "author": PERSON, "content": "nice", "embeds": []},
+    {"id": "1500000000000000300", "author": ME, "embeds": [{"title": f"Nightly 2026-11-26 ({C[:7]})"}]},
+    {"id": "1500000000000000200", "author": ME, "embeds": [{"title": f"Nightly 2026-11-26 ({C[:7]})"}]},
+    {
+        "id": "1500000000000000100",
+        "author": HOOK,
+        "webhook_id": "778",
+        "embeds": [{"title": "Nightly, the workflow's"}],
     },
-    "/repos/owner/repo/actions/runs/71/jobs?per_page=100&page=1": {"jobs": []},
+]
+posts = 0
+COMMITTED = {"commit": {"committer": {"date": "2026-11-26T00:10:00Z"}}}
+PACKAGE = {"name": "ScarletNX-linux-x86_64.AppImage", "size": 1}
+GITHUB = {
+    "/repos/owner/repo/actions/workflows/build.yml/runs?per_page=20": {"workflow_runs": []},
     "/repos/owner/nightly/releases?per_page=100&page=1": [
         {
-            "tag_name": f"nightly-2026-11-04-{C[:7]}",
-            "name": f"Nightly 2026-11-04 ({C[:7]})",
+            "tag_name": f"nightly-2026-11-26-{C[:7]}",
+            "name": f"Nightly 2026-11-26 ({C[:7]})",
             "html_url": "https://n/c",
-            "published_at": "2026-11-04T23:20:00Z",
+            "published_at": "2026-11-26T03:00:00Z",
             "body": f"Built from main at [`{C[:7]}`](https://github.com/owner/repo/commit/{C}).",
-            "assets": [],
+            "assets": [dict(PACKAGE, browser_download_url="https://n/c/lin")],
         }
     ],
+    "/repos/owner/repo/releases?per_page=100&page=1": [
+        {
+            "tag_name": f"main-{D[:7]}",
+            "name": f"main ({D[:7]})",
+            "html_url": "https://g/main-d",
+            "prerelease": True,
+            "published_at": "2026-11-26T10:00:00Z",
+            "body": f"The build of `main` at [`{D[:7]}`](https://github.com/owner/repo/commit/{D}).",
+            "assets": [dict(PACKAGE, browser_download_url="https://g/main-d/lin")],
+        }
+    ],
+    f"/repos/owner/repo/commits/{C}": COMMITTED,
+    f"/repos/owner/repo/commits/{D}": COMMITTED,
+    f"/repos/owner/repo/compare/{C}...{D}": {
+        "status": "ahead",
+        "commits": [{"sha": D, "parents": [{"sha": C}], "commit": {"message": "[vk] a fix"}}],
+    },
+    f"/repos/owner/repo/actions/workflows/build.yml/runs?head_sha={C}&per_page=100&page=1": {"workflow_runs": []},
+    f"/repos/owner/repo/actions/workflows/build.yml/runs?head_sha={D}&per_page=100&page=1": {"workflow_runs": []},
 }
 
 
-def cards_discord(writer, method, target, body):
-    """the nightly channel's listing, its PATCH and DELETE; True when target was one of them"""
+def shown(message):
+    """a message of the channel as a line says it: its author, then its embed's title or its text"""
+    embeds = message.get("embeds") or [{}]
+    return f"{message['author']['username']}: {embeds[0].get('title') or message.get('content', '')}"
+
+
+def nightly_discord(writer, method, target, body):
+    """the nightly channel's listing, its POST, PATCH and DELETE; True when target was one of them"""
+    global posts
     path, _, query = target.partition("?")
     if path == "/api/v10/channels/5/messages" and method == "GET":
         args = dict(kv.split("=", 1) for kv in query.split("&") if "=" in kv)
         before = int(args.get("before", "0")) or 1 << 64
         answer(writer, [m for m in channel if int(m["id"]) < before][: int(args.get("limit", "50"))])
         return True
-    if path.startswith("/api/v10/channels/5/messages/"):
+    if path == "/api/v10/channels/5/messages" and method == "POST":
+        posts += 1
+        made = {"id": str(1600000000000000000 + posts), "author": ME, "embeds": json.loads(body)["embeds"]}
+        channel.insert(0, made)
+        say(f"discord: POST message {made['id'][-4:]}, {shown(made)}")
+        answer(writer, made)
+    elif path.startswith("/api/v10/channels/5/messages/"):
         mid = path.rsplit("/", 1)[1]
         held = [m for m in channel if m["id"] == mid]
         if not held:
@@ -204,9 +215,13 @@ def cards_discord(writer, method, target, body):
             answer(writer, held[0])
         else:
             return False
-        say(f"discord: {method} message {mid[-4:]}, of {held[0]['embeds'][0]['description'][:30] if held else 'none'}")
-        return True
-    return False
+        say(f"discord: {method} message {mid[-4:]}, {shown(held[0]) if held else 'none'}")
+    else:
+        return False
+    if not cue.is_set() and len(channel) == 3 and sum(m["author"] is ME for m in channel) == 2:
+        say("nightly channel, oldest first: " + " | ".join(shown(m) for m in reversed(channel)))
+        cue.set()
+    return True
 
 
 def frame(opcode, payload, size=None):
@@ -382,13 +397,13 @@ async def serve(reader, writer):
             host = headers.get("host", "").split(":")[0]
             if host == "gateway.discord.gg":
                 return await gateway(reader, writer, headers)
-            if DROP_AFTER == "cards" and host == "api.github.com":
+            if DROP_AFTER == "nightly" and host == "api.github.com":
                 if target in GITHUB:
                     answer(writer, GITHUB[target])
                 else:
                     say(f"github: {method} {target}: no answer here, 404")
                     answer(writer, {"message": "Not Found"}, "404 Not Found")
-            elif DROP_AFTER == "cards" and cards_discord(writer, method, target, body):
+            elif DROP_AFTER == "nightly" and nightly_discord(writer, method, target, body):
                 pass
             elif DROP_AFTER == "both" and host == "api.github.com":
                 if method == "GET" and target == "/repos/owner/repo/issues/12":

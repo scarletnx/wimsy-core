@@ -7,12 +7,8 @@
     REIWIMSY_TOKEN=... REIWIMSY_REPO=OWNER/NAME [REIWIMSY_NIGHTLY=OWNER/NAME] [REIWIMSY_CHANNELS=id,id]
     [GITHUB_TOKEN=...] [REIWIMSY_CARDS_PRS=id] [REIWIMSY_CARDS_ISSUES=id] [REIWIMSY_CARDS_NIGHTLY=id]
     [REIWIMSY_STATE=file] [TRACER_TOKEN=... TRACER_URL=https://... and Tracer's other keys] reiwimsy
-    [--fix-cards [--apply]]
 
---fix-cards, with the same settings, looks through the nightly channel for the cards the rounds made before a push had
-one card of its own, those still saying "Building" (cards.h, cd_fix), says what it would do of each, and exits;
---apply does it. No gateway, no state file and no Tracer: it may run beside the bot. "--report" is a Tracer's worker
-(the program runs itself again so, for each message with files) */
+"--report" is a Tracer's worker (the program runs itself again so, for each message with files) */
 #define _POSIX_C_SOURCE 200809L
 #include <curl/curl.h>
 #include <pthread.h>
@@ -54,14 +50,12 @@ static const char* tracer_key(void) {
 }
 
 int main(int argc, char** argv) {
-    int fix = argc > 1 && !strcmp(argv[1], "--fix-cards"), apply = fix && argc > 2 && !strcmp(argv[2], "--apply");
     const char* token = getenv("TRACER_TOKEN");
-    int tracer = token && *token && !fix;
+    int tracer = token && *token;
     struct discord *rei, *tr = NULL;
     if (argc == 2 && !strcmp(argv[1], "--report")) return tb_worker(); /* a worker: no settings, no token */
-    if (1 + fix + apply < argc)
-        stop("%s: not an option of reiwimsy, which takes none, or --fix-cards [--apply]", argv[1 + fix + apply]);
-    if (!tracer && !fix && tracer_key()) /* a Tracer's key with no Tracer would be a setting quietly not taken */
+    if (argc > 1) stop("%s: not an option of reiwimsy, which takes none", argv[1]);
+    if (!tracer && tracer_key()) /* a Tracer's key with no Tracer would be a setting quietly not taken */
         stop("%s: Tracer's keys are read only with TRACER_TOKEN, and it is not set", tracer_key());
     if (tracer) { /* before anything else: its workers, which read what strangers send, never read the tokens */
         char* why;
@@ -70,7 +64,6 @@ int main(int argc, char** argv) {
     rb_settings(end);
     if (tracer) tb_settings(end);
     curl_global_init(CURL_GLOBAL_DEFAULT);
-    if (fix) return rb_fix_cards(apply);
     rei = rb_start();
     if (!tracer)
         rei_log("Tracer: none, as TRACER_TOKEN is not set");
